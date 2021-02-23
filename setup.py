@@ -105,11 +105,11 @@ setup(
     },
     package_dir={"": "src"},
     packages=find_packages(where='src'),
-    # entry_points={
-    #     'console_scripts': [
-    #         'libertem-server=libertem.web.cli:main',
-    #     ]
-    # },
+    entry_points={
+        'console_scripts': [
+            'libertem-live-mib-sim=libertem_live.detectors.merlin.sim:main',
+        ]
+    },
     cmdclass={
         'sdist': BakedRevisionBuilderSdist,
         'build_py': BakedRevisionBuilderBuildPy,
