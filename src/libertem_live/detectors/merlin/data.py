@@ -1,6 +1,8 @@
 import socket
 import logging
 
+import numpy as np
+
 logger = logging.getLogger(__name__)
 
 
@@ -16,6 +18,7 @@ class TCPBackend:
         self._socket = None
         self._acquisition_header = None
         self._is_connected = False
+        self._maxbufsize = 16*1024*1024
 
     def connect(self):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -23,6 +26,7 @@ class TCPBackend:
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.settimeout(self._timeout)
         self._is_connected = True
+        self._buf = bytearray(self._maxbufsize)
 
     def is_connected(self):
         return self._is_connected
@@ -35,18 +39,21 @@ class TCPBackend:
         """
         if not self.is_connected():
             raise RuntimeError("can't read without connection")
-        buf = b''
-        bytes_read = 0
-        while bytes_read < length:
+        assert length < self._maxbufsize
+        total_bytes_read = 0
+        view = memoryview(self._buf)
+        while total_bytes_read < length:
             try:
-                data = self._socket.recv(length - bytes_read)
+                bytes_read = self._socket.recv_into(
+                    view[total_bytes_read:],
+                    length - total_bytes_read
+                )
             except socket.timeout:
                 continue
-            if len(data) == 0:
+            if bytes_read == 0:
                 raise EOFError("EOF")
-            bytes_read += len(data)
-            buf += data
-        return buf
+            total_bytes_read += bytes_read
+        return self._buf[:total_bytes_read]
 
     def read_mpx_length(self):
         # structure: MPX,<ten digits>,<header>

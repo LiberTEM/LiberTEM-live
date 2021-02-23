@@ -123,12 +123,10 @@ class LivePartition(Partition):
         self._corrections = corrections
 
     def need_decode(self, read_dtype, roi, corrections):
-        return False  # FIXME
+        return False  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape):
-        # FIXME
-        # return Shape((64, 256, 256), sig_dims=2)
-        return tileshape
+        return Shape((1024, 256, 256), sig_dims=2)
 
     def get_base_shape(self):
         return Shape((1, 256, 256), sig_dims=2)
@@ -136,6 +134,7 @@ class LivePartition(Partition):
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None):
         assert len(tiling_scheme) == 1
         assert np.dtype(dest_dtype) == np.dtype(self._parser._read_dtype)
+        # assert False
         if tiling_scheme.depth == 1:
             # FIXME:
             tile_shape = Shape(
@@ -156,21 +155,23 @@ class LivePartition(Partition):
         else:
             parser = self._parser
             to_read = self._end_idx - self._start_idx
+            tile_max_shape = (tiling_scheme.depth,) + tuple(tiling_scheme[0].shape)
+            buf = np.empty(tile_max_shape, dtype=dest_dtype)
             for i in range(0, self.shape[0], tiling_scheme.depth):
                 frames_in_tile = min(to_read, tiling_scheme.depth)
                 tile_shape = Shape(
                     (frames_in_tile,) + tuple(tiling_scheme[0].shape),
                     sig_dims=2
                 )
-                buf = np.empty(tile_shape, dtype=dest_dtype)
                 tile_slice = Slice(
                     origin=(self._start_idx + i,) + (0, 0),
                     shape=tile_shape,
                 )
+                buf_slice = buf[:frames_in_tile, ...]
                 # print("reading %d frames from parser" % frames_in_tile)
-                parser.get_many(num_frames=frames_in_tile, out=buf)
+                parser.get_many(num_frames=frames_in_tile, out=buf_slice)
                 yield DataTile(
-                    buf,
+                    buf_slice,
                     tile_slice=tile_slice,
                     scheme_idx=0,
                 )

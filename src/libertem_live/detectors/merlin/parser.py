@@ -122,13 +122,13 @@ class ReadThread(threading.Thread):
 
 
 class MIBParser:
-    def __init__(self, backend, read_dtype, workers=16):
+    def __init__(self, backend, read_dtype, workers=16, queue_size=16):
         self._backend = backend
         self._read_dtype = read_dtype
         self._cached_frame_header = None
         self._decode = None
         self._pool = BufferPool()
-        self._queue_raw = queue.Queue()
+        self._queue_raw = queue.Queue(queue_size)
         self._read_thread = None
         self._workers = workers
 

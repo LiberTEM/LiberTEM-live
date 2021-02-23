@@ -177,14 +177,15 @@ class CachedDataSocketSim(DataSocketSimulator):
         cache_size = num_images * (full_frame_size + mpx_size)
 
         if self._cache is None:
-            self._cache = np.zeros(cache_size, dtype=np.uint8)
+            self._cache = bytearray(cache_size)
+            cache_view = memoryview(self._cache)
             offset = 0
             for chunk in super()._get_single_scan(roi):
                 yield chunk
-                self._cache[offset:offset+len(chunk)] = np.frombuffer(chunk, dtype=np.uint8)
+                cache_view[offset:offset+len(chunk)] = chunk
                 offset += len(chunk)
         else:
-            chunk_size = 2*1024*1024  # 1MiB
+            chunk_size = 1*1024*1024  # 1MiB
             for offset in range(0, cache_size, chunk_size):
                 yield self._cache[offset:offset+chunk_size]
 
@@ -218,10 +219,13 @@ class DataSocketServer:
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--continuous', default=False, is_flag=True)
+@click.option('--cached', default=False, is_flag=True)
 @click.option('--port', type=int, default=6342)
-def main(path, continuous, port):
-    # sim = DataSocketSimulator(path=path, continuous=continuous)
-    sim = CachedDataSocketSim(path=path, continuous=continuous)
+def main(path, continuous, port, cached):
+    if cached:
+        sim = CachedDataSocketSim(path=path, continuous=continuous)
+    else:
+        sim = DataSocketSimulator(path=path, continuous=continuous)
     sim.open()
     server = DataSocketServer(sim=sim, port=port)
     server.run()
