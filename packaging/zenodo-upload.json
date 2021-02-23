@@ -1,0 +1,24 @@
+{
+    "template": {
+        "metadata": {
+            "title": "LiberTEM/LiberTEM-live: ",
+            "upload_type": "software",
+            "grants": [
+                {"id": "10.13039/501100000780::780487"},
+                {"id": "10.13039/501100000780::686053"},
+                {"id": "10.13039/501100000780::823717"}
+            ],
+            "keywords": ["TODO"],
+            "related_identifiers": [
+                {
+                    "identifier": "https://github.com/LiberTEM/LiberTEM-live/tree/continuous",
+                    "relation": "isSupplementTo"
+                }
+            ],
+            "access_right": "open",
+            "license": "GPL-3.0",
+            "notes": "TODO"
+        }
+
+    }
+}
