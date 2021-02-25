@@ -1,3 +1,4 @@
+import os
 import sys
 import mmap
 import time
@@ -180,6 +181,10 @@ class DataSocketSimulator:
             if self._max_runs != -1 and i >= self._max_runs:
                 raise RuntimeError("max_runs exceeded")
 
+    def handle_conn(self, conn):
+        for chunk in self.get_chunks():
+            conn.sendall(chunk)
+
 
 class CachedDataSocketSim(DataSocketSimulator):
     def __init__(self, *args, **kwargs):
@@ -210,10 +215,72 @@ class CachedDataSocketSim(DataSocketSimulator):
             except Exception:
                 self._cache = None  # discard in case of problem, only keep fully populated cache
         else:
-            chunk_size = 1024*1024
+            chunk_size = 16*1024*1024
             cache_view = memoryview(self._cache)
             for offset in range(0, cache_size, chunk_size):
                 yield cache_view[offset:offset+chunk_size]
+
+
+class MemfdSocketSim(DataSocketSimulator):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def open(self):
+        try:
+            # lazy import - make the sim work without pymemfd (example: Windows)
+            import memfd
+        except ImportError:
+            raise RuntimeError("Please install `pymemfd` to use the memfd cache")
+        super().open()
+        self._cache_fd = memfd.memfd_create("sim_cache", 0)
+        self._populate_cache()
+
+    def _populate_cache(self):
+        print("populating cache, please wait...")
+        roi = np.ones(self._ds.shape.nav, dtype=bool)
+        total_size = 0
+        for chunk in super()._get_single_scan(roi):
+            os.write(self._cache_fd, chunk)
+            total_size += len(chunk)
+        os.lseek(self._cache_fd, 0, 0)
+        self._size = total_size
+        print("cache populated, total size = %d MiB" % (total_size / 1024 / 1024))
+
+    def _send_full_file(self, conn):
+        os.lseek(self._cache_fd, 0, 0)
+        total_sent = 0
+        reps = 0
+        while total_sent < self._size:
+            total_sent += os.sendfile(
+                conn.fileno(),
+                self._cache_fd,
+                total_sent,  # offset ->
+                self._size - total_sent
+            )
+            reps += 1
+        print("_send_full_file took %d reps" % reps)
+
+    def handle_conn(self, conn):
+        # first, send acquisition header:
+        with open(self._path, 'rb') as f:
+            # FIXME: possibly change header in continuous mode?
+            hdr = f.read()
+            conn.sendall(get_mpx_header(len(hdr)))
+            conn.sendall(hdr)
+        if self._continuous:
+            i = 0
+            while True:
+                t0 = time.time()
+                self._send_full_file(conn)
+                t1 = time.time()
+                throughput = self._size / (t1 - t0) / 1024 / 1024
+                print("cycle %d took %.05fs (%.2fMiB/s)" % (i, t1 - t0, throughput))
+                i += 1
+                if self._max_runs != -1 and i >= self._max_runs:
+                    raise RuntimeError("max_runs exceeded")
+        else:
+            print("yielding from single scan")
+            self._send_full_file(conn)
 
 
 class DataSocketServer:
@@ -221,11 +288,6 @@ class DataSocketServer:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._port = port
         self._sim = sim
-
-    def handle_conn(self, conn):
-        chunks = self._sim.get_chunks()
-        for chunk in chunks:
-            conn.sendall(chunk)
 
     def run(self):
         self._sim.open()
@@ -238,7 +300,7 @@ class DataSocketServer:
                 connection, client_addr = self._socket.accept()
                 with connection:
                     print("accepted from %s" % (client_addr,))
-                    self.handle_conn(connection)
+                    self._sim.handle_conn(connection)
             except ConnectionResetError:
                 print("disconnected")
             except RuntimeError as e:
@@ -251,15 +313,18 @@ class DataSocketServer:
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--continuous', default=False, is_flag=True)
-@click.option('--cached', default=False, is_flag=True)
+@click.option('--cached', default='NONE', type=click.Choice(
+    ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
+)
 @click.option('--port', type=int, default=6342)
 @click.option('--max-runs', type=int, default=-1)
 def main(path, continuous, port, cached, max_runs):
-    if cached:
+    if cached == 'MEM':
         sim = CachedDataSocketSim(path=path, continuous=continuous, max_runs=max_runs)
+    elif cached == 'MEMFD':
+        sim = MemfdSocketSim(path=path, continuous=continuous, max_runs=max_runs)
     else:
         sim = DataSocketSimulator(path=path, continuous=continuous, max_runs=max_runs)
-    sim.open()
     server = DataSocketServer(sim=sim, port=port)
     server.run()
     sys.exit(0)
