@@ -3,6 +3,7 @@ import mmap
 import time
 import socket
 import itertools
+import functools
 
 import click
 import numpy as np
@@ -14,8 +15,13 @@ from libertem.api import Context
 from libertem.common import Shape
 
 
+@functools.lru_cache
+def get_mpx_header(length):
+    return b"MPX,%010d," % ((length + 1),)
+
+
 class DataSocketSimulator:
-    def __init__(self, path: str, continuous=False, rois=None):
+    def __init__(self, path: str, continuous=False, rois=None, max_runs=-1):
         """
         Parameters
         ----------
@@ -29,6 +35,9 @@ class DataSocketSimulator:
         rois: List[np.ndarray]
             If a list of ROIs is given, in continuous mode, cycle through
             these ROIs from the source data
+
+        max_runs: int
+            Maximum number of continuous runs
         """
         if rois is None:
             rois = []
@@ -39,16 +48,14 @@ class DataSocketSimulator:
         self._rois = rois
         self._ctx = Context(executor=InlineJobExecutor())
         self._ds = None
+        self._max_runs = max_runs
+        self._mmaps = {}
 
     def open(self):
         ds = self._ctx.load("mib", path=self._path)
         print("dataset shape: %s" % (ds.shape,))
         self._ds = ds
         self._warmup()
-
-    def make_chunk(self, buf):
-        # plus 1 because the length includes the comma
-        return b"MPX,%010d,%s" % (len(buf) + 1, buf)
 
     def get_chunks(self):
         """
@@ -58,7 +65,8 @@ class DataSocketSimulator:
         with open(self._path, 'rb') as f:
             # FIXME: possibly change header in continuous mode?
             hdr = f.read()
-            yield self.make_chunk(hdr)
+            yield get_mpx_header(len(hdr))
+            yield hdr
         if self._continuous:
             print("yielding from continuous")
             yield from self._get_continuous()
@@ -89,15 +97,20 @@ class DataSocketSimulator:
         if fh._file is None:
             fh.open()
         f = fh._file
-        raw_mmap = mmap.mmap(
-            fileno=f.fileno(),
-            length=0,
-            offset=0,
-            access=mmap.ACCESS_READ,
-        )
-        return raw_mmap[
+        fileno = f.fileno()
+        if fileno not in self._mmaps:
+            self._mmaps[fileno] = raw_mmap = mmap.mmap(
+                fileno=f.fileno(),
+                length=0,
+                offset=0,
+                access=mmap.ACCESS_READ,
+            )
+        else:
+            raw_mmap = self._mmaps[fileno]
+
+        return bytearray(raw_mmap[
             full_frame_size * frame_idx: full_frame_size * (frame_idx + 1)
-        ]
+        ])
 
     def _warmup(self):
         fileset = self._ds._get_fileset()
@@ -136,16 +149,20 @@ class DataSocketSimulator:
 
         full_frame_size = header_size + first_file.fields['image_size_bytes']
 
+        mpx_header = get_mpx_header(full_frame_size)
+
         for idx in range(slices.shape[0]):
-            origin, shape = slices[idx]
+            origin = slices[idx, 0]
+            # shape = slices[idx, 1]
+            # origin, shape = slices[idx]
             tile_ranges = ranges[idx][0]
             file_idx = tile_ranges[0]
             fh = fileset[file_idx]
             global_idx = origin[0]
             local_idx = global_idx - fh.start_idx
-            yield self.make_chunk(
-                self._read_frame_w_header(fh, local_idx, full_frame_size)
-            )
+            frame_w_header = self._read_frame_w_header(fh, local_idx, full_frame_size)
+            yield mpx_header
+            yield frame_w_header
 
     def _get_continuous(self):
         if self._rois:
@@ -153,11 +170,15 @@ class DataSocketSimulator:
         else:
             rois = [np.ones(self._ds.shape.nav, dtype=bool)]
 
+        i = 0
         for roi in itertools.cycle(rois):
             t0 = time.time()
             yield from self._get_single_scan(roi)
             t1 = time.time()
-            print("cycle took %.05fs" % (t1 - t0))
+            print("cycle %d took %.05fs" % (i, t1 - t0))
+            i += 1
+            if self._max_runs != -1 and i >= self._max_runs:
+                raise RuntimeError("max_runs exceeded")
 
 
 class CachedDataSocketSim(DataSocketSimulator):
@@ -177,17 +198,22 @@ class CachedDataSocketSim(DataSocketSimulator):
         cache_size = num_images * (full_frame_size + mpx_size)
 
         if self._cache is None:
-            self._cache = bytearray(cache_size)
-            cache_view = memoryview(self._cache)
-            offset = 0
-            for chunk in super()._get_single_scan(roi):
-                yield chunk
-                cache_view[offset:offset+len(chunk)] = chunk
-                offset += len(chunk)
+            try:
+                self._cache = np.empty(cache_size, dtype=np.uint8)
+                cache_view = memoryview(self._cache)
+                offset = 0
+                for chunk in super()._get_single_scan(roi):
+                    yield chunk
+                    length = len(chunk)
+                    cache_view[offset:offset+length] = chunk
+                    offset += length
+            except Exception:
+                self._cache = None  # discard in case of problem, only keep fully populated cache
         else:
-            chunk_size = 1*1024*1024  # 1MiB
+            chunk_size = 1024*1024
+            cache_view = memoryview(self._cache)
             for offset in range(0, cache_size, chunk_size):
-                yield self._cache[offset:offset+chunk_size]
+                yield cache_view[offset:offset+chunk_size]
 
 
 class DataSocketServer:
@@ -195,6 +221,11 @@ class DataSocketServer:
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._port = port
         self._sim = sim
+
+    def handle_conn(self, conn):
+        chunks = self._sim.get_chunks()
+        for chunk in chunks:
+            conn.sendall(chunk)
 
     def run(self):
         self._sim.open()
@@ -207,11 +238,12 @@ class DataSocketServer:
                 connection, client_addr = self._socket.accept()
                 with connection:
                     print("accepted from %s" % (client_addr,))
-                    chunks = self._sim.get_chunks()
-                    for chunk in chunks:
-                        connection.sendall(chunk)
+                    self.handle_conn(connection)
             except ConnectionResetError:
                 print("disconnected")
+            except RuntimeError as e:
+                print("exception %s -> stopping" % e)
+                break
             except Exception as e:
                 print("exception? %s" % e)
 
@@ -221,11 +253,12 @@ class DataSocketServer:
 @click.option('--continuous', default=False, is_flag=True)
 @click.option('--cached', default=False, is_flag=True)
 @click.option('--port', type=int, default=6342)
-def main(path, continuous, port, cached):
+@click.option('--max-runs', type=int, default=-1)
+def main(path, continuous, port, cached, max_runs):
     if cached:
-        sim = CachedDataSocketSim(path=path, continuous=continuous)
+        sim = CachedDataSocketSim(path=path, continuous=continuous, max_runs=max_runs)
     else:
-        sim = DataSocketSimulator(path=path, continuous=continuous)
+        sim = DataSocketSimulator(path=path, continuous=continuous, max_runs=max_runs)
     sim.open()
     server = DataSocketServer(sim=sim, port=port)
     server.run()
