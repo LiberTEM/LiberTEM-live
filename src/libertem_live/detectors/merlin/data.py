@@ -1,16 +1,95 @@
-import socket
 import logging
+import socket
+import threading
+import contextlib
+import queue
 
+import numba
 import numpy as np
+
+from libertem.io.dataset.base.decode import byteswap_2_decode
 
 logger = logging.getLogger(__name__)
 
 
-class EOFError(Exception):
-    pass
+def get_np_dtype(dtype, bit_depth):
+    dtype = dtype.lower()
+    num_bits = int(dtype[1:])
+    if dtype[0] == "u":
+        num_bytes = num_bits // 8
+        return np.dtype(">u%d" % num_bytes)
+    elif dtype[0] == "r":
+        if bit_depth == 1:
+            return np.dtype("uint64")
+        elif bit_depth == 6:
+            return np.dtype("uint8")
+        elif bit_depth in (12, 24):
+            # 24bit raw is two 12bit images after another:
+            return np.dtype("uint16")
+        else:
+            raise NotImplementedError("unknown bit depth: %s" % bit_depth)
 
 
-class TCPBackend:
+def _parse_frame_header(raw_data):
+    # FIXME: like in the MIB reader, but no 'filesize' and 'num_images'
+    # keys (they can be deduced from a .mib file, but don't make sense
+    # in the networked case)
+    header = raw_data.decode('ascii', errors='ignore')
+    parts = header.split(",")
+    header_size_bytes = int(parts[2])
+    parts = [p
+             for p in header[:header_size_bytes].split(",")
+             if '\x00' not in p]
+    dtype = parts[6].lower()
+    mib_kind = dtype[0]
+    image_size = (int(parts[5]), int(parts[4]))
+    # FIXME: There can either be threshold values for all chips, or maybe
+    # also none. For now, we just make use of the fact that the bit depth
+    # is supposed to be the last value.
+    bits_per_pixel_raw = int(parts[-1])
+    if mib_kind == "u":
+        bytes_per_pixel = int(parts[6][1:]) // 8
+        image_size_bytes = image_size[0] * image_size[1] * bytes_per_pixel
+    elif mib_kind == "r":
+        size_factor = {
+            1: 1/8,
+            6: 1,
+            12: 2,
+            24: 4,
+        }[bits_per_pixel_raw]
+        if bits_per_pixel_raw == 24:
+            image_size = (image_size[0], image_size[1] // 2)
+        image_size_bytes = int(image_size[0] * image_size[1] * size_factor)
+    else:
+        raise ValueError("unknown kind: %s" % mib_kind)
+
+    return {
+        'header_size_bytes': header_size_bytes,
+        'dtype': get_np_dtype(parts[6], bits_per_pixel_raw),
+        'mib_dtype': dtype,
+        'mib_kind': mib_kind,
+        'bits_per_pixel': bits_per_pixel_raw,
+        'image_size': image_size,
+        'image_size_bytes': image_size_bytes,
+        'sequence_first_image': int(parts[1]),
+    }
+
+
+@numba.njit(nogil=True, cache=True)
+def decode_multi_u2(input_bytes, out, header_size_bytes, num_frames):
+    """
+    Decode multiple >u2 frames
+    """
+    out = out.reshape((num_frames, -1))
+    frame_size_bytes = 256 * 256 * 2
+    for i in range(num_frames):
+        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+        end_offset = start_offset + frame_size_bytes
+        in_for_frame = input_bytes[start_offset:end_offset]
+        byteswap_2_decode(in_for_frame, out[i])
+
+
+class MerlinDataSocket:
     def __init__(self, host='127.0.0.1', port=6342, timeout=1.0):
         self._host = host
         self._port = port
@@ -18,7 +97,8 @@ class TCPBackend:
         self._socket = None
         self._acquisition_header = None
         self._is_connected = False
-        self._maxbufsize = 16*1024*1024
+        self._read_lock = threading.Lock()
+        self._frame_counter = 0
 
     def connect(self):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -26,12 +106,13 @@ class TCPBackend:
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.settimeout(self._timeout)
         self._is_connected = True
-        self._buf = bytearray(self._maxbufsize)
+        self._frame_counter = 0
+        self.read_headers()  # FIXME: incompatible with drain?
 
     def is_connected(self):
         return self._is_connected
 
-    def read(self, length):
+    def read_unbuffered(self, length):
         """
         read exactly length bytes from the socket
 
@@ -39,9 +120,10 @@ class TCPBackend:
         """
         if not self.is_connected():
             raise RuntimeError("can't read without connection")
-        assert length < self._maxbufsize
         total_bytes_read = 0
-        view = memoryview(self._buf)
+        buf = bytearray(16*1024*1024)
+        assert length < len(buf)
+        view = memoryview(buf)
         while total_bytes_read < length:
             try:
                 bytes_read = self._socket.recv_into(
@@ -53,11 +135,32 @@ class TCPBackend:
             if bytes_read == 0:
                 raise EOFError("EOF")
             total_bytes_read += bytes_read
-        return self._buf[:total_bytes_read]
+        return buf[:total_bytes_read]
+
+    def read_into(self, out):
+        """
+        read exactly len(out) bytes from the socket
+        """
+        if not self.is_connected():
+            raise RuntimeError("can't read without connection")
+        length = len(out)
+        total_bytes_read = 0
+        view = memoryview(out)
+        while total_bytes_read < length:
+            try:
+                bytes_read = self._socket.recv_into(
+                    view[total_bytes_read:],
+                    length - total_bytes_read
+                )
+            except socket.timeout:
+                continue
+            if bytes_read == 0:
+                raise EOFError("EOF")
+            total_bytes_read += bytes_read
 
     def read_mpx_length(self):
         # structure: MPX,<ten digits>,<header>
-        hdr = self.read(15)
+        hdr = self.read_unbuffered(15)
         # logger.debug("MPX prefix: %r", hdr)
         assert hdr.startswith(b'MPX,'), "Should start with MPX, first bytes are %r" % hdr[:16]
         parts = hdr.split(b',')
@@ -66,13 +169,13 @@ class TCPBackend:
         # length calculation, that's why we substract 1 here:
         return length - 1
 
-    def read_acquisition_header(self):
+    def _read_acquisition_header(self):
         # assumption: when we connect, the connection is idle
         # so the first thing we will get is the acquisition header.
         # we read it in an inefficient way, but the header is small,
         # so this should be ok:
         length = self.read_mpx_length()
-        header = self.read(length)
+        header = self.read_unbuffered(length)
         header = self._parse_acq_header(header)
         self._acquisition_header = header
         return header
@@ -80,19 +183,67 @@ class TCPBackend:
     def get_acquisition_header(self):
         return self._acquisition_header
 
-    def drain(self):
+    def read_headers(self):
         """
-        read data from the data socket until we hit the timeout; returns
-        the number of bytes drained
+        Read acquisition header, and peek first frame header
+
+        The acquisition header is consumed, the first frame header will
+        be kept in the socket queue, and can be read regularly afterwards.
         """
-        bytes_read = 0
-        # read from the socket until we hit the timeout:
+        self._acquisition_header = self._read_acquisition_header()
+        self._first_frame_header = self._peek_frame_header()
+        return self._acquisition_header, self._first_frame_header
+
+    def get_input_buffer(self, num_frames):
+        header_size = int(self._first_frame_header['header_size_bytes']) + 15
+        image_size = int(self._first_frame_header['image_size_bytes'])
+        read_size = num_frames*(header_size + image_size)
+        input_bytes = bytearray(read_size)
+        return input_bytes
+
+    def get_out_buffer(self, num_frames, dtype=np.float32):
+        return np.zeros((num_frames, 256, 256), dtype=dtype)
+
+    def read_multi_frames(self, out, input_buffer, num_frames=32, timeout=-1):
+        """
+        returns either `False` on timeout, or a tuple `(frame_idx_start, frame_idx_end)`
+        """
+        out = out.reshape((num_frames, -1))
+        header_size = int(self._first_frame_header['header_size_bytes']) + 15
+
+        lock_success = self._read_lock.acquire(timeout=timeout)
+        if not lock_success:
+            return False
+        try:
+            input_buffer = memoryview(input_buffer)
+            self.read_into(input_buffer)
+            self._frame_counter += num_frames
+            frame_counter = self._frame_counter
+        finally:
+            self._read_lock.release()
+        decode_multi_u2(input_buffer, out, header_size, num_frames)
+        return (frame_counter - num_frames, frame_counter)
+
+    def _peek_frame_header(self):
+        # first, peek only the MPX header part:
         while True:
             try:
-                data = self._socket.recv(4096)
-                bytes_read += len(data)
+                buf = self._socket.recv(15, socket.MSG_PEEK)
+                assert len(buf) == 15
+                break
             except socket.timeout:
-                return bytes_read
+                pass
+        assert len(buf) == 15
+        parts = buf.split(b',')
+        length = int(parts[1])
+
+        # now, peek enough to read the frame header:
+        buf = b''
+        peek_length = min(15 + length, 4096)
+        while len(buf) < peek_length:
+            # need to repeat, as the first peek can fail to give the full length message:
+            buf = self._socket.recv(peek_length, socket.MSG_PEEK)
+        return _parse_frame_header(buf[15:])
 
     def _parse_acq_header(self, header):
         result = {}
@@ -120,12 +271,160 @@ class TCPBackend:
     def __exit__(self, type, value, traceback):
         self.close()
 
+    def drain(self):
+        """
+        read data from the data socket until we hit the timeout; returns
+        the number of bytes drained
+        """
+        bytes_read = 0
+        # read from the socket until we hit the timeout:
+        while True:
+            try:
+                data = self._socket.recv(4096)
+                bytes_read += len(data)
+            except socket.timeout:
+                return bytes_read
 
-class FakeLocalBackend(TCPBackend):
-    def __init__(self, path):
-        self._path = path
-        self._fh = open(path, "rb")
-        super().__init__()
 
-    def read(self, length):
-        return self._fh.read(length)
+class ResultWrap:
+    def __init__(self, start, stop, buf):
+        self._consumed = threading.Event()
+        self.start = start
+        self.stop = stop
+        self.buf = buf[:stop - start]
+        assert buf.shape[0] == stop - start
+
+    def is_released(self, timeout):
+        # called from `ReaderThread` - after data is consumed,
+        # we are free to reuse our buffer
+        return self._consumed.wait(timeout)
+
+    def release(self):
+        self._consumed.set()
+
+
+class ReaderThread(threading.Thread):
+    def __init__(self, backend, out_queue, chunk_size, default_timeout=0.2, read_dtype=np.float32,
+                 *args, **kwargs):
+        super().__init__(name='ReaderThread', *args, **kwargs)
+        self._stop_event = threading.Event()
+        self._backend = backend
+        self._chunk_size = chunk_size
+        self._out_queue = out_queue
+        self._default_timeout = default_timeout
+        self._read_dtype = read_dtype
+
+    def stop(self):
+        self._stop_event.set()
+
+    def is_stopped(self):
+        return self._stop_event.is_set()
+
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.stop()
+
+    def run(self):
+        try:
+            out = self._backend.get_out_buffer(self._chunk_size, dtype=self._read_dtype)
+            input_buffer = self._backend.get_input_buffer(num_frames=self._chunk_size)
+            should_exit = False
+            while not should_exit:
+                if self.is_stopped():
+                    break
+                res = self._backend.read_multi_frames(
+                    out=out,
+                    num_frames=self._chunk_size,
+                    input_buffer=input_buffer,
+                    timeout=self._default_timeout,
+                )
+                if res is False:
+                    continue  # timeout, give main thread the chance to stop us
+                res_start, res_stop = res
+
+                wrapped = ResultWrap(res_start, res_stop, out)
+
+                # retry until there is space in the output queue, or the thread is stopped:
+                while True:
+                    try:
+                        self._out_queue.put(wrapped, timeout=self._default_timeout)
+                        break
+                    except queue.Full:
+                        if self.is_stopped():
+                            should_exit = True
+                            break
+
+                # retry until value is consumed
+                while not wrapped.is_released(timeout=self._default_timeout):
+                    if self.is_stopped():  # break out of outer loop
+                        should_exit = True
+                        break
+        except EOFError:
+            pass
+        finally:
+            self.stop()  # make sure the stopped flag is set in any case
+
+
+class ReaderPool:
+    def __init__(self, backend, pool_size, chunk_size):
+        self._pool_size = pool_size
+        self._backend = backend
+        self._chunk_size = chunk_size
+        self._out_queue = queue.Queue()  # TODO: possibly limit size?
+        self._threads = None
+
+    def __enter__(self):
+        self._threads = []
+        for i in range(self._pool_size):
+            t = ReaderThread(
+                backend=self._backend,
+                chunk_size=self._chunk_size,
+                out_queue=self._out_queue,
+            )
+            t.start()
+            self._threads.append(t)
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        for t in self._threads:  # TODO: handle errors on stopping/joining? re-throw exceptions?
+            t.stop()
+            t.join()
+
+    @contextlib.contextmanager
+    def get_result(self):
+        res = self._out_queue.get()
+        yield res
+        res.release()
+
+    def should_stop(self):
+        return any(t.is_stopped() for t in self._threads)
+
+
+def merlin_stream_single_threaded(backend: MerlinDataSocket, read_dtype=np.float32):
+    with backend:
+        hdr, frame_header = backend.read_headers()
+        logger.info(hdr, frame_header)
+
+        chunk_size = 10
+
+        out = backend.get_out_buffer(chunk_size, dtype=read_dtype)
+        input_buffer = backend.get_input_buffer(num_frames=chunk_size)
+
+        # while True:
+        for i in range(16*1024):
+            backend.read_multi_frames(out=out, num_frames=chunk_size, input_buffer=input_buffer)
+            out.sum()
+
+
+def merlin_stream_threaded(backend: MerlinDataSocket, pool: ReaderPool):
+    with backend, pool:
+        hdr = backend.get_acquisition_header()
+        logger.info(hdr)
+        while True:
+            with pool.get_result() as res_wrapped:
+                yield res_wrapped
+            if pool.should_stop():
+                break
