@@ -75,18 +75,34 @@ def _parse_frame_header(raw_data):
     }
 
 
-@numba.njit(nogil=True, cache=True)
+@numba.njit(nogil=True, cache=True, parallel=True)
 def decode_multi_u2(input_bytes, out, header_size_bytes, num_frames):
     """
     Decode multiple >u2 frames
     """
     out = out.reshape((num_frames, -1))
     frame_size_bytes = 256 * 256 * 2
-    for i in range(num_frames):
+    for i in numba.prange(num_frames):
         start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
         byteswap_2_decode(in_for_frame, out[i])
+
+
+@numba.njit(nogil=True, cache=True, parallel=True)
+def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
+    """
+    Decode multiple u1 frames
+    """
+    out = out.reshape((num_frames, -1))
+    frame_size_bytes = 256 * 256
+    for i in numba.prange(num_frames):
+        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+        end_offset = start_offset + frame_size_bytes
+        in_for_frame = input_bytes[start_offset:end_offset]
+        out[i] = in_for_frame
+        # for j in range(end_offset - start_offset):
+        #     out[i, j] = in_for_frame[j]
 
 
 class MerlinDataSocket:
@@ -154,9 +170,10 @@ class MerlinDataSocket:
                 )
             except socket.timeout:
                 continue
-            if bytes_read == 0:
-                raise EOFError("EOF")
+            if bytes_read == 0:  # EOF
+                return total_bytes_read
             total_bytes_read += bytes_read
+        return total_bytes_read
 
     def read_mpx_length(self):
         # structure: MPX,<ten digits>,<header>
@@ -204,25 +221,55 @@ class MerlinDataSocket:
     def get_out_buffer(self, num_frames, dtype=np.float32):
         return np.zeros((num_frames, 256, 256), dtype=dtype)
 
-    def read_multi_frames(self, out, input_buffer, num_frames=32, timeout=-1):
+    def read_multi_frames(self, out, input_buffer, num_frames=32, read_upto_frame=None, timeout=-1):
         """
-        returns either `False` on timeout, or a tuple `(frame_idx_start, frame_idx_end)`
+        returns either `False` on timeout, or a tuple `(buffer, frame_idx_start, frame_idx_end)`
+
+        On EOF, can read less than `num_frames`. In that case, `buffer` is sliced
+        to only contain decoded data. `out` will not be fully overwritten in this case
+        and can contain garbage at the end.
+
+        `read_upto_frame` can be used to only read up to a total number of frames.
+        Once this number is reached, we behave the same way as if we had reached EOF.
         """
-        out = out.reshape((num_frames, -1))
+        out_flat = out.reshape((num_frames, -1))
         header_size = int(self._first_frame_header['header_size_bytes']) + 15
+        bytes_per_frame = header_size + self._first_frame_header['image_size_bytes']
 
         lock_success = self._read_lock.acquire(timeout=timeout)
         if not lock_success:
             return False
         try:
             input_buffer = memoryview(input_buffer)
-            self.read_into(input_buffer)
-            self._frame_counter += num_frames
+            if read_upto_frame is not None:
+                num_frames = min(num_frames, read_upto_frame - self._frame_counter)
+                input_buffer = input_buffer[:num_frames * bytes_per_frame]
+            bytes_read = self.read_into(input_buffer)
+            frames_read = bytes_read // bytes_per_frame
+            if bytes_read % bytes_per_frame != 0:
+                raise EOFError(
+                    "input data stream truncated (%d,%d)" % (
+                        bytes_read, bytes_per_frame
+                    )
+                )
+            self._frame_counter += frames_read
+            # save frame_counter while we hold the lock:
             frame_counter = self._frame_counter
         finally:
             self._read_lock.release()
-        decode_multi_u2(input_buffer, out, header_size, num_frames)
-        return (frame_counter - num_frames, frame_counter)
+        self.decode(input_buffer[:bytes_read], out_flat[:frames_read], header_size, frames_read)
+        return (out[:frames_read], frame_counter - frames_read, frame_counter)
+
+    def decode(self, input_buffer, out_flat, header_size, num_frames):
+        fh = self._first_frame_header
+        assert fh['mib_kind'] == 'u'
+        itemsize = fh['dtype'].itemsize
+        if itemsize == 1:
+            fn = decode_multi_u1
+        elif itemsize == 2:
+            fn = decode_multi_u2
+        input_arr = np.frombuffer(input_buffer, dtype=np.uint8)
+        fn(input_arr, out_flat[:num_frames], header_size, num_frames)
 
     def _peek_frame_header(self):
         # first, peek only the MPX header part:
@@ -256,7 +303,7 @@ class MerlinDataSocket:
                 v = v.rstrip("\r")
                 v = v.rstrip("\n")
             except ValueError:
-                logger.debug("error while parsing line %r", line)
+                logger.warn("error while parsing line %r", line)
                 raise
             result[k] = v
         return result
@@ -305,14 +352,16 @@ class ResultWrap:
 
 class ReaderThread(threading.Thread):
     def __init__(self, backend, out_queue, chunk_size, default_timeout=0.2, read_dtype=np.float32,
-                 *args, **kwargs):
+                 read_upto_frame=None, *args, **kwargs):
         super().__init__(name='ReaderThread', *args, **kwargs)
         self._stop_event = threading.Event()
+        self._eof_event = threading.Event()
         self._backend = backend
         self._chunk_size = chunk_size
         self._out_queue = out_queue
         self._default_timeout = default_timeout
         self._read_dtype = read_dtype
+        self._read_upto_frame = read_upto_frame
 
     def stop(self):
         self._stop_event.set()
@@ -340,12 +389,17 @@ class ReaderThread(threading.Thread):
                     num_frames=self._chunk_size,
                     input_buffer=input_buffer,
                     timeout=self._default_timeout,
+                    read_upto_frame=self._read_upto_frame,
                 )
                 if res is False:
                     continue  # timeout, give main thread the chance to stop us
-                res_start, res_stop = res
+                res_buffer, res_start, res_stop = res
 
-                wrapped = ResultWrap(res_start, res_stop, out)
+                # EOF, no frames left on the socket:
+                if res_stop - res_start == 0:
+                    break
+
+                wrapped = ResultWrap(res_start, res_stop, res_buffer)
 
                 # retry until there is space in the output queue, or the thread is stopped:
                 while True:
@@ -362,19 +416,18 @@ class ReaderThread(threading.Thread):
                     if self.is_stopped():  # break out of outer loop
                         should_exit = True
                         break
-        except EOFError:
-            pass
         finally:
             self.stop()  # make sure the stopped flag is set in any case
 
 
-class ReaderPool:
-    def __init__(self, backend, pool_size, chunk_size):
+class ReaderPoolImpl:
+    def __init__(self, backend, pool_size, chunk_size, read_upto_frame):
         self._pool_size = pool_size
         self._backend = backend
         self._chunk_size = chunk_size
         self._out_queue = queue.Queue()  # TODO: possibly limit size?
         self._threads = None
+        self._read_upto_frame = read_upto_frame
 
     def __enter__(self):
         self._threads = []
@@ -383,6 +436,7 @@ class ReaderPool:
                 backend=self._backend,
                 chunk_size=self._chunk_size,
                 out_queue=self._out_queue,
+                read_upto_frame=self._read_upto_frame,
             )
             t.start()
             self._threads.append(t)
@@ -395,12 +449,41 @@ class ReaderPool:
 
     @contextlib.contextmanager
     def get_result(self):
-        res = self._out_queue.get()
-        yield res
-        res.release()
+        while True:
+            try:
+                res = self._out_queue.get(timeout=0.2)
+                yield res
+                res.release()
+                return
+            except queue.Empty:
+                if self.should_stop():
+                    yield None
+                    return
 
     def should_stop(self):
-        return any(t.is_stopped() for t in self._threads)
+        return any(
+            t.is_stopped()
+            for t in self._threads
+        )
+
+
+class ReaderPool:
+    def __init__(self, backend, pool_size):
+        self._backend = backend
+        self._pool_size = pool_size
+
+    def get_impl(self, chunk_size=10, read_upto_frame=None):
+        """
+        Returns a new `ReaderPoolImpl`, which will read up to
+        the frame index given in `read_upto_frame`, or all frames
+        in case it is `None`.
+        """
+        return ReaderPoolImpl(
+            backend=self._backend,
+            pool_size=self._pool_size,
+            chunk_size=chunk_size,
+            read_upto_frame=read_upto_frame,
+        )
 
 
 def merlin_stream_single_threaded(backend: MerlinDataSocket, read_dtype=np.float32):
@@ -413,10 +496,9 @@ def merlin_stream_single_threaded(backend: MerlinDataSocket, read_dtype=np.float
         out = backend.get_out_buffer(chunk_size, dtype=read_dtype)
         input_buffer = backend.get_input_buffer(num_frames=chunk_size)
 
-        # while True:
-        for i in range(16*1024):
+        while True:
             backend.read_multi_frames(out=out, num_frames=chunk_size, input_buffer=input_buffer)
-            out.sum()
+            yield out
 
 
 def merlin_stream_threaded(backend: MerlinDataSocket, pool: ReaderPool):

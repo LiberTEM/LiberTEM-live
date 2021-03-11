@@ -184,6 +184,7 @@ class DataSocketSimulator:
     def handle_conn(self, conn):
         for chunk in self.get_chunks():
             conn.sendall(chunk)
+        conn.close()
 
 
 class CachedDataSocketSim(DataSocketSimulator):
@@ -280,7 +281,12 @@ class MemfdSocketSim(DataSocketSimulator):
                     raise RuntimeError("max_runs exceeded")
         else:
             print("yielding from single scan")
+            t0 = time.time()
             self._send_full_file(conn)
+            t1 = time.time()
+            throughput = self._size / (t1 - t0) / 1024 / 1024
+            print("single scan took %.05fs (%.2fMiB/s)" % (t1 - t0, throughput))
+        conn.close()
 
 
 class DataSocketServer:
