@@ -3,6 +3,7 @@ import numpy as np
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import (
     DataSet, DataTile, DataSetMeta, BasePartition, Partition,
+    TilingScheme,
 )
 
 from .data import MerlinDataSocket, ReaderPool
@@ -127,7 +128,8 @@ class LivePartition(Partition):
         return True  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape, roi):
-        return (11, 256, 256)
+        depth = min(11, self._end_idx - self._start_idx)
+        return (depth, 256, 256)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
@@ -138,6 +140,7 @@ class LivePartition(Partition):
 
     def _get_tiles_fullframe(self, tiling_scheme, dest_dtype="float32", roi=None):
         # assert len(tiling_scheme) == 1
+        logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         pool = self._pool.get_impl(
             read_upto_frame=self._end_idx,
             chunk_size=11,
@@ -146,6 +149,10 @@ class LivePartition(Partition):
         to_read = self._end_idx - self._start_idx
         with pool:
             while to_read > 0:
+                # logger.debug(
+                #     "LivePartition.get_tiles: to_read=%d, start_idx=%d end_idx=%d",
+                #     to_read, self._start_idx, self._end_idx,
+                # )
                 with pool.get_result() as res_wrapped:
                     frames_in_tile = res_wrapped.stop - res_wrapped.start
                     tile_shape = Shape(
@@ -162,6 +169,7 @@ class LivePartition(Partition):
                         scheme_idx=0,
                     )
                     to_read -= frames_in_tile
+        logger.debug("LivePartition.get_tiles: end of method")
 
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None):
         yield from self._get_tiles_fullframe(tiling_scheme, dest_dtype, roi)
@@ -193,3 +201,14 @@ class LivePartition(Partition):
                         sliced_res = res_wrapped.buf[nav_slice_raw]
                         yield DataTile(sliced_res, tile_slice=tile_slice, scheme_idx=idx)
                     to_read -= frames_in_tile
+
+
+def bench_noop(ds, data_socket):
+    ts = TilingScheme.make_for_shape(
+        tileshape=Shape((10, 256, 256), sig_dims=2),
+        dataset_shape=ds.shape
+    )
+    with data_socket:
+        for p in ds.get_partitions():
+            for t in p.get_tiles(tiling_scheme=ts):
+                pass

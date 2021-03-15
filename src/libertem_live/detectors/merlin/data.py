@@ -443,9 +443,13 @@ class ReaderPoolImpl:
         return self
 
     def __exit__(self, *args, **kwargs):
+        logger.debug("ReaderPoolImpl.__exit__: stopping threads")
         for t in self._threads:  # TODO: handle errors on stopping/joining? re-throw exceptions?
             t.stop()
+            logger.debug("ReaderPoolImpl: stop signal set")
             t.join()
+            logger.debug("ReaderPoolImpl: thread joined")
+        logger.debug("ReaderPoolImpl.__exit__: threads stopped")
 
     @contextlib.contextmanager
     def get_result(self):
