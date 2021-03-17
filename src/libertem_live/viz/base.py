@@ -4,7 +4,7 @@ import numpy as np
 class LivePlot:
     def __init__(
             self, ds, kind='sig', dtype=np.float32,
-            udf_index=0, postprocess=lambda x: x, channel='intensity'
+            udf_index=0, postprocess=None, channel='intensity'
     ):
         if kind == 'sig':
             shape = ds.shape.sig
@@ -16,7 +16,7 @@ class LivePlot:
         self.data = np.zeros(shape, dtype=dtype)
         self.udf_index = udf_index
         self.channel = channel
-        self.pp = postprocess
+        self.pp = postprocess or (lambda x: x)
 
     def postprocess(self, udf_results):
         return self.pp(udf_results[self.udf_index][self.channel].data)
