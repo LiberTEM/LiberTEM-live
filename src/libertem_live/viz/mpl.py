@@ -13,14 +13,16 @@ logger = logging.getLogger(__name__)
 class MPLLivePlot(LivePlot):
     def __init__(
             self, ds, kind, dtype=None, udf_index=None, channel=None, postprocess=None,
-            cmap='viridis', min_delta=0.2
+            extra_shape=(), title="", cmap='viridis', min_delta=0.2
     ):
-        super().__init__(ds, kind, dtype, udf_index, postprocess, channel)
+        super().__init__(ds, kind, dtype, udf_index, postprocess, channel, extra_shape, title)
 
         self.fig, self.axes = plt.subplots()
         self.im_obj = self.axes.imshow(self.data, cmap=cmap)
+        self.axes.set_title(title)
         self.last_update = 0
         self.min_delta = min_delta
+        self.fig.canvas.draw()
 
     def update(self, force=False):
         delta = time.time() - self.last_update

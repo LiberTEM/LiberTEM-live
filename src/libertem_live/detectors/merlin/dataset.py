@@ -128,12 +128,13 @@ class LivePartition(Partition):
         return True  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape, roi):
-        depth = min(11, self._end_idx - self._start_idx)
+        depth = min(24, self._end_idx - self._start_idx)
         return (depth, 256, 256)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
-        return 12*256*256*8
+        # return 12*256*256*8
+        return 24*256*256*8
 
     def get_base_shape(self, roi):
         return (1, 1, 256)
@@ -143,8 +144,8 @@ class LivePartition(Partition):
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         pool = self._pool.get_impl(
             read_upto_frame=self._end_idx,
-            chunk_size=11,
-            # chunk_size=tiling_scheme.depth,
+            # chunk_size=11,
+            chunk_size=tiling_scheme.depth,
         )
         to_read = self._end_idx - self._start_idx
         with pool:

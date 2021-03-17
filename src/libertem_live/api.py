@@ -49,7 +49,8 @@ class LiveContext:
                 [
                     k
                     for k, buf in udf.get_result_buffers().items()
-                    if buf.kind in ('sig', 'nav') and buf.extra_shape == ()
+                    if (buf.kind in ('sig', 'nav') and buf.extra_shape == ())
+                       or (buf.kind == 'single' and len(buf.extra_shape) == 2)
                 ]
                 for udf in udfs
             ]
@@ -62,7 +63,9 @@ class LiveContext:
                     kind=buf.kind,
                     channel=channel,
                     udf_index=idx,
-                    min_delta=0.3
+                    min_delta=0.3,
+                    extra_shape=buf.extra_shape,
+                    title=channel,
                 )
                 plot_instances.append(p0)
 

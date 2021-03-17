@@ -4,12 +4,14 @@ import numpy as np
 class LivePlot:
     def __init__(
             self, ds, kind='sig', dtype=np.float32,
-            udf_index=0, postprocess=None, channel='intensity'
+            udf_index=0, postprocess=None, channel='intensity', extra_shape=(), title="",
     ):
         if kind == 'sig':
             shape = ds.shape.sig
         elif kind == 'nav':
             shape = ds.shape.nav
+        elif kind == 'single':
+            shape = extra_shape
         else:
             raise ValueError("unknown plot kind")
         self.shape = shape
