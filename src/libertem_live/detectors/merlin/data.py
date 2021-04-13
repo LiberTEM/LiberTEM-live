@@ -490,27 +490,43 @@ class ReaderPool:
         )
 
 
-def merlin_stream_single_threaded(backend: MerlinDataSocket, read_dtype=np.float32):
-    with backend:
-        hdr, frame_header = backend.read_headers()
-        logger.info(hdr, frame_header)
+class MerlinDataSource:
+    def __init__(self, host, port, pool_size=2):
+        self.socket = MerlinDataSocket(host=host, port=port)
+        self.pool = ReaderPool(backend=self.socket, pool_size=pool_size)
 
-        chunk_size = 10
+    def __enter__(self):
+        self.socket.__enter__()
 
-        out = backend.get_out_buffer(chunk_size, dtype=read_dtype)
-        input_buffer = backend.get_input_buffer(num_frames=chunk_size)
+    def __exit__(self, *args, **kwargs):
+        self.socket.__exit__(*args, **kwargs)
 
-        while True:
-            backend.read_multi_frames(out=out, num_frames=chunk_size, input_buffer=input_buffer)
-            yield out
+    def stream_single_threaded(self, read_dtype=np.float32, chunk_size=10):
+        with self:
+            hdr, frame_header = self.socket.read_headers()
+            logger.info(hdr, frame_header)
 
+            out = self.socket.get_out_buffer(chunk_size, dtype=read_dtype)
+            input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
 
-def merlin_stream_threaded(backend: MerlinDataSocket, pool: ReaderPool):
-    with backend, pool:
-        hdr = backend.get_acquisition_header()
-        logger.info(hdr)
-        while True:
-            with pool.get_result() as res_wrapped:
-                yield res_wrapped
-            if pool.should_stop():
-                break
+            while True:
+                self.socket.read_multi_frames(
+                    out=out,
+                    num_frames=chunk_size,
+                    input_buffer=input_buffer
+                )
+                yield out
+
+    def stream(self, num_frames=None, chunk_size=11):
+        pool = self.pool.get_impl(
+            read_upto_frame=num_frames,
+            chunk_size=chunk_size,
+        )
+        with self, pool:
+            hdr = self.socket.get_acquisition_header()
+            logger.info(hdr)
+            while True:
+                with pool.get_result() as res_wrapped:
+                    if pool.should_stop():
+                        break
+                    yield res_wrapped
