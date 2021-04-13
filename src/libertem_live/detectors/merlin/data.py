@@ -501,7 +501,7 @@ class MerlinDataSource:
     def __exit__(self, *args, **kwargs):
         self.socket.__exit__(*args, **kwargs)
 
-    def stream_single_threaded(self, read_dtype=np.float32, chunk_size=10):
+    def inline_stream(self, read_dtype=np.float32, chunk_size=10):
         with self:
             hdr, frame_header = self.socket.read_headers()
             logger.info(hdr, frame_header)
