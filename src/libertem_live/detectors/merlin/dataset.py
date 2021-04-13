@@ -6,7 +6,6 @@ from libertem.io.dataset.base import (
     TilingScheme,
 )
 
-from .data import MerlinDataSocket, ReaderPool
 
 logger = logging.getLogger(__name__)
 
@@ -14,12 +13,10 @@ logger = logging.getLogger(__name__)
 class LiveDataSet(DataSet):
     def __init__(
         self, scan_size,
-        data_socket: MerlinDataSocket,
-        pool: ReaderPool,
+        data_source,
         frames_per_partition=256,
     ):
-        self._data_socket = data_socket
-        self._pool = pool
+        self._data_source = data_source
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
 
@@ -61,7 +58,7 @@ class LiveDataSet(DataSet):
 
     def wait_for_acquisition(self):
         logger.info("waiting for acquisition header")
-        header = self._data_socket.get_acquisition_header()
+        header = self._data_source.socket.get_acquisition_header()
 
         bit_depth = int(header['Counter Depth (number)'])
         if bit_depth in (1, 6):
@@ -83,7 +80,7 @@ class LiveDataSet(DataSet):
         num_frames = np.prod(self._scan_size, dtype=np.uint64)
         num_partitions = int(num_frames // self._frames_per_partition)
 
-        header = self._data_socket.get_acquisition_header()
+        header = self._data_source.socket.get_acquisition_header()
 
         slices = BasePartition.make_slices(self.shape, num_partitions)
         for part_slice, start, stop in slices:
@@ -92,8 +89,7 @@ class LiveDataSet(DataSet):
                 end_idx=stop,
                 meta=self._meta,
                 partition_slice=part_slice,
-                data_socket=self._data_socket,
-                pool=self._pool,
+                data_source=self._data_source,
                 acq_header=header,
             )
 
@@ -101,14 +97,13 @@ class LiveDataSet(DataSet):
 class LivePartition(Partition):
     def __init__(
         self, start_idx, end_idx, partition_slice,
-        data_socket, meta, acq_header, pool,
+        data_source, meta, acq_header,
     ):
         super().__init__(meta=meta, partition_slice=partition_slice, io_backend=None)
         self._start_idx = start_idx
         self._end_idx = end_idx
-        self._data_socket = data_socket
-        self._pool = pool
         self._acq_header = acq_header
+        self._data_source = data_source
 
     def shape_for_roi(self, roi):
         return self.slice.adjust_for_roi(roi).shape
@@ -142,7 +137,7 @@ class LivePartition(Partition):
     def _get_tiles_fullframe(self, tiling_scheme, dest_dtype="float32", roi=None):
         # assert len(tiling_scheme) == 1
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
-        pool = self._pool.get_impl(
+        pool = self._data_source.pool.get_impl(
             read_upto_frame=self._end_idx,
             # chunk_size=11,
             chunk_size=tiling_scheme.depth,
@@ -177,7 +172,7 @@ class LivePartition(Partition):
         return
         # assert len(tiling_scheme) == 1
         print(tiling_scheme)
-        pool = self._pool.get_impl(
+        pool = self._data_source.pool.get_impl(
             read_upto_frame=self._end_idx,
             chunk_size=tiling_scheme.depth,
         )
@@ -204,12 +199,12 @@ class LivePartition(Partition):
                     to_read -= frames_in_tile
 
 
-def bench_noop(ds, data_socket):
+def bench_noop(ds, data_source):
     ts = TilingScheme.make_for_shape(
         tileshape=Shape((10, 256, 256), sig_dims=2),
         dataset_shape=ds.shape
     )
-    with data_socket:
+    with data_source:
         for p in ds.get_partitions():
             for t in p.get_tiles(tiling_scheme=ts):
                 pass
