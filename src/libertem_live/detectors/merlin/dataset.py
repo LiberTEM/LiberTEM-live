@@ -137,7 +137,7 @@ class LivePartition(Partition):
     def _get_tiles_fullframe(self, tiling_scheme, dest_dtype="float32", roi=None):
         # assert len(tiling_scheme) == 1
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
-        pool = self._data_source.pool.get_impl(
+        pool = self._data_source.get_pool_impl(
             read_upto_frame=self._end_idx,
             # chunk_size=11,
             chunk_size=tiling_scheme.depth,

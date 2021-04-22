@@ -1,13 +1,14 @@
 import logging
 import socket
 import threading
-import contextlib
 import queue
 
 import numba
 import numpy as np
 
 from libertem.io.dataset.base.decode import byteswap_2_decode
+
+from ..common import ReaderPool, StoppableThreadMixin
 
 logger = logging.getLogger(__name__)
 
@@ -350,11 +351,14 @@ class ResultWrap:
         self._consumed.set()
 
 
-class ReaderThread(threading.Thread):
+class MerlinReaderThread(StoppableThreadMixin, threading.Thread):
     def __init__(self, backend, out_queue, chunk_size, default_timeout=0.2, read_dtype=np.float32,
                  read_upto_frame=None, *args, **kwargs):
+        """
+        That that will read up to the frame index given in `read_upto_frame`,
+        or all frames in case it is `None`.
+        """
         super().__init__(name='ReaderThread', *args, **kwargs)
-        self._stop_event = threading.Event()
         self._eof_event = threading.Event()
         self._backend = backend
         self._chunk_size = chunk_size
@@ -362,12 +366,6 @@ class ReaderThread(threading.Thread):
         self._default_timeout = default_timeout
         self._read_dtype = read_dtype
         self._read_upto_frame = read_upto_frame
-
-    def stop(self):
-        self._stop_event.set()
-
-    def is_stopped(self):
-        return self._stop_event.is_set()
 
     def __enter__(self):
         self.start()
@@ -420,83 +418,14 @@ class ReaderThread(threading.Thread):
             self.stop()  # make sure the stopped flag is set in any case
 
 
-class ReaderPoolImpl:
-    def __init__(self, backend, pool_size, chunk_size, read_upto_frame):
-        self._pool_size = pool_size
-        self._backend = backend
-        self._chunk_size = chunk_size
-        self._out_queue = queue.Queue()  # TODO: possibly limit size?
-        self._threads = None
-        self._read_upto_frame = read_upto_frame
-
-    def __enter__(self):
-        self._threads = []
-        for i in range(self._pool_size):
-            t = ReaderThread(
-                backend=self._backend,
-                chunk_size=self._chunk_size,
-                out_queue=self._out_queue,
-                read_upto_frame=self._read_upto_frame,
-            )
-            t.start()
-            self._threads.append(t)
-        return self
-
-    def __exit__(self, *args, **kwargs):
-        logger.debug("ReaderPoolImpl.__exit__: stopping threads")
-        for t in self._threads:  # TODO: handle errors on stopping/joining? re-throw exceptions?
-            t.stop()
-            logger.debug("ReaderPoolImpl: stop signal set")
-            t.join()
-            logger.debug("ReaderPoolImpl: thread joined")
-        logger.debug("ReaderPoolImpl.__exit__: threads stopped")
-
-    @contextlib.contextmanager
-    def get_result(self):
-        while True:
-            try:
-                res = self._out_queue.get(timeout=0.2)
-                yield res
-                res.release()
-                return
-            except queue.Empty:
-                if self.should_stop():
-                    yield None
-                    return
-
-    def should_stop(self):
-        return any(
-            t.is_stopped()
-            for t in self._threads
-        )
-
-
-class ReaderPool:
-    def __init__(self, backend, pool_size):
-        self._backend = backend
-        self._pool_size = pool_size
-
-    def get_impl(self, chunk_size=10, read_upto_frame=None):
-        """
-        Returns a new `ReaderPoolImpl`, which will read up to
-        the frame index given in `read_upto_frame`, or all frames
-        in case it is `None`.
-        """
-        return ReaderPoolImpl(
-            backend=self._backend,
-            pool_size=self._pool_size,
-            chunk_size=chunk_size,
-            read_upto_frame=read_upto_frame,
-        )
-
-
 class MerlinDataSource:
     def __init__(self, host, port, pool_size=2):
         self.socket = MerlinDataSocket(host=host, port=port)
-        self.pool = ReaderPool(backend=self.socket, pool_size=pool_size)
+        self.pool = ReaderPool(pool_size=pool_size, reader_cls=MerlinReaderThread)
 
     def __enter__(self):
         self.socket.__enter__()
+        return self
 
     def __exit__(self, *args, **kwargs):
         self.socket.__exit__(*args, **kwargs)
@@ -517,8 +446,17 @@ class MerlinDataSource:
                 )
                 yield out
 
+    def get_pool_impl(self, read_upto_frame, chunk_size):
+        return self.pool.get_impl(
+            reader_kwargs=dict(
+                backend=self.socket,
+                read_upto_frame=read_upto_frame,
+                chunk_size=chunk_size,
+            )
+        )
+
     def stream(self, num_frames=None, chunk_size=11):
-        pool = self.pool.get_impl(
+        pool = self.get_pool_impl(
             read_upto_frame=num_frames,
             chunk_size=chunk_size,
         )
