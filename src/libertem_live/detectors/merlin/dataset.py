@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import logging
 import numpy as np
 from libertem.common import Shape, Slice
@@ -6,17 +7,24 @@ from libertem.io.dataset.base import (
     TilingScheme,
 )
 
+from .data import MerlinDataSource
+
 
 logger = logging.getLogger(__name__)
 
 
-class LiveDataSet(DataSet):
+class MerlinLiveDataSet(DataSet):
     def __init__(
-        self, scan_size,
-        data_source,
+        self,
+        camera_setup,
+        scan_size,
+        host,
+        port,
         frames_per_partition=256,
+        pool_size=2
     ):
-        self._data_source = data_source
+        self._camera_setup = camera_setup
+        self._source = MerlinDataSource(host, port, pool_size)
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
 
@@ -30,6 +38,14 @@ class LiveDataSet(DataSet):
             dtype=dtype,
         )
         return self
+
+    @property
+    def source(self):
+        return self._source
+
+    @property
+    def camera_setup(self):
+        return self._camera_setup
 
     @property
     def dtype(self):
@@ -47,6 +63,11 @@ class LiveDataSet(DataSet):
     def meta(self):
         return self._meta
 
+    @contextmanager
+    def start_acquisition(self):
+        with self.source:
+            yield
+
     def check_valid(self):
         pass
 
@@ -58,7 +79,7 @@ class LiveDataSet(DataSet):
 
     def wait_for_acquisition(self):
         logger.info("waiting for acquisition header")
-        header = self._data_source.socket.get_acquisition_header()
+        header = self.source.socket.get_acquisition_header()
 
         bit_depth = int(header['Counter Depth (number)'])
         if bit_depth in (1, 6):
@@ -80,21 +101,21 @@ class LiveDataSet(DataSet):
         num_frames = np.prod(self._scan_size, dtype=np.uint64)
         num_partitions = int(num_frames // self._frames_per_partition)
 
-        header = self._data_source.socket.get_acquisition_header()
+        header = self.source.socket.get_acquisition_header()
 
         slices = BasePartition.make_slices(self.shape, num_partitions)
         for part_slice, start, stop in slices:
-            yield LivePartition(
+            yield MerlinLivePartition(
                 start_idx=start,
                 end_idx=stop,
                 meta=self._meta,
                 partition_slice=part_slice,
-                data_source=self._data_source,
+                data_source=self.source,
                 acq_header=header,
             )
 
 
-class LivePartition(Partition):
+class MerlinLivePartition(Partition):
     def __init__(
         self, start_idx, end_idx, partition_slice,
         data_source, meta, acq_header,
