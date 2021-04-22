@@ -13,6 +13,11 @@ class LiveContext(Context):
     @contextlib.contextmanager
     def _do_camera_setup(self, dataset, udf):
         if hasattr(dataset, 'camera_setup'):
+            # run_udf() and run_udf_iter() support single UDFs
+            # as well as lists of UDFs. We simplify the camera setup interface
+            # by always supplying a list to it
+            if not isinstance(udf, (list, tuple)):
+                udf = [udf]
             with dataset.camera_setup(dataset, udf):
                 yield
         else:
@@ -55,13 +60,9 @@ class LiveContext(Context):
         return cls(camera_setup, *args, **kwargs).initialize(self.executor)
 
     def run_udf(self, dataset, udf, *args, **kwargs):
-        if not isinstance(udf, (list, tuple)):
-            udf = [udf]
         with self._do_camera_setup(dataset, udf):
             return super().run_udf(dataset=dataset, udf=udf, *args, **kwargs)
 
     def run_udf_iter(self, dataset, udf, *args, **kwargs):
-        if not isinstance(udf, (list, tuple)):
-            udf = [udf]
         with self._do_camera_setup(dataset, udf):
             return super().run_udf_iter(dataset=dataset, udf=udf, *args, **kwargs)

@@ -5,6 +5,7 @@ import time
 import socket
 import itertools
 import functools
+import platform
 
 import click
 import numpy as np
@@ -231,7 +232,10 @@ class MemfdSocketSim(DataSocketSimulator):
             # lazy import - make the sim work without pymemfd (example: Windows)
             import memfd
         except ImportError:
-            raise RuntimeError("Please install `pymemfd` to use the memfd cache")
+            if platform.system() == 'Linux':
+                raise RuntimeError("Please install `pymemfd` to use the memfd cache.")
+            else:
+                raise RuntimeError("The memfd cache is only supported on Linux.")
         super().open()
         self._cache_fd = memfd.memfd_create("sim_cache", 0)
         self._populate_cache()
