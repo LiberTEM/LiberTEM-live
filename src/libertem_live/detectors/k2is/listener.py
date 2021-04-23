@@ -1,14 +1,10 @@
 import os
 import time
 import socket
-import struct
-import contextlib
 import threading
 
 import click
 import numpy as np
-import numba
-import hexdump
 
 from libertem.io.dataset.k2is import DataBlock
 from libertem.common.buffers import bytes_aligned, zeros_aligned
@@ -45,7 +41,7 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
                 assert p[0] == 0x5758
             except socket.timeout:
                 continue
-            
+
             yield (buf, p[1])
             packets += 1
 
@@ -54,17 +50,17 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
         os.sched_setaffinity(0, self.affinity_set)
         self.e.wait()
         print(f"listening on {self.local_addr}:{self.port}/{GROUP} on {self.iface}")
-        
+
         x_offset = self.idx * 256
 
         frames_seen = set()
-        
+
         with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s:
             buf = zeros_aligned((930, 16), dtype=np.uint16)
             buf_flat = buf.reshape((-1,))
 
             print("entry MsgReaderThread, waiting for first packet")
-            
+
             first_frame_id = None
             i = 0
             for p in self.read_loop(s):
@@ -74,7 +70,7 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
                 if first_frame_id is None:
                     first_frame_id = int(h['frame_id'])
                 frame_idx = int(h['frame_id']) - first_frame_id
-                
+
                 slice_ = (
                     frame_idx,
                     slice(h['pixel_y_start'][0], h['pixel_y_end'][0] + 1),
