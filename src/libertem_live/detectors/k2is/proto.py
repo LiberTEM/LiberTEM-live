@@ -178,6 +178,8 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
                 scheme_idx=scheme_idx,
             )
             yield dt
+            if frame_idx > 1800:  # XXX XXX XXX
+                break
 
     def run(self):
         print(f"thread {threading.get_native_id()}")
@@ -195,12 +197,13 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
 
             print(f"synced to {first_frame_id}")
 
+            t0 = time.time()
             tiles = self.get_tiles(read_iter, first_frame_id)
 
             # FIXME: partitioning
             # frames_per_partition = 400
 
-            num_frames = 4000  # less than 10 seconds
+            num_frames = 1800  # less than 5 seconds
 
             meta = DataSetMeta(
                 shape=Shape((num_frames, 1860, 2048), sig_dims=2),
@@ -233,7 +236,9 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
             )
             print(result)
             self.out_queue.put(result)
-            print(f"stored result into q {self.out_queue}")
+            t1 = time.time()
+            print(f"stored result into q {self.out_queue} after {t1 - t0}s")
+            self.stop()
 
 
 def get_settings_for_sector(idx):
@@ -242,7 +247,8 @@ def get_settings_for_sector(idx):
         'local_addr': '225.1.1.1',
         'port': 2001 + idx,
         'affinity_set': {8 + idx},
-        'iface': 'enp193s0f0' if idx < 4 else 'enp193s0f1',
+        'iface': 'veth2',
+        # 'iface': 'enp193s0f0' if idx < 4 else 'enp193s0f1',
     }
 
 
@@ -274,7 +280,13 @@ class MySubProcess(mp.Process):
             # for debugging, we can delay the start of the actual work in the
             # thread using this event:
             t.e.set()
-            time.sleep(self.acqtime)  # TTL: how long should we acquire data?
+            print(f"MySubProcess {self.idx} waiting for results")
+            while not t.is_stopped():
+                time.sleep(0.1)
+            print(f"MySubProcess {self.idx} done waiting for results, joining thread")
         finally:
             t.stop()
             t.join()
+            print(f"MySubPRocess {self.idx} closing out_queue")
+            self.out_queue.close()
+        print(f"MySubProcess {self.idx} end of run()")
