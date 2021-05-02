@@ -1,4 +1,5 @@
 import multiprocessing as mp
+import uuid
 import os
 import time
 import socket
@@ -14,10 +15,185 @@ from libertem_live.detectors.common import StoppableThreadMixin
 from libertem.io.dataset.base.tiling import TilingScheme, DataTile
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import Partition, DataSetMeta
-from libertem.udf.base import UDFRunner
+from libertem.udf.base import UDFRunner, UDFMeta, UDFResults
 from libertem.executor.base import Environment
+from libertem.common.buffers import BufferWrapper
+from ..common import SerializedQueue
+from .state import EventReplicaClient, CamConnectedEvent
 
 GROUP = '225.1.1.1'
+
+
+class FakeDataSet:
+    def __init__(self):
+        self.shape = Shape((num_frames, 1860, 2048), sig_dims=2)
+        self.dtype = np.uint16
+
+
+class K2ISTask:
+    def __init__(self, sector_idx, udfs):
+        self.idx = sector_idx
+        self.udfs = udfs
+
+
+def make_udf_tasks(udfs, dataset, roi, corrections, backends):
+    assert roi is None
+    assert corrections is None or not corrections.have_corrections()
+
+    # in case of a k2is live dataset, we need to create "tasks" for each
+    # partition, so for each sector:
+    return [
+        K2ISTask(idx, udfs)
+        for idx in range(8)
+    ]
+
+
+class FakeExecutor:
+    def run_tasks(self, tasks, cancel_id):
+        ss = SyncState(num_processes=len(tasks))
+        processes = []
+        oqs = []
+        try:
+            for task in tasks:
+                oq = SerializedQueue()
+                p = MySubProcess(
+                    idx=task.idx,
+                    sync_state=ss,
+                    out_queue=oq
+                )
+                p.start()
+                processes.append(p)
+                oqs.append(oq)
+            for idx, q in enumerate(oqs):
+                print(f"getting result from q {idx}")
+                part_results = q.get()
+                for timing in part_results.timings:
+                    print(f"{idx}: {timing}")
+                yield part_results, idx
+        finally:
+            for p in processes:
+                p.join()
+
+    def ensure_sync(self):
+        return self
+
+
+def _get_dtype(udfs, dtype, corrections):
+    if corrections is not None and corrections.have_corrections():
+        tmp_dtype = np.result_type(np.float32, dtype)
+    else:
+        tmp_dtype = dtype
+    for udf in udfs:
+        tmp_dtype = np.result_type(
+            udf.get_preferred_input_dtype(),
+            tmp_dtype
+        )
+    return tmp_dtype
+
+
+def _prepare_run_for_dataset(
+    udfs, dataset, executor, roi, corrections, backends, dry
+):
+    meta = UDFMeta(
+        partition_shape=None,
+        dataset_shape=dataset.shape,
+        roi=roi,
+        dataset_dtype=dataset.dtype,
+        input_dtype=_get_dtype(udfs, dataset.dtype, corrections),
+        corrections=corrections,
+    )
+    for udf in udfs:
+        udf.set_meta(meta)
+        udf.init_result_buffers()
+        udf.allocate_for_full(dataset, roi)
+
+        if hasattr(udf, 'preprocess'):
+            udf.set_views_for_dataset(dataset)
+            udf.preprocess()
+    if dry:
+        tasks = []
+    else:
+        tasks = list(make_udf_tasks(udfs, dataset, roi, corrections, backends))
+    return tasks
+
+
+def _partition_by_idx(idx):
+    # num_frames = 1800  # less than 10 seconds
+
+    meta = DataSetMeta(
+        shape=Shape((num_frames, 1860, 2048), sig_dims=2),
+        image_count=num_frames,
+        raw_dtype=np.uint16,
+    )
+
+    x_offset = 256 * idx
+
+    partition_slice = Slice(
+        origin=(0, 0, x_offset),
+        shape=Shape((num_frames, 1860, 256), sig_dims=2),
+    )
+
+    # let's first create single partition per sector, with size >= what
+    # we expect during 10 seconds of runtime
+    return PlaceholderPartition(
+        meta=meta,
+        partition_slice=partition_slice,
+        tiles=[],
+        start_frame=0,
+        num_frames=num_frames,
+    )
+
+
+def run_for_dataset_sync(udfs, dataset, executor,
+                    roi=None, progress=False, corrections=None, backends=None, dry=False):
+    tasks = _prepare_run_for_dataset(
+        udfs, dataset, executor, roi, corrections, backends, dry
+    )
+    cancel_id = str(uuid.uuid4())
+
+    if progress:
+        from tqdm import tqdm
+        t = tqdm(total=len(tasks))
+
+    executor = executor.ensure_sync()
+
+    damage = BufferWrapper(kind='nav', dtype=bool)
+    damage.set_shape_ds(dataset.shape, roi)
+    damage.allocate()
+    if tasks:
+        for part_results, task in executor.run_tasks(tasks, cancel_id):
+            if progress:
+                t.update(1)
+            for results, udf in zip(part_results.buffers, udfs):
+                udf.set_views_for_partition(_partition_by_idx(task))
+                udf.merge(
+                    dest=udf.results.get_proxy(),
+                    src=results.get_proxy()
+                )
+                udf.clear_views()
+            v = damage.get_view_for_partition(_partition_by_idx(task))
+            v[:] = True
+            yield UDFResults(
+                buffers=tuple(
+                    udf._do_get_results()
+                    for udf in udfs
+                ),
+                damage=damage
+            )
+    else:
+        # yield at least one result (which should be empty):
+        for udf in udfs:
+            udf.clear_views()
+        yield UDFResults(
+            buffers=tuple(
+                udf._do_get_results()
+                for udf in udfs
+            ),
+            damage=damage
+        )
+
+    if progress:
+        t.close()
 
 
 class SyncState:
@@ -90,7 +266,7 @@ class PlaceholderPartition(Partition):
 
 class MsgReaderThread(StoppableThreadMixin, threading.Thread):
     def __init__(
-        self, idx, port, affinity_set, sync_state, udfs, out_queue,
+        self, idx, port, affinity_set, sync_state, out_queue,
         local_addr='0.0.0.0', iface='enp193s0f0', timeout=0.1,
         *args, **kwargs
     ):
@@ -102,9 +278,8 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
         self.timeout = timeout
         self.sync_state = sync_state
         self.sync_timeout = 1  # TODO: make this a parameter?
-        self.e = threading.Event()
-        self.udfs = udfs
         self.out_queue = out_queue
+        self.replica = EventReplicaClient()
         super().__init__(*args, **kwargs)
 
     def read_loop(self, s):
@@ -178,17 +353,20 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
                 scheme_idx=scheme_idx,
             )
             yield dt
-            if frame_idx > 1800:  # XXX XXX XXX
-                break
+
+    @property
+    def nav_shape(self):
+        return self.replica.store.state.nav_shape
 
     def run(self):
         print(f"thread {threading.get_native_id()}")
         os.sched_setaffinity(0, self.affinity_set)
-        self.e.wait()
         print(f"listening on {self.local_addr}:{self.port}/{GROUP} on {self.iface}")
 
         with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s:
             print("entry MsgReaderThread, waiting for first packet(s)")
+
+            self.replica.do_events()
 
             first_frame_id = None
             read_iter = self.read_loop(s)
@@ -197,47 +375,58 @@ class MsgReaderThread(StoppableThreadMixin, threading.Thread):
 
             print(f"synced to {first_frame_id}")
 
-            t0 = time.time()
+            self.replica.dispatch(CamConnectedEvent())
+
             tiles = self.get_tiles(read_iter, first_frame_id)
 
-            # FIXME: partitioning
-            # frames_per_partition = 400
+            # very simple state machine: either we are running a UDF, or we are just
+            # reading from the sockets and throw away the data
 
-            num_frames = 1800  # less than 5 seconds
+            while self.replica.store.state is None and not self.is_stopped():
+                self.replica.do_events(timeout=100)
 
-            meta = DataSetMeta(
-                shape=Shape((num_frames, 1860, 2048), sig_dims=2),
-                image_count=num_frames,
-                raw_dtype=np.uint16,
-            )
+            while not self.replica.store.state.udfs and not self.is_stopped():
+                self.replica.do_events(timeout=100)
 
-            partition_slice = Slice(
-                origin=(0, 0, self.x_offset),
-                shape=Shape((num_frames, 1860, 256), sig_dims=2),
-            )
+            if self.is_stopped():
+                return
 
-            # let's first create single partition per sector, with size >= what
-            # we expect during 10 seconds of runtime
-            partition = PlaceholderPartition(
-                meta=meta,
-                partition_slice=partition_slice,
-                tiles=tiles,
-                start_frame=0,
-                num_frames=num_frames,
-            )
+            frames_per_partition = 400
 
-            env = Environment(threads_per_worker=2)  # FIXME?
-            runner = UDFRunner(self.udfs)
-            result = runner.run_for_partition(
-                partition=partition,
-                corrections=None,
-                roi=None,
-                env=env,
-            )
-            print(result)
-            self.out_queue.put(result)
-            t1 = time.time()
-            print(f"stored result into q {self.out_queue} after {t1 - t0}s")
+            while True:
+                num_frames = np.prod(self.nav_shape)
+
+                meta = DataSetMeta(
+                    shape=Shape((num_frames, 1860, 2048), sig_dims=2),
+                    image_count=num_frames,
+                    raw_dtype=np.uint16,
+                )
+
+                partition_slice = Slice(
+                    origin=(0, 0, self.x_offset),
+                    shape=Shape((frames_per_partition, 1860, 256), sig_dims=2),
+                )
+
+                # let's first create single partition per sector, with size >= what
+                # we expect during 10 seconds of runtime
+                partition = PlaceholderPartition(
+                    meta=meta,
+                    partition_slice=partition_slice,
+                    tiles=tiles,
+                    start_frame=0,
+                    num_frames=frames_per_partition,
+                )
+
+                env = Environment(threads_per_worker=2)  # FIXME?
+                runner = UDFRunner(self.replica.store.state.udfs)
+
+                result = runner.run_for_partition(
+                    partition=partition,
+                    corrections=None,
+                    roi=None,
+                    env=env,
+                )
+                self.out_queue.put(result)  # FIXME: replace with a zmq socket
             self.stop()
 
 
@@ -253,11 +442,9 @@ def get_settings_for_sector(idx):
 
 
 class MySubProcess(mp.Process):
-    def __init__(self, idx, sync_state, udfs, out_queue, acqtime=10, *args, **kwargs):
+    def __init__(self, idx, sync_state, out_queue, *args, **kwargs):
         self.idx = idx
         self.sync_state = sync_state
-        self.udfs = udfs
-        self.acqtime = acqtime
         self.out_queue = out_queue
         super().__init__(*args, **kwargs)
 
@@ -267,22 +454,18 @@ class MySubProcess(mp.Process):
 
         decode_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out)
 
+        settings = get_settings_for_sector(self.idx)
+        settings.update({
+            'sync_state': self.sync_state,
+            'out_queue': self.out_queue,
+        })
+        t = MsgReaderThread(**settings)
+
         try:
-            settings = get_settings_for_sector(self.idx)
-            settings.update({
-                'sync_state': self.sync_state,
-                'udfs': self.udfs,
-                'out_queue': self.out_queue,
-            })
-            t = MsgReaderThread(**settings)
             t.start()
-            # time.sleep(30) # → uncomment for tracing purposes
-            # for debugging, we can delay the start of the actual work in the
-            # thread using this event:
-            t.e.set()
             print(f"MySubProcess {self.idx} waiting for results")
             while not t.is_stopped():
-                time.sleep(0.1)
+                time.sleep(1)
             print(f"MySubProcess {self.idx} done waiting for results, joining thread")
         finally:
             t.stop()

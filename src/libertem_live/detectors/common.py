@@ -2,9 +2,38 @@ import contextlib
 import threading
 import logging
 import queue
+from typing import Optional
+import multiprocessing as mp
 
+import cloudpickle
 
 logger = logging.getLogger(__name__)
+
+
+def send_serialized(socket, msg):
+    s = cloudpickle.dumps(msg, protocol=5)
+    return socket.send(s)
+
+
+def recv_serialized(socket):
+    msg = socket.recv()
+    s = cloudpickle.loads(msg)
+    return s
+
+
+class SerializedQueue:
+    def __init__(self):
+        self.q = mp.Queue()
+
+    def put(self, msg, **kwargs):
+        serialized = cloudpickle.dumps(msg, protocol=5)
+        return self.q.put(serialized, **kwargs)
+
+    def get(self, **kwargs):
+        return self.q.get(**kwargs)
+
+    def close(self):
+        return self.q.close()
 
 
 class StoppableThreadMixin:
@@ -17,6 +46,23 @@ class StoppableThreadMixin:
 
     def is_stopped(self):
         return self._stop_event.is_set()
+
+
+class ErrThreadMixin(StoppableThreadMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._error: Optional[Exception()] = None
+
+    def get_error(self):
+        return self._error
+
+    def error(self, exc):
+        self._error = exc
+        self.stop()
+
+    def maybe_raise(self):
+        if self._error is not None:
+            raise self._error
 
 
 class ReaderPoolImpl:

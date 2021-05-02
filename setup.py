@@ -97,6 +97,9 @@ setup(
         'cloudpickle',
         'jsonschema',
         'scikit-learn',
+        'pyzmq',
+        'pydantic',
+        'typing_extensions',
     ],
     extras_require={
         'torch': 'torch',
@@ -108,6 +111,7 @@ setup(
     entry_points={
         'console_scripts': [
             'libertem-live-mib-sim=libertem_live.detectors.merlin.sim:main',
+            'libertem-cam-server=libertem_live.detectors.k2is.cam_server:main',
         ]
     },
     cmdclass={
