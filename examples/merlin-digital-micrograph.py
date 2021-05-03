@@ -8,6 +8,8 @@ import multiprocessing
 import threading
 from contextlib import contextmanager
 
+import numpy as np
+
 from libertem_live import api
 from libertem_live.udf.monitor import SignalMonitorUDF
 
@@ -31,11 +33,15 @@ multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
 @contextmanager
 def medipix_setup(dataset, udfs):
     print("priming camera for acquisition")
-    # TODO: medipix control socket commands go here
-    # TODO interface to be tested, not supported in simulator yet
+    # Here go commands to control the camera and the rest of the setup
+    # to perform an acquisition.
+    
+    # The Merlin simulator currently accepts all kinds of commands
+    # and doesn't respond like a real Merlin detector.
 
-    # dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
-    # dataset.control.set(...)
+    dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
+    #dataset.control.set(...)
+    print("GET 'numframes': ", dataset.control.get('numframes'))
 
     # microscope.configure_scan()
     # microscope.start_scanning()
@@ -56,7 +62,6 @@ def main():
             scan_size=SCAN_SIZE,
             host=MERLIN_DATA_SOCKET[0],
             port=MERLIN_DATA_SOCKET[1],
-            control_port=None,  # deactivate control interface, not supported in simulator yet
             frames_per_partition=800,
             pool_size=2,
         )
