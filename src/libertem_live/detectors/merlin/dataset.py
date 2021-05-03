@@ -8,6 +8,7 @@ from libertem.io.dataset.base import (
 )
 
 from .data import MerlinDataSource
+from .control import SimpleMerlinControl
 
 
 logger = logging.getLogger(__name__)
@@ -16,15 +17,21 @@ logger = logging.getLogger(__name__)
 class MerlinLiveDataSet(DataSet):
     def __init__(
         self,
-        camera_setup,
+        setup,
         scan_size,
-        host,
-        port,
+        host='127.0.0.1',
+        port=6342,
+        control_port=6341,
+        control_timeout=1.0,
         frames_per_partition=256,
         pool_size=2
     ):
-        self._camera_setup = camera_setup
+        self._setup = setup
         self._source = MerlinDataSource(host, port, pool_size)
+        if control_port is None:
+            self._control = None
+        else:
+            self._control = SimpleMerlinControl(host, control_port, control_timeout)
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
 
@@ -37,6 +44,10 @@ class MerlinLiveDataSet(DataSet):
             raw_dtype=dtype,
             dtype=dtype,
         )
+        # Test connection to the control socket
+        if self.control is not None:
+            with self.control:
+                pass
         return self
 
     @property
@@ -44,8 +55,16 @@ class MerlinLiveDataSet(DataSet):
         return self._source
 
     @property
-    def camera_setup(self):
-        return self._camera_setup
+    def control(self):
+        return self._control
+
+    @contextmanager
+    def run_setup(self, udfs):
+        if self._setup is not None:
+            with self._setup(self, udfs):
+                yield
+        else:
+            yield
 
     @property
     def dtype(self):
@@ -62,6 +81,14 @@ class MerlinLiveDataSet(DataSet):
     @property
     def meta(self):
         return self._meta
+
+    @contextmanager
+    def start_control(self):
+        if self.control is not None:
+            with self.control:
+                yield
+        else:
+            yield
 
     @contextmanager
     def start_acquisition(self):

@@ -86,7 +86,7 @@ setup(
     ],
     extras_require={
         'pymemfd': 'pymemfd',
-        'tango': 'tango',
+        'pytango': 'pytango',
     },
     package_dir={"": "src"},
     packages=find_packages(where='src'),
