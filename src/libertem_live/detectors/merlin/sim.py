@@ -6,6 +6,7 @@ import socket
 import itertools
 import functools
 import platform
+from threading import Thread
 
 import click
 import numpy as np
@@ -320,6 +321,79 @@ class DataSocketServer:
                 print("exception? %s" % e)
 
 
+class ControlSocketServer:
+    def __init__(self, port=6341):
+
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._port = port
+        self._params = {}
+
+    def handle_conn(self, connection):
+        print("handling control connection")
+        # This code is only a proof of concept. It works just well enough to send
+        # commands and parse responses with control.SimpleMerlinControl.
+        # A few points to improve:
+        # * Handle incomplete messages properly. Right now,
+        #   the assumption is that a complete command will be received with
+        #   recv() and a complete response will be sent with send()
+        # * Figure out the missing parts of the response to match Merlin behavior
+        # * Actually respond to commands that can be simulated, such as 'numframes'
+        # * Possibly emit errors like a real Merlin detector upon bad commands?
+        while True:
+            chunk = connection.recv(1024*1024)
+            if len(chunk) == 0:
+                return
+            parts = chunk.split(b',')
+            print("Control command received: ", chunk)
+            parts = [part.decode('ascii') for part in parts]
+            method = parts[2]
+            param = parts[3]
+            if method == 'SET':
+                value = parts[4]
+            if method == 'GET':
+                response_parts = (
+                    "noideafirst",
+                    "noideasecond",
+                    method,
+                    "noideafourth",
+                    self._params.get(param, "undef"),
+                    "0"
+                )
+            elif method == 'SET':
+                self._params[param] = value
+                response_parts = (
+                    "noideafirst",  # 0
+                    "noideasecond",  # 1
+                    method,  # 2
+                    "noideafourth",  # 3
+                    "0",  # 4
+                )
+            else:
+                raise RuntimeError("Unknown method %s", method)
+            response_str = ','.join(response_parts)
+            print("Control response: ", response_str)
+            connection.send(response_str.encode('ascii'))
+
+    def run(self):
+        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self._socket.bind(('0.0.0.0', self._port))
+        self._socket.listen(1)
+        print("control port listening")
+        while True:
+            try:
+                connection, client_addr = self._socket.accept()
+                with connection:
+                    print("accepted control from %s" % (client_addr,))
+                    self.handle_conn(connection)
+            except ConnectionResetError:
+                print("control disconnected")
+            except RuntimeError as e:
+                print("control exception %s -> stopping" % e)
+                break
+            except Exception as e:
+                print("control exception? %s" % e)
+
+
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--continuous', default=False, is_flag=True)
@@ -327,8 +401,9 @@ class DataSocketServer:
     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
 )
 @click.option('--port', type=int, default=6342)
+@click.option('--control-port', type=int, default=6341)
 @click.option('--max-runs', type=int, default=-1)
-def main(path, continuous, port, cached, max_runs):
+def main(path, continuous, port, control_port, cached, max_runs):
     if cached == 'MEM':
         sim = CachedDataSocketSim(path=path, continuous=continuous, max_runs=max_runs)
     elif cached == 'MEMFD':
@@ -336,7 +411,20 @@ def main(path, continuous, port, cached, max_runs):
     else:
         sim = DataSocketSimulator(path=path, continuous=continuous, max_runs=max_runs)
     server = DataSocketServer(sim=sim, port=port)
-    server.run()
+    t = Thread(target=server.run)
+    # Make sure the thread dies with the main program
+    t.daemon = True
+    t.start()
+
+    ctrl = ControlSocketServer(port=control_port)
+    t_c = Thread(target=ctrl.run)
+    # Make sure the thread dies with the main program
+    t_c.daemon = True
+    t_c.start()
+    # This allows us to handle Ctrl-C, and the main program
+    # stops in a timely fashion when continuous scanning stops.
+    while t.is_alive():
+        time.sleep(1)
     sys.exit(0)
 
 

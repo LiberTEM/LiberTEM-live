@@ -23,9 +23,8 @@ class SimpleMerlinControl:
         self._socket.settimeout(self._timeout)
 
     def __enter__(self):
-        if self._socket is not None:
-            self._protected = True
-            self.connect()
+        self._protected = True
+        self.connect()
 
     def __exit__(self, type, value, traceback):
         if self._protected:
