@@ -28,6 +28,9 @@ def expect_event(store: Store, event: Event):
 
         assert call_event == event
         assert call_effects == store
-        assert call_new_state == store.state
+
+        # XXX this is not generally true, because we may have chained events
+        # that change the state further:
+        # assert call_new_state == store.state
     finally:
         store.remove_callback(cb)

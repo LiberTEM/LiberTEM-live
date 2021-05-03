@@ -6,6 +6,7 @@ from libertem_live.detectors.k2is.state import (
     CamConnectionState, ProcessingState,
     StartupCompleteEvent, CamConnectedEvent, SetUDFsEvent, CamErrorEvent,
     StopProcessingEvent, CamDisconnectedEvent, SetNavShapeEvent,
+    StartProcessingEvent,
     cam_server_effects,
 )
 
@@ -55,8 +56,19 @@ def test_processing_state_initial(store):
     assert store.state.processing == ProcessingState.IDLE
 
 
-def test_processing_start(store):
+def test_processing_start_1(store):
     store.dispatch(SetUDFsEvent(udfs=[SumUDF()]))
+    store.dispatch(SetNavShapeEvent(nav_shape=(128, 128)))
+    assert store.state.processing == ProcessingState.READY
+    store.dispatch(StartProcessingEvent())
+    assert store.state.processing == ProcessingState.RUNNING
+
+
+def test_processing_start_2(store):
+    store.dispatch(SetNavShapeEvent(nav_shape=(128, 128)))
+    store.dispatch(SetUDFsEvent(udfs=[SumUDF()]))
+    assert store.state.processing == ProcessingState.READY
+    store.dispatch(StartProcessingEvent())
     assert store.state.processing == ProcessingState.RUNNING
 
 

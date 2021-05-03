@@ -41,12 +41,12 @@ class EventType(str, enum.Enum):
     # change the current nav result shape
     SET_NAV_SHAPE = 'SET_NAV_SHAPE'
 
-    # An exception was thrown when running the UDF
-    UDF_ERROR = 'UDF_ERROR'
-
     # XXX
     # XXX Internal events (that come from our "own" processes):
     # XXX
+
+    # An exception was thrown when running the UDF
+    UDF_ERROR = 'UDF_ERROR'
 
     # emitted when starting, or re-starting threads and processes:
     STARTING = 'STARTING'
@@ -65,6 +65,9 @@ class EventType(str, enum.Enum):
 
     # Some camera-related error happened:
     CAM_ERROR = 'CAM_ERROR'
+
+    # start processing!
+    START_PROCESSING = 'START_PROCESSING'
 
     # UDFs are being run on the data stream:
     PROCESSING_STARTED = 'PROCESSING_STARTED'
@@ -95,6 +98,10 @@ class SetUDFsEvent(pydantic.BaseModel):
 class SetNavShapeEvent(pydantic.BaseModel):
     typ: Literal[EventType.SET_NAV_SHAPE] = EventType.SET_NAV_SHAPE
     nav_shape: Tuple[int, ...]
+
+
+class StartProcessingEvent(pydantic.BaseModel):
+    typ: Literal[EventType.START_PROCESSING] = EventType.START_PROCESSING
 
 
 class StopProcessingEvent(pydantic.BaseModel):
@@ -132,11 +139,14 @@ class CamErrorEvent(pydantic.BaseModel):
 Event = Union[
     SetUDFsEvent,
     SetNavShapeEvent,
+    StartProcessingEvent,
     StopProcessingEvent,
     StartupCompleteEvent,
     StartingEvent,
     StopEvent,
     StoppedEvent,
+    CamConnectedEvent,
+    CamDisconnectedEvent,
 ]
 
 
@@ -300,6 +310,11 @@ class EventReplicaClientThread(ErrThreadMixin, threading.Thread):
         assert self.sub is not None
         return self.sub.dispatch(event)
 
+    @property
+    def state(self):
+        assert self.sub is not None
+        return self.sub.store.state
+
 
 class EventReplicaClient:
     def __init__(self):
@@ -331,6 +346,10 @@ class EventReplicaClient:
     def dispatch(self, event: Event):
         return self.store.dispatch(event)
 
+    @property
+    def state(self):
+        return self.store.state
+
 
 class LifecycleState(enum.IntEnum):
     STARTING = 1
@@ -346,7 +365,8 @@ class CamConnectionState(enum.IntEnum):
 
 class ProcessingState(enum.IntEnum):
     IDLE = 1
-    RUNNING = 2
+    READY = 2
+    RUNNING = 3
 
 
 class CamServerState(BaseState):
@@ -367,11 +387,9 @@ def cam_server_effects(
     state: CamServerState, new_state: CamServerState, event: Event, effects: EffectSink
 ):
     if event.typ is EventType.CAM_DISCONNECTED:
-        if state.processing is ProcessingState.RUNNING:
-            effects.emit(StopProcessingEvent())
+        effects.emit(StopProcessingEvent())
     elif event.typ is EventType.CAM_ERROR:
-        if state.processing is ProcessingState.RUNNING:
-            effects.emit(StopProcessingEvent())
+        effects.emit(CamDisconnectedEvent())
 
 
 def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
@@ -389,8 +407,18 @@ def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
     elif event.typ is EventType.PROCESSING_STARTED:
         return state
     elif event.typ is EventType.STOP_PROCESSING:
-        # someone else should listen to this event and stop running the UDFs
-        return state
+        new_p_state = ProcessingState.IDLE
+        if state.nav_shape != () and state.udfs != []:
+            new_p_state = ProcessingState.READY
+        return state.update(
+            processing=new_p_state,
+        )
+    elif event.typ is EventType.START_PROCESSING:
+        assert state.nav_shape != ()
+        assert state.udfs != []
+        return state.update(
+            processing=ProcessingState.RUNNING,
+        )
 
     elif event.typ is EventType.CAM_CONNECTED:
         assert state.cam_connection is CamConnectionState.DISCONNECTED
@@ -398,21 +426,24 @@ def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
             cam_connection=CamConnectionState.CONNECTED
         )
     elif event.typ is EventType.CAM_DISCONNECTED:
-        return state  # FIXME
+        return state.update(
+            cam_connection=CamConnectionState.DISCONNECTED,
+        )
     elif event.typ is EventType.CAM_ERROR:
         return state  # FIXME
 
     elif event.typ is EventType.SET_UDFS:
         if state.processing is ProcessingState.IDLE:
-            # transition: IDLE -> RUNNING
-            # TODO: do we need an intermediate state,
-            # like "starting to run"?
-            return state.update(
-                processing=ProcessingState.RUNNING,
-                udfs=event.udfs,
-            )
+            if state.nav_shape != ():
+                return state.update(
+                    processing=ProcessingState.READY,
+                    udfs=event.udfs,
+                )
+            else:
+                return state.update(
+                    udfs=event.udfs,
+                )
         else:
-            # RUNNING -> RUNNING
             return state.update(
                 udfs=event.udfs,
             )
@@ -420,8 +451,12 @@ def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
         return state  # FIXME: should explicitly stop running UDFs
 
     elif event.typ is EventType.SET_NAV_SHAPE:
+        new_p_state = state.processing
+        if event.nav_shape != () and state.udfs != []:
+            new_p_state = ProcessingState.READY
         return state.update(
-            nav_shape=event.nav_shape
+            nav_shape=event.nav_shape,
+            processing=new_p_state,
         )
 
     elif event.typ is EventType.STOP:

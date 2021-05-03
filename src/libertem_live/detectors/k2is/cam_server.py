@@ -89,11 +89,15 @@ def main_loop() -> None:
         event_publisher.stop()
         event_publisher.join()
         for p in processes:
+            p.stop()
+        for p in processes:
             p.join(timeout=1)
             # we can't determine join timeout status by return value,
             # so we explicitly check here with `is_alive` and cleanup
             # a bit more forecully :
+        for p in processes:
             if p.is_alive():
+                print("still alive, using the force")
                 p.terminate()
                 p.join()
 
@@ -108,7 +112,7 @@ def main_loop() -> None:
 # @click.option('--port', type=int, default=7201)
 # @click.option('--max-runs', type=int, default=-1)
 def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     main_loop()
     sys.exit(0)
 
