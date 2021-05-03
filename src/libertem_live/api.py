@@ -5,25 +5,24 @@ from libertem.api import Context
 
 
 class LiveContext(Context):
-    def __init__(self, executor=None):
-        if executor is None:
-            executor = InlineJobExecutor()
-        super().__init__(executor=executor)
+    def _create_local_executor(self):
+        '''
+        Live acquisition currently requires a suitable executor, for
+        example :class:`~libertem.executor.inline.InlineJobExecutor`.
+        '''
+        return InlineJobExecutor()
 
     @contextlib.contextmanager
-    def _do_camera_setup(self, dataset, udf):
-        if hasattr(dataset, 'camera_setup'):
-            # run_udf() and run_udf_iter() support single UDFs
-            # as well as lists of UDFs. We simplify the camera setup interface
-            # by always supplying a list to it
+    def _do_setup(self, dataset, udf):
+        with dataset.start_control():
+            # We simplify the setup interface by always supplying
+            # a list of UDFs, not a single one
             if not isinstance(udf, (list, tuple)):
                 udf = [udf]
-            with dataset.camera_setup(dataset, udf):
+            with dataset.run_setup(udfs=udf):
                 yield
-        else:
-            yield
 
-    def prepare_acquisition(self, detector_type, camera_setup, *args, **kwargs):
+    def prepare_acquisition(self, detector_type, setup, *args, **kwargs):
         # FIXME implement similar to LiberTEM datasets once
         # we have more detector types to support
         '''
@@ -33,12 +32,14 @@ class LiveContext(Context):
         ----------
         detector_type : str
             - :code:`'merlin'`: Quantum Detectors Merlin camera. Additional parameters:
-        camera_setup : contextmanager
+        setup : contextmanager
             Context manager to initialize the camera and tear it down.
             This can be used to send the commands to the camera and
             other parts of the setup to start a scan and clean up afterwards.
             It will be entered when an acquisition is started.
             Parameters supplied to the context manager are the live dataset and a list of UDFs.
+            It is expected to yield after entering the dataset's :meth:`libertem-live.dataset.base.LiveDataSet.start_acquisition`
+            context manager and perform any cleanup after that yield.
         * args, **kwargs
             Additional parameters for the acquisition, see below
 
@@ -46,10 +47,37 @@ class LiveContext(Context):
         -----------------
 
         * :code:`scan_size`: tuple(int)
-        * :code:`host`: str, hostname of the Merlin data server
-        * :code:`port`: int, port of the Merlin data server
+        * :code:`host`: str, hostname of the Merlin data server, default '127.0.0.1'
+        * :code:`port`: int, data port of the Merlin data server, default 6342
+        * :code:`control_port`: int, control port of the Merlin data server, default 6341.
+          Set to :code:`None` to deactivate control.
+        * :code:`control_timeout`: float, timeout for control port of the Merlin data server
+          in seconds. Default 1.0.
+          Set to :code:`None` to deactivate control.
         * :code:`frames_per_partition`: int
         * :code:`pool_size`: int, number of decoding threads. Defaults to 2
+
+        Examples
+        --------
+
+        .. testcode::
+
+            @contextmanager
+            def medipix_setup(dataset, udfs):
+                print("priming camera for acquisition")
+                # TODO: medipix control socket commands go here
+                # TODO interface to be tested, not supported in simulator yet
+
+                # dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
+                # dataset.control.set(...)
+
+                # microscope.configure_scan()
+                # microscope.start_scanning()
+                print("running acquisition")
+                with dataset.start_acquisition():
+                    yield
+                print("camera teardown")
+                # teardown routines go here
         '''
         detector_type = str(detector_type).lower()
         if detector_type == 'merlin':
@@ -57,12 +85,12 @@ class LiveContext(Context):
             cls = MerlinLiveDataSet
         else:
             raise ValueError(f"Unknown detector type '{detector_type}', supported is 'merlin'")
-        return cls(camera_setup, *args, **kwargs).initialize(self.executor)
+        return cls(setup, *args, **kwargs).initialize(self.executor)
 
     def run_udf(self, dataset, udf, *args, **kwargs):
-        with self._do_camera_setup(dataset, udf):
+        with self._do_setup(dataset, udf):
             return super().run_udf(dataset=dataset, udf=udf, *args, **kwargs)
 
     def run_udf_iter(self, dataset, udf, *args, **kwargs):
-        with self._do_camera_setup(dataset, udf):
+        with self._do_setup(dataset, udf):
             return super().run_udf_iter(dataset=dataset, udf=udf, *args, **kwargs)

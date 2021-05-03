@@ -1,9 +1,9 @@
 from libertem.udf import UDF
 
 
-class MonitorUDF(UDF):
+class SignalMonitorUDF(UDF):
     '''
-    Return the most recently processed frame.
+    Return the most recently processed signal space element (frame).
 
     This is useful for live processing as a beam monitor. Individual frames in
     an offline dataset are more easily accessible with
