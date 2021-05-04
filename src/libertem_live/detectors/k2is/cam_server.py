@@ -8,9 +8,9 @@ import click
 from libertem_live.detectors.common import (
     recv_serialized, SerializedQueue,
 )
-from .proto import MySubProcess, SyncState
+from .proto import K2ListenerProcess, SyncState
 from .state import (
-    Event, Store, cam_server_reducer, cam_server_effects,
+    Event, Store, cam_server_reducer,
     EventReplicaServer, CamServerState, LifecycleState, CamConnectionState,
     ProcessingState,
 
@@ -21,7 +21,11 @@ from .state import (
 logger = logging.getLogger(__name__)
 
 
-def main_loop() -> None:
+def debug_events(state, new_state, event, store) -> None:
+    logger.info("got event: %r", event)
+
+
+def main_loop(force: bool, enable_tracing: bool) -> None:
     event_queue: queue.Queue[Event] = queue.Queue()
     initial_state = CamServerState(
         lifecycle=LifecycleState.STARTING,
@@ -36,7 +40,7 @@ def main_loop() -> None:
     )
     event_pump = EventReplicaServer.make_event_pump(event_queue)
     store.listen_all(event_pump)
-    store.listen_all(cam_server_effects)
+    store.listen_all(debug_events)
 
     event_publisher = EventReplicaServer(
         event_queue,
@@ -61,10 +65,11 @@ def main_loop() -> None:
         ss = SyncState(num_processes=8)
         for idx in range(8):
             oq = SerializedQueue()
-            p = MySubProcess(
+            p = K2ListenerProcess(
                 idx=idx,
                 sync_state=ss,
-                out_queue=oq
+                out_queue=oq,
+                enable_tracing=enable_tracing,
             )
             p.start()
             processes.append(p)
@@ -79,6 +84,8 @@ def main_loop() -> None:
                 event = recv_serialized(control)
                 store.dispatch(event)
                 control.send_pyobj(None)
+            if any(p.is_stopped() for p in processes):
+                break
     finally:
         logging.debug("main_loop: finally")
         try:
@@ -91,29 +98,36 @@ def main_loop() -> None:
         for p in processes:
             p.stop()
         for p in processes:
-            p.join(timeout=1)
+            p.join(timeout=2)
             # we can't determine join timeout status by return value,
             # so we explicitly check here with `is_alive` and cleanup
             # a bit more forecully :
         for p in processes:
             if p.is_alive():
-                print("still alive, using the force")
-                p.terminate()
+                if force:
+                    print("still alive, using the force")
+                    p.terminate()
                 p.join()
 
 
 @click.command()
 # @click.argument('path', type=click.Path(exists=True))
-# @click.option('--continuous', default=False, is_flag=True)
 # @click.option('--cached', default='NONE', type=click.Choice(
 #     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
 # )
 # FIXME: what is the IANA guideline on unregistered port numbers?
 # @click.option('--port', type=int, default=7201)
 # @click.option('--max-runs', type=int, default=-1)
-def main():
-    logging.basicConfig(level=logging.INFO)
-    main_loop()
+@click.option('--force/--no-force', default=False, is_flag=True,
+              help='forcefully stop processes')
+@click.option('--enable-tracing/--disable-tracing', default=False, is_flag=True)
+def main(force, enable_tracing):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)-8s %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+    )
+    main_loop(force=force, enable_tracing=enable_tracing)
     sys.exit(0)
 
 

@@ -51,12 +51,13 @@ class StoppableThreadMixin:
 class ErrThreadMixin(StoppableThreadMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._error: Optional[Exception()] = None
+        self._error: Optional[Exception] = None
 
     def get_error(self):
         return self._error
 
     def error(self, exc):
+        logger.error("got exception %r, shutting down thread", exc)
         self._error = exc
         self.stop()
 

@@ -208,7 +208,8 @@ class Store(EffectSink):
         Parameters
         ----------
         callback : StoreListener
-            The callback to be added
+            The callback to be added. It should have signature
+            fn(state, new_state, event, store) -> None
         """
         self.listeners[None].append(callback)
 
@@ -383,15 +384,6 @@ class CamServerState(BaseState):
         arbitrary_types_allowed = True
 
 
-def cam_server_effects(
-    state: CamServerState, new_state: CamServerState, event: Event, effects: EffectSink
-):
-    if event.typ is EventType.CAM_DISCONNECTED:
-        effects.emit(StopProcessingEvent())
-    elif event.typ is EventType.CAM_ERROR:
-        effects.emit(CamDisconnectedEvent())
-
-
 def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
 
     if event.typ is EventType.STARTUP_COMPLETE:
@@ -421,7 +413,10 @@ def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
         )
 
     elif event.typ is EventType.CAM_CONNECTED:
-        assert state.cam_connection is CamConnectionState.DISCONNECTED
+        # FIXME: this is idempotent for now, possibly needs to be
+        # more strict in the long run. Currently, the individual processes
+        # for each sector send out events, which may cause duplicates.
+        # assert state.cam_connection is CamConnectionState.DISCONNECTED
         return state.update(
             cam_connection=CamConnectionState.CONNECTED
         )

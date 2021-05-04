@@ -4,6 +4,8 @@ import os
 import time
 import socket
 import threading
+import contextlib
+import logging
 
 import numpy as np
 
@@ -25,6 +27,21 @@ from .state import (
 )
 
 GROUP = '225.1.1.1'
+
+logger = logging.getLogger(__name__)
+
+
+def warmup():
+    warmup_buf_inp = bytes_aligned(0x5758)
+    for dtype in [np.uint16, np.float32, np.float64]:
+        warmup_buf_out = zeros_aligned((930, 16), dtype=dtype).reshape((-1,))
+        decode_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out)
+
+
+class FakeEnvironment(Environment):
+    @contextlib.contextmanager
+    def enter(self):
+        yield
 
 
 class FakeDataSet:
@@ -60,7 +77,7 @@ class FakeExecutor:
         try:
             for task in tasks:
                 oq = SerializedQueue()
-                p = MySubProcess(
+                p = K2ListenerProcess(
                     idx=task.idx,
                     sync_state=ss,
                     out_queue=oq
@@ -211,6 +228,7 @@ class SyncState:
         self.sync_msg_seen = mp.Value('i', 0)
         self.sync_done = mp.Event()
         self.initial_sync = mp.Value('i', 0)
+        self.reset_barrier = mp.Barrier(num_processes)
 
     def set_initial_sync(self):
         """
@@ -225,9 +243,9 @@ class SyncState:
         """
         Each process should set the `frame_id` of the first full frame they observe
         """
-        if self.sync_done.is_set():
-            raise ValueError("sync already done")
         with self.first_frame_id.get_lock(), self.sync_msg_seen.get_lock():
+            if self.sync_done.is_set():
+                raise ValueError("sync already done")
             self.first_frame_id.value = max(self.first_frame_id.value, frame_id)
             self.sync_msg_seen.value += 1
             if self.sync_msg_seen.value == self.num_processes:
@@ -239,13 +257,21 @@ class SyncState:
         return self.first_frame_id.value
 
     def reset(self):
-        with self.first_frame_id.get_lock(),\
-                self.sync_msg_seen.get_lock(),\
-                self.initial_sync.get_lock():
-            self.first_frame_id.value = 0
-            self.sync_msg_seen.value = 0
-            self.initial_sync.value = 0
-        self.sync_done.clear()
+        # NOTE: blocking here, as timeout breaks the barrier state
+        # this is the only place we are blocking for a while
+        logger.info("SyncState.reset before barrier")
+        ret = self.reset_barrier.wait(timeout=10)
+        logger.info(f"SyncState.reset after barrier {ret}")
+        if ret == 0:
+            logger.info("SyncState.reset ret==0")
+            with self.first_frame_id.get_lock(),\
+                    self.sync_msg_seen.get_lock(),\
+                    self.initial_sync.get_lock():
+                self.first_frame_id.value = 0
+                self.sync_msg_seen.value = 0
+                self.initial_sync.value = 0
+                self.sync_done.clear()
+                self.reset_barrier.reset()
 
 
 ts = TilingScheme.make_for_shape(
@@ -303,9 +329,32 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.sync_timeout = 1  # TODO: make this a parameter?
         self.out_queue = out_queue
         self.replica = EventReplicaClient()
+        self.first_frame_id = None
         self.last_frame_id = None  # the last frame_id we have seen
         self.buffered_tile = None  # a bufferd DataTile between calls of `get_tiles`
+        self.sync_barrier = mp.Barrier(8)  # FIXME: hardcoded number of participants
         super().__init__(*args, **kwargs)
+
+    def run(self):
+        logger.info(f"thread {threading.get_native_id()}")
+        os.sched_setaffinity(0, self.affinity_set)
+        warmup()
+        try:
+            # FIXME: benchmark number of threads
+            env = Environment(threads_per_worker=1)
+            with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s, env.enter():
+                logger.info(f"listening on {self.local_addr}:{self.port}/{GROUP} on {self.iface}")
+                read_iter = self.read_loop(s)
+                while True:
+                    if self.is_stopped():
+                        break
+                    self.main_loop(s, read_iter)
+        except Exception as e:
+            return self.error(e)
+        self.stop()
+
+    def update_first_frame_id(self, new_frame_id):
+        self.first_frame_id = new_frame_id
 
     def read_loop(self, s):
         # NOTE: non-IS data is truncated - we only read the first 0x5758 bytes of the message
@@ -318,10 +367,13 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 p = s.recvmsg_into([buf])
                 assert p[0] == 0x5758
             except socket.timeout:
-                # on timeout, disconnect and make sure cancellation works by
-                # processing events:
+                # On timeout, disconnect and make sure cancellation works by
+                # processing events. Also reset synchronization, to make sure
+                # we re-sync when data starts to come in again
                 if self.state_is_connected():
+                    logger.warn("read_loop timeout while connected, resetting")
                     self.replica.dispatch(CamDisconnectedEvent())
+                    self.sync_state.reset()
                 self.replica.do_events()
                 continue
 
@@ -373,7 +425,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             If the election fails to resolve in the given timeout
         """
         # send the frame_id to the synchronizer
-        self.sync_state.set_first_frame_id(frame_id)
+        # (increment by 1, because we have read at least one block of this frame)
+        self.sync_state.set_first_frame_id(frame_id + 1)
 
         # ... and wait, until all processes have sent their frame_id:
         if not self.sync_state.sync_done.wait(timeout=self.sync_timeout):
@@ -384,7 +437,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def x_offset(self):
         return self.idx * 256
 
-    def get_tiles(self, read_iter, first_frame_id, end_after_idx):
+    def get_tiles(self, read_iter, end_after_idx):
         tileshape = Shape((1, 930, 16), sig_dims=2)
         buf = zeros_aligned((1, 930, 16), dtype=np.uint16)
         buf_flat = buf.reshape((-1,))
@@ -403,8 +456,19 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         for p in read_iter:
             decode_uint12_le(inp=p[0][40:], out=buf_flat)
             h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
-            self.last_frame_id = int(h['frame_id'])
-            frame_idx = int(h['frame_id']) - first_frame_id
+            frame_id = int(h['frame_id'])
+            frame_idx = frame_id - self.first_frame_id
+            if frame_idx < 0:
+                # Detect wraparound either a) because we are replaying a finite
+                # input file, or b) because we reached the range of the integer type.
+                # We select an arbitrary threshold of 10 frames to detect a)
+                if frame_id == 0 or abs(frame_idx) > 10:
+                    self.update_first_frame_id(frame_id)
+                else:
+                    # Discard any remaining packets from the sync procedure,
+                    # which may include out-of-order packets:
+                    continue
+            self.last_frame_id = frame_id
 
             sig_origin = (
                 int(h['pixel_y_start']),
@@ -431,23 +495,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def nav_shape(self):
         return self.replica.store.state.nav_shape
 
-    def run(self):
-        print(f"thread {threading.get_native_id()}")
-        os.sched_setaffinity(0, self.affinity_set)
-        try:
-            with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s:
-                print(f"listening on {self.local_addr}:{self.port}/{GROUP} on {self.iface}")
-                read_iter = self.read_loop(s)
-                while True:
-                    if self.is_stopped():
-                        break
-                    # after the camera is disconnected, reset the synchronization state:
-                    self.sync_state.reset()
-                    self.main_loop(s, read_iter)
-        except Exception as e:
-            return self.error(e)
-        self.stop()
-
     def state_is_running(self):
         if self.replica.store.state is None:
             return False
@@ -461,33 +508,41 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def main_loop(self, s, read_iter):
         self.replica.do_events()
 
-        print("MsgReaderThread: waiting for first packet(s)")
-        first_frame_id = self.sync(read_iter)
-        self.last_frame_id = first_frame_id
-
-        print(f"synced to {first_frame_id}")
+        logger.info("MsgReaderThread: waiting for first packet(s)")
 
         while not self.state_is_running():
+            # we are connected but aren't running a UDF yet, so we need to drain
+            # the socket until we are told to run:
             if self.is_stopped():
                 break
-            self.replica.do_events(timeout=100)
+            _ = next(read_iter)
+            self.replica.do_events()
+
+        self.first_frame_id = self.sync(read_iter)
+        self.last_frame_id = self.first_frame_id
+        logger.info(f"synced to {self.first_frame_id}")
 
         # NOTE: we could make this dynamic, but that's for another day;
         # as currently the UDF needs to know how many frames there
         # are per partition. we could keep this rather small and
         # have another thread `merge` all the intermediate results,
         # and then sample _that_ intermediate result to the main process
-        frames_per_partition = 400
+        frames_per_partition = 100
 
         frame_counter = 0
+        epoch = 0
+        tiling_scheme = None
 
         while True:
             num_frames = np.prod(self.nav_shape)
             frames_in_partition = min(frames_per_partition, num_frames - frame_counter)
 
             if frames_in_partition <= 0:
-                self.replica.dispatch(StopProcessingEvent())
-                return
+                # FIXME: if not in continuous mode, dispatch a stop event here
+                frame_counter = 0
+                epoch += 1
+                self.first_frame_id = self.last_frame_id + 1
+                continue
 
             self.replica.do_events()
             if self.is_stopped() or not self.state_is_running():
@@ -495,7 +550,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
             tiles = self.get_tiles(
                 read_iter,
-                first_frame_id,
                 end_after_idx=frame_counter + frames_in_partition
             )
 
@@ -518,17 +572,18 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 num_frames=frames_in_partition,
             )
 
-            env = Environment(threads_per_worker=1)  # FIXME?
             runner = UDFRunner(self.replica.store.state.udfs)
 
-            print(f"before run_for_partition {frame_counter}")
+            logger.debug(f"before run_for_partition {frame_counter}")
             result = runner.run_for_partition(
                 partition=partition,
                 corrections=None,
                 roi=None,
-                env=env,
+                env=FakeEnvironment(threads_per_worker=1),
+                tiling_scheme=tiling_scheme,
             )
-            print("sending some result...")
+            tiling_scheme = result.tiling_scheme
+            logger.info("sending some result for %r (sector %d)", partition_slice, self.idx)
             self.out_queue.put(result)  # FIXME: replace with a zmq socket
             frame_counter += frames_in_partition
 
@@ -544,11 +599,12 @@ def get_settings_for_sector(idx):
     }
 
 
-class MySubProcess(mp.Process):
-    def __init__(self, idx, sync_state, out_queue, *args, **kwargs):
+class K2ListenerProcess(mp.Process):
+    def __init__(self, idx, sync_state, out_queue, enable_tracing, *args, **kwargs):
         self.idx = idx
         self.sync_state = sync_state
         self.out_queue = out_queue
+        self.enable_tracing = enable_tracing
         self._stop_event = mp.Event()
         super().__init__(*args, **kwargs)
 
@@ -559,10 +615,20 @@ class MySubProcess(mp.Process):
         return self._stop_event.is_set()
 
     def run(self):
-        warmup_buf_out = zeros_aligned((930, 16), dtype=np.uint16).reshape((-1,))
-        warmup_buf_inp = zeros_aligned(0x5758, dtype=np.uint8)
+        if self.enable_tracing:
+            import pytracing
+            self._trace_f = open("/tmp/cam-server-%d.json" % os.getpid(), "wb")
+            tp = pytracing.TraceProfiler(output=self._trace_f)
+            try:
+                with tp.traced():
+                    self.main()
+            finally:
+                self._trace_f.close()
+        else:
+            self.main()
 
-        decode_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out)
+    def main(self):
+        warmup()
 
         settings = get_settings_for_sector(self.idx)
         settings.update({
@@ -573,14 +639,16 @@ class MySubProcess(mp.Process):
 
         try:
             t.start()
-            print(f"MySubProcess {self.idx} started processing")
+            logger.info(f"MySubProcess {self.idx} started processing")
             while not (t.is_stopped() or self.is_stopped()):
+                t.maybe_raise()
                 time.sleep(1)
-            print(f"MySubProcess {self.idx} stopped processing")
+            logger.info(f"MySubProcess {self.idx} stopped processing")
             t.maybe_raise()
         finally:
             t.stop()
             t.join()
-            print(f"MySubPRocess {self.idx} closing out_queue")
+            logger.info(f"MySubProcess {self.idx} closing out_queue")
             self.out_queue.close()
-        print(f"MySubProcess {self.idx} end of run()")
+            self.stop()
+        logger.info(f"MySubProcess {self.idx} end of run()")

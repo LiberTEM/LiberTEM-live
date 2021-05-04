@@ -5,12 +5,9 @@ from libertem_live.detectors.k2is.state import (
     cam_server_reducer, Store, LifecycleState, CamServerState,
     CamConnectionState, ProcessingState,
     StartupCompleteEvent, CamConnectedEvent, SetUDFsEvent, CamErrorEvent,
-    StopProcessingEvent, CamDisconnectedEvent, SetNavShapeEvent,
+    CamDisconnectedEvent, SetNavShapeEvent,
     StartProcessingEvent,
-    cam_server_effects,
 )
-
-from utils import expect_event
 
 
 @pytest.fixture
@@ -23,7 +20,6 @@ def store():
         nav_shape=(),
     )
     store = Store(reducer=cam_server_reducer, initial_state=initial_state)
-    store.listen_all(cam_server_effects)
     return store
 
 
@@ -74,17 +70,15 @@ def test_processing_start_2(store):
 
 def test_stop_processing_on_cam_error(store):
     store.dispatch(SetUDFsEvent(udfs=[SumUDF()]))
-
-    with expect_event(store, StopProcessingEvent()):
-        store.dispatch(CamErrorEvent())
+    store.dispatch(CamErrorEvent())
+    assert store.state.processing == ProcessingState.IDLE
 
 
 def test_stop_processing_on_cam_disconnect(store):
     store.dispatch(SetUDFsEvent(udfs=[SumUDF()]))
     store.dispatch(CamConnectedEvent())
-
-    with expect_event(store, StopProcessingEvent()):
-        store.dispatch(CamDisconnectedEvent())
+    store.dispatch(CamDisconnectedEvent())
+    assert store.state.processing == ProcessingState.IDLE
 
 
 def test_nav_shape(store):
