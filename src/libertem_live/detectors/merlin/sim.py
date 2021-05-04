@@ -322,8 +322,8 @@ class DataSocketServer:
 
 
 class ControlSocketServer:
-    def __init__(self, port=6341):
-
+    def __init__(self, sim, port=6341):
+        self._sim = sim
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._port = port
         self._params = {}
@@ -374,6 +374,10 @@ class ControlSocketServer:
             print("Control response: ", response_str)
             connection.send(response_str.encode('ascii'))
 
+    @property
+    def sim(self):
+        return self._sim
+
     def run(self):
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.bind(('0.0.0.0', self._port))
@@ -410,17 +414,19 @@ def main(path, continuous, port, control_port, cached, max_runs):
         sim = MemfdSocketSim(path=path, continuous=continuous, max_runs=max_runs)
     else:
         sim = DataSocketSimulator(path=path, continuous=continuous, max_runs=max_runs)
+
+    ctrl = ControlSocketServer(sim=sim, port=control_port)
+    t_c = Thread(target=ctrl.run)
+    # Make sure the thread dies with the main program
+    t_c.daemon = True
+    t_c.start()
+
     server = DataSocketServer(sim=sim, port=port)
     t = Thread(target=server.run)
     # Make sure the thread dies with the main program
     t.daemon = True
     t.start()
 
-    ctrl = ControlSocketServer(port=control_port)
-    t_c = Thread(target=ctrl.run)
-    # Make sure the thread dies with the main program
-    t_c.daemon = True
-    t_c.start()
     # This allows us to handle Ctrl-C, and the main program
     # stops in a timely fashion when continuous scanning stops.
     while t.is_alive():
