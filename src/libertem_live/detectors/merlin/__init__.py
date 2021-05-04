@@ -1,7 +1,7 @@
-from .data import (
-    MerlinDataSocket, ReaderPool, MerlinDataSource,
-)
+from .data import MerlinDataSource
+from .control import SimpleMerlinControl
+from .dataset import MerlinLiveDataSet
 
 __all__ = [
-    "MerlinDataSocket", "MerlinDataSource", "ReaderPool"
+    "MerlinDataSource", "SimpleMerlinControl", "MerlinLiveDataSet"
 ]
