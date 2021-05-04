@@ -1,8 +1,22 @@
 [
     {
-        "displayname": "TODO",
-        "authorname": "TODO",
-        "affiliation": "TODO",
-        "contribution": "TODO"
+        "displayname": "Achim Strauch",
+        "authorname": "Strauch, Achim",
+        "affiliation": "Jülich Research Centre, Ernst Ruska Centre",
+        "contribution": "Testing"
+    },    
+    {
+        "displayname": "Knut Müller-Caspary",
+        "authorname": "Müller-Caspary, Knut",
+        "affiliation": "Jülich Research Centre, Ernst Ruska Centre",
+        "contribution": "Scientific advisory, discussion",
+        "orcid": "0000-0002-2588-7993"
+    },
+    {
+        "displayname": "Rafal E. Dunin-Borkowski",
+        "authorname": "Dunin-Borkowski, Rafal E.",
+        "affiliation": "Jülich Research Centre, Ernst Ruska Centre",
+        "contribution": "Scientific advisory, resources",
+        "orcid": "0000-0001-8082-0647"
     }
 ]

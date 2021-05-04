@@ -15,6 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 class MerlinLiveDataSet(LiveDataSet):
+    '''
+    Live dataset to read from a Quantum Detectors Merlin camera
+
+    TODO more...
+    '''
     def __init__(
         self,
         setup,

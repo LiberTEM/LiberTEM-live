@@ -8,7 +8,7 @@
                 {"id": "10.13039/501100000780::686053"},
                 {"id": "10.13039/501100000780::823717"}
             ],
-            "keywords": ["TODO"],
+            "keywords": ["STEM", "TEM", "pixelated STEM", "4D STEM", "high-throughput", "electron microscopy", "live data processing"],
             "related_identifiers": [
                 {
                     "identifier": "https://github.com/LiberTEM/LiberTEM-live/tree/continuous",

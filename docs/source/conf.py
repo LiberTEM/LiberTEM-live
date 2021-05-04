@@ -69,6 +69,8 @@ extensions = [
     'sphinx_issues',
 ]
 
+bibtex_bibfiles = ['references-libertem_live.bib']
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -206,7 +208,8 @@ todo_include_todos = True
 
 intersphinx_mapping = {
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'python': ('https://docs.python.org/3.7', None)
+    'python': ('https://docs.python.org/3.7', None),
+    'libertem': ('https://libertem.github.io/LiberTEM/', None),
 }
 
 # Sphinx' link checker.

@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 LiberTEM-live
-============================
+=============
 
 .. include:: ../../README.rst
 ..   see also: https://muffinresearch.co.uk/selectively-including-parts-readme-rst-in-your-docs/
@@ -18,8 +18,10 @@ Documentation
    :maxdepth: 2
    :caption: Contents:
    
+   usage
    changelog
-   acknowledgements
+   acknowledgments
+   reference
 
 
 Indices and tables
