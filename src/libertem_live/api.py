@@ -14,13 +14,16 @@ class LiveContext(Context):
 
     @contextlib.contextmanager
     def _do_setup(self, dataset, udf):
-        with dataset.start_control():
-            # We simplify the setup interface by always supplying
-            # a list of UDFs, not a single one
-            if not isinstance(udf, (list, tuple)):
-                udf = [udf]
-            with dataset.run_setup(udfs=udf):
-                yield
+        if hasattr(dataset, 'start_control') and hasattr(dataset, 'run_setup'):
+            with dataset.start_control():
+                # We simplify the setup interface by always supplying
+                # a list of UDFs, not a single one
+                if not isinstance(udf, (list, tuple)):
+                    udf = [udf]
+                with dataset.run_setup(udfs=udf):
+                    yield
+        else:
+            yield
 
     def prepare_acquisition(self, detector_type, setup, *args, **kwargs):
         # FIXME implement similar to LiberTEM datasets once
@@ -31,14 +34,16 @@ class LiveContext(Context):
         Parameters
         ----------
         detector_type : str
-            - :code:`'merlin'`: Quantum Detectors Merlin camera. Additional parameters:
+            - :code:`'merlin'`: Quantum Detectors Merlin camera.
+            - :code:`'memory'`: Memory-based live data stream.
         setup : contextmanager
             Context manager to initialize the camera and tear it down.
             This can be used to send the commands to the camera and
             other parts of the setup to start a scan and clean up afterwards.
             It will be entered when an acquisition is started.
             Parameters supplied to the context manager are the live dataset and a list of UDFs.
-            It is expected to yield after entering the dataset's :meth:`libertem-live.dataset.base.LiveDataSet.start_acquisition`
+            It is expected to yield after entering the dataset's
+            :meth:`libertem-live.dataset.base.LiveDataSet.start_acquisition`
             context manager and perform any cleanup after that yield.
         * args, **kwargs
             Additional parameters for the acquisition, see below
@@ -56,6 +61,11 @@ class LiveContext(Context):
           Set to :code:`None` to deactivate control.
         * :code:`frames_per_partition`: int
         * :code:`pool_size`: int, number of decoding threads. Defaults to 2
+
+        Memory Parameters
+        -----------------
+
+        See :class:`libertem.io.dataset.memory.MemoryDataSet`!
 
         Examples
         --------
@@ -83,6 +93,9 @@ class LiveContext(Context):
         if detector_type == 'merlin':
             from libertem_live.detectors.merlin.dataset import MerlinLiveDataSet
             cls = MerlinLiveDataSet
+        elif detector_type == 'memory':
+            from libertem_live.detectors.memory.dataset import MemoryLiveDataSet
+            cls = MemoryLiveDataSet
         else:
             raise ValueError(f"Unknown detector type '{detector_type}', supported is 'merlin'")
         return cls(setup, *args, **kwargs).initialize(self.executor)

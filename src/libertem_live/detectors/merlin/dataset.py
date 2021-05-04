@@ -3,10 +3,10 @@ import logging
 import numpy as np
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import (
-    DataSet, DataTile, DataSetMeta, BasePartition, Partition,
-    TilingScheme,
+    DataTile, DataSetMeta, BasePartition, Partition,
 )
 
+from libertem_live.detectors.base.dataset import LiveDataSet
 from .data import MerlinDataSource
 from .control import SimpleMerlinControl
 
@@ -14,7 +14,7 @@ from .control import SimpleMerlinControl
 logger = logging.getLogger(__name__)
 
 
-class MerlinLiveDataSet(DataSet):
+class MerlinLiveDataSet(LiveDataSet):
     def __init__(
         self,
         setup,
@@ -26,7 +26,7 @@ class MerlinLiveDataSet(DataSet):
         frames_per_partition=256,
         pool_size=2
     ):
-        self._setup = setup
+        super().__init__(setup=setup)
         self._source = MerlinDataSource(host, port, pool_size)
         if control_port is None:
             self._control = None
@@ -57,14 +57,6 @@ class MerlinLiveDataSet(DataSet):
     @property
     def control(self):
         return self._control
-
-    @contextmanager
-    def run_setup(self, udfs):
-        if self._setup is not None:
-            with self._setup(self, udfs):
-                yield
-        else:
-            yield
 
     @property
     def dtype(self):
@@ -97,12 +89,6 @@ class MerlinLiveDataSet(DataSet):
 
     def check_valid(self):
         pass
-
-    def get_msg_converter(self):
-        raise NotImplementedError()
-
-    def get_cache_key(self):
-        raise NotImplementedError()
 
     def wait_for_acquisition(self):
         logger.info("waiting for acquisition header")
@@ -245,14 +231,3 @@ class MerlinLivePartition(Partition):
                         sliced_res = res_wrapped.buf[nav_slice_raw]
                         yield DataTile(sliced_res, tile_slice=tile_slice, scheme_idx=idx)
                     to_read -= frames_in_tile
-
-
-def bench_noop(ds, data_source):
-    ts = TilingScheme.make_for_shape(
-        tileshape=Shape((10, 256, 256), sig_dims=2),
-        dataset_shape=ds.shape
-    )
-    with data_source:
-        for p in ds.get_partitions():
-            for t in p.get_tiles(tiling_scheme=ts):
-                pass
