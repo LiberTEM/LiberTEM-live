@@ -30,17 +30,18 @@ os.chdir(os.environ['USERPROFILE'])
 
 multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
 
+
 @contextmanager
 def medipix_setup(dataset, udfs):
     print("priming camera for acquisition")
     # Here go commands to control the camera and the rest of the setup
     # to perform an acquisition.
-    
+
     # The Merlin simulator currently accepts all kinds of commands
     # and doesn't respond like a real Merlin detector.
 
     dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
-    #dataset.control.set(...)
+    # dataset.control.set(...)
     print("GET 'numframes': ", dataset.control.get('numframes'))
 
     # microscope.configure_scan()
@@ -50,6 +51,7 @@ def medipix_setup(dataset, udfs):
         yield
     print("camera teardown")
     # teardown routines go here
+
 
 # The workload is wrapped into a `main()` function
 # to run it in a separate background thread since using Numba
@@ -65,14 +67,15 @@ def main():
             frames_per_partition=800,
             pool_size=2,
         )
-        
+
         udfs = [SumUDF(), SumSigUDF(), SignalMonitorUDF()]
 
         plots = [GMSLive2DPlot(ds, udf) for udf in udfs]
         for plot in plots:
             plot.display()
-        
+
         ctx.run_udf(dataset=ds, udf=udfs, plots=plots)
+
 
 if __name__ == "__main__":
     # Start the workload and wait for it to finish

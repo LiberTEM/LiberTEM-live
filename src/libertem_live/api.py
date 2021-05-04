@@ -33,6 +33,7 @@ class LiveContext(Context):
 
         Parameters
         ----------
+
         detector_type : str
             - :code:`'merlin'`: Quantum Detectors Merlin camera.
             - :code:`'memory'`: Memory-based live data stream.
@@ -45,56 +46,60 @@ class LiveContext(Context):
             It is expected to yield after entering the dataset's
             :meth:`libertem-live.dataset.base.LiveDataSet.start_acquisition`
             context manager and perform any cleanup after that yield.
-        * args, **kwargs
+        *args, **kwargs
             Additional parameters for the acquisition, see below
 
         Merlin Parameters
         -----------------
 
-        * :code:`scan_size`: tuple(int)
-        * :code:`host`: str, hostname of the Merlin data server, default '127.0.0.1'
-        * :code:`port`: int, data port of the Merlin data server, default 6342
-        * :code:`control_port`: int, control port of the Merlin data server, default 6341.
-          Set to :code:`None` to deactivate control.
-        * :code:`control_timeout`: float, timeout for control port of the Merlin data server
-          in seconds. Default 1.0.
-          Set to :code:`None` to deactivate control.
-        * :code:`frames_per_partition`: int
-        * :code:`pool_size`: int, number of decoding threads. Defaults to 2
+        scan_size : tuple(int)
+        host : str
+            Hostname of the Merlin data server, default '127.0.0.1'
+        port : int
+            Data port of the Merlin data server, default 6342
+        control_port : int
+            Control port of the Merlin data server, default 6341.
+            Set to :code:`None` to deactivate control.
+        control_timeout : float
+            Timeout for control port of the Merlin data server
+            in seconds. Default 1.0.
+        frames_per_partition : int
+        pool_size`: int
+            Number of decoding threads. Defaults to 2
 
         Memory Parameters
         -----------------
 
-        See :class:`libertem.io.dataset.memory.MemoryDataSet`!
+        *args, **kwargs
+            See :class:`libertem.io.dataset.memory.MemoryDataSet`!
 
         Examples
         --------
 
-        .. testcode::
+        >>> @contextmanager
+        ... def medipix_setup(dataset, udfs):
+        ...     print("priming camera for acquisition")
+        ...     # TODO: medipix control socket commands go here
+        ...     # TODO interface to be tested, not supported in simulator yet
 
-            @contextmanager
-            def medipix_setup(dataset, udfs):
-                print("priming camera for acquisition")
-                # TODO: medipix control socket commands go here
-                # TODO interface to be tested, not supported in simulator yet
+        ...     # dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
+        ...     # dataset.control.set(...)
 
-                # dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
-                # dataset.control.set(...)
+        ...     # microscope.configure_scan()
+        ...     # microscope.start_scanning()
+        ...     print("running acquisition")
+        ...     with dataset.start_acquisition():
+        ...         yield
+        ...     print("camera teardown")
+        ...     # teardown routines go here
 
-                # microscope.configure_scan()
-                # microscope.start_scanning()
-                print("running acquisition")
-                with dataset.start_acquisition():
-                    yield
-                print("camera teardown")
-                # teardown routines go here
         '''
         detector_type = str(detector_type).lower()
         if detector_type == 'merlin':
-            from libertem_live.detectors.merlin.dataset import MerlinLiveDataSet
+            from libertem_live.detectors.merlin import MerlinLiveDataSet
             cls = MerlinLiveDataSet
         elif detector_type == 'memory':
-            from libertem_live.detectors.memory.dataset import MemoryLiveDataSet
+            from libertem_live.detectors.memory import MemoryLiveDataSet
             cls = MemoryLiveDataSet
         else:
             raise ValueError(f"Unknown detector type '{detector_type}', supported is 'merlin'")

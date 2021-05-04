@@ -30,16 +30,9 @@ in other ways.
 Notable upstream projects
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-TODO
+See `LiberTEM upstream projects <https://libertem.github.io/LiberTEM/acknowledgments.html#notable-upstream-projects>`_.
 
 Funding
 ~~~~~~~
 
-
-.. |clearfloat|  raw:: html
-
-    <div class="clearer"></div>
-
-LiberTEM-live kindly acknowledges funding and support from the following sources:
-
-TODO
+See `LiberTEM funding <https://libertem.github.io/LiberTEM/acknowledgments.html#funding>`_.
