@@ -1,6 +1,7 @@
 import sys
 import queue
 import logging
+import datetime as dt
 
 import zmq
 import click
@@ -106,6 +107,21 @@ def main_loop(force: bool, enable_tracing: bool, pdb: bool, profile: bool) -> No
                 p.join()
 
 
+# inspired by https://stackoverflow.com/a/6290946/540644
+class MicrosecondFormatter(logging.Formatter):
+    converter = dt.datetime.fromtimestamp
+
+    def formatTime(self, record, datefmt=None):
+        ct = self.converter(record.created)
+
+        if datefmt:
+            s = ct.strftime(datefmt)
+        else:
+            t = ct.strftime("%Y-%m-%d %H:%M:%S")
+            s = "%s,%03d" % (t, record.msecs)
+        return s
+
+
 @click.command()
 # @click.argument('path', type=click.Path(exists=True))
 # @click.option('--cached', default='NONE', type=click.Choice(
@@ -120,11 +136,21 @@ def main_loop(force: bool, enable_tracing: bool, pdb: bool, profile: bool) -> No
 @click.option('--pdb/--no-pdb', default=False, is_flag=True)
 @click.option('--profile/--no-profile', default=False, is_flag=True)
 def main(force, enable_tracing, pdb, profile):
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s %(levelname)-8s %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
+    # logging.basicConfig(
+    #     level=logging.INFO,
+    #     format='%(asctime)s %(levelname)-8s %(message)s',
+    #     datefmt='%Y-%m-%d %H:%M:%S.%f',
+    # )
+
+    console = logging.StreamHandler()
+    logging.root.setLevel(logging.INFO)
+    logging.root.addHandler(console)
+
+    formatter = MicrosecondFormatter(
+        fmt='%(asctime)s %(levelname)-8s %(message)s', datefmt='%Y-%m-%d,%H:%M:%S.%f'
     )
+    console.setFormatter(formatter)
+
     main_loop(force=force, enable_tracing=enable_tracing, pdb=pdb, profile=profile)
     sys.exit(0)
 

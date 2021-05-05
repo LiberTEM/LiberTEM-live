@@ -26,7 +26,7 @@ def decode_uint12_le(inp, out):
 
 
 @numba.njit(inline='always', nogil=True, cache=True)
-def decode_bulk_uint12_le(inp, out, num_packets):
+def decode_bulk_uint12_le(inp, out, num_packets, meta_out=None):
     """
     `inp` should be a byte array or memory view containing `num_packets` of
     raw data received via UDP
@@ -36,7 +36,8 @@ def decode_bulk_uint12_le(inp, out, num_packets):
 
     packet_size = 0x5758
 
-    meta_out = np.zeros((num_packets, 3), dtype=np.uint32)
+    if meta_out is None:
+        meta_out = np.zeros((num_packets, 3), dtype=np.uint32)
 
     assert num_packets % 32 == 0, "num_packets must be a multiple of 32"
     num_frames = num_packets // 32
@@ -55,10 +56,10 @@ def decode_bulk_uint12_le(inp, out, num_packets):
         inp_part = inp[p * packet_size:(p + 1) * packet_size]
         inp_part_data = inp_part[40:]
 
-        assert inp_part[0] == 0xFF
-        assert inp_part[1] == 0xFF
-        assert inp_part[2] == 0x00
-        assert inp_part[3] == 0x55
+        # assert inp_part[0] == 0xFF
+        # assert inp_part[1] == 0xFF
+        # assert inp_part[2] == 0x00
+        # assert inp_part[3] == 0x55
 
         byteswap_4_decode(inp=inp_part[24:28], out=meta_out[p, 0:1])  # frame_id
         byteswap_2_decode(inp=inp_part[30:32], out=meta_out[p, 1:2])  # pixel_y_start
@@ -73,8 +74,9 @@ def decode_bulk_uint12_le(inp, out, num_packets):
 
         frame_idx = frame_id - first_frame_id
 
-        # if frame_idx >= out_3d.shape[0]:
-        #     raise RuntimeError("frame_idx is out of boundsssss")
+        if frame_idx >= out_3d.shape[0]:
+            print(set(meta_out[..., 0]))
+            raise RuntimeError("frame_idx is out of bounds")
 
         out_z = out_3d[frame_idx].reshape((-1,))
 
@@ -92,16 +94,24 @@ def decode_bulk_uint12_le(inp, out, num_packets):
             # loop for a single row:
             # for each j, we process bytes of input into two output numbers
             # -> we consume 8*3 = 24 bytes and generate 8*2=16 numbers
-            for col in range(8):
-                triplet_offset = in_row_offset + col * 3
-                fst_uint8 = np.uint16(inp_part_data[triplet_offset])
-                mid_uint8 = np.uint16(inp_part_data[triplet_offset + 1])
-                lst_uint8 = np.uint16(inp_part_data[triplet_offset + 2])
+            # for col in range(8):
+            #     triplet_offset = in_row_offset + col * 3
+            #     fst_uint8 = np.uint16(inp_part_data[triplet_offset])
+            #     mid_uint8 = np.uint16(inp_part_data[triplet_offset + 1])
+            #     lst_uint8 = np.uint16(inp_part_data[triplet_offset + 2])
 
-                a = fst_uint8 | (mid_uint8 & 0x0F) << 8
-                b = (mid_uint8 & 0xF0) >> 4 | lst_uint8 << 4
+            #     a = fst_uint8 | (mid_uint8 & 0x0F) << 8
+            #     b = (mid_uint8 & 0xF0) >> 4 | lst_uint8 << 4
 
-                out_z[2 * col + out_pos] = a
-                out_z[2 * col + out_pos + 1] = b
+            #     out_z[2 * col + out_pos] = a
+            #     out_z[2 * col + out_pos + 1] = b
+
+            # processing for a single row:
+            # for each j, we process bytes of input into two output numbers
+            # -> we consume 8*3 = 24 bytes and generate 8*2=16 numbers
+            decode_uint12_le(
+                inp=inp_part_data[in_row_offset:in_row_offset+24],
+                out=out_z[out_pos:out_pos+16]
+            )
 
     return meta_out

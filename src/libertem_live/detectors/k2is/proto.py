@@ -12,7 +12,7 @@ import zmq
 from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 from libertem.common.buffers import bytes_aligned, zeros_aligned
 from libertem_live.utils.net import mcast_socket
-from libertem_live.detectors.k2is.decode import decode_uint12_le
+from libertem_live.detectors.k2is.decode import decode_bulk_uint12_le
 from libertem.io.dataset.base.tiling import TilingScheme, DataTile
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import Partition, DataSetMeta
@@ -31,10 +31,10 @@ logger = logging.getLogger(__name__)
 
 
 def warmup():
-    warmup_buf_inp = bytes_aligned(0x5758)
+    warmup_buf_inp = bytes_aligned(0x5758*32)
     for dtype in [np.uint16, np.float32, np.float64]:
-        warmup_buf_out = zeros_aligned((930, 16), dtype=dtype).reshape((-1,))
-        decode_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out)
+        warmup_buf_out = zeros_aligned((32, 930, 16), dtype=dtype).reshape((-1,))
+        decode_bulk_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out, num_packets=32)
 
 
 class FakeEnvironment(Environment):
@@ -195,7 +195,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             self._real_run()
 
     def _real_run(self):
-
         self.zctx = zmq.Context.instance()
         self.result_socket = self.zctx.socket(zmq.PUSH)
         self.result_socket.connect("tcp://127.0.0.1:7205")
@@ -207,11 +206,10 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             env = Environment(threads_per_worker=1)
             with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s, env.enter():
                 logger.info(f"listening on {self.local_addr}:{self.port}/{GROUP} on {self.iface}")
-                read_iter = self.read_loop(s)
                 while True:
                     if self.is_stopped():
                         break
-                    self.main_loop(s, read_iter)
+                    self.main_loop(s)
         except Exception as e:
             return self.error(e)
         self.stop()
@@ -245,17 +243,26 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
             yield (buf, p[1])
 
-    def read_loop_bulk(self, s):
+    def read_loop_bulk(self, s, num_packets=128):
         """
-        Read 32*2 packets at once
+        Read `num_packets` at once
         """
         # NOTE: non-IS data is truncated - we only read the first 0x5758 bytes of the message
-        packets_per_batch = 32 * 2
         packet_size = 0x5758
-        buf = bytes_aligned(packet_size * packets_per_batch)
+        buf = bytes_aligned(packet_size * num_packets)
         buf_arr = np.frombuffer(buf)
         s.settimeout(self.timeout)
         idx = 0
+
+        # first, sync up to `self.first_frame_id`:
+        buf_part = buf[idx*packet_size:(idx + 1) * packet_size]
+        while True:
+            p = s.recvmsg_into([buf_part])
+            h = np.frombuffer(buf_part, dtype=DataBlock.header_dtype, count=1, offset=0)
+            if int(h['frame_id']) >= self.first_frame_id:
+                idx = 1
+                break
+
         while True:
             if self.is_stopped():
                 return
@@ -264,13 +271,12 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 p = s.recvmsg_into([buf_part])
                 assert p[0] == packet_size
                 idx += 1
-                if idx == packets_per_batch:
+                self.packet_counter += 1
+                self.is_connected = True
+                if idx == num_packets:
                     yield (buf, p[1])
                     idx = 0
                     buf_arr[:] = 0
-
-                self.packet_counter += 1
-                self.is_connected = True
             except socket.timeout:
                 # On timeout, disconnect and make sure cancellation works by
                 # processing events. Also reset synchronization, to make sure
@@ -344,10 +350,11 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def x_offset(self):
         return self.idx * 256
 
-    def get_tiles(self, read_iter, end_after_idx):
-        tileshape = Shape((1, 930, 16), sig_dims=2)
-        buf = zeros_aligned((1, 930, 16), dtype=np.uint16)
-        buf_flat = buf.reshape((-1,))
+    def get_tiles(self, read_iter, end_after_idx, num_packets=128):
+        assert num_packets % 32 == 0
+        num_frames = num_packets // 32
+        tileshape = Shape((num_frames, 1860, 256), sig_dims=2)
+        buf = zeros_aligned(tileshape, dtype=np.uint16)
 
         x_offset = self.x_offset
 
@@ -355,11 +362,13 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         for idx, slice_ in ts.slices:
             origin_to_idx[slice_.origin] = idx
 
-        logger.info("get_tiles: ending after index %d", end_after_idx)
+        logger.info(
+            "get_tiles: end_after_idx=%d, num_packets=%d, buf.shape=%s",
+            end_after_idx, num_packets, buf.shape,
+        )
 
         # the first tile may be left over from the last run of this function:
         if self.buffered_tile is not None:
-            assert False, "FIXME update for bulk"
             frame_id, dt = self.buffered_tile
             frame_idx = frame_id - self.first_frame_id
             dt = DataTile(
@@ -373,17 +382,35 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             yield dt
             self.buffered_tile = None
 
+        sig_origin = (0, x_offset)
         for p in read_iter:
-            # FIXME: magic number for slice
-            decode_bulk_uint12_le(inp=p[0], out=buf_flat)
-            h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
-            frame_id = int(h['frame_id'])
+            try:
+                meta_out = np.zeros((num_packets, 3), dtype=np.uint32)
+                decode_bulk_uint12_le(
+                    inp=p[0], out=buf, num_packets=num_packets, meta_out=meta_out,
+                )
+            except RuntimeError:
+                logger.info(
+                    "called decode bulk w/ len(p[0])=%d, buf.shape=%s, num_packets=%d",
+                    len(p[0]), buf.shape, num_packets,
+                )
+                logger.info(
+                    "meta_out=%r", meta_out,
+                )
+                raise
+            # FIXME: assumption on packet ordering
+            frame_id = meta_out[0, 0]  # first frame id
             frame_idx = frame_id - self.first_frame_id
             if frame_idx < 0:
                 # Detect wraparound either a) because we are replaying a finite
                 # input file, or b) because we reached the range of the integer type.
                 # We select an arbitrary threshold of 10 frames to detect a)
                 if frame_id == 0 or abs(frame_idx) > 10:
+                    logging.info(
+                        "wraparound? frame_id=%d frame_idx=%d", 
+                        frame_id, frame_idx,
+                    )
+                    assert False, "TODO"
                     self.update_first_frame_id(frame_id)
                 else:
                     # Discard any remaining packets from the sync procedure,
@@ -391,11 +418,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                     continue
             self.recent_frame_id = frame_id
 
-            sig_origin = (
-                int(h['pixel_y_start']),
-                int(h['pixel_x_start']) + x_offset
-            )
-
+            # FIXME: border handling where tileshape[0] < num_frames should hold
             tile_slice = Slice(
                 origin=(frame_idx,) + sig_origin,
                 shape=tileshape,
@@ -406,10 +429,12 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 tile_slice=tile_slice,
                 scheme_idx=scheme_idx,
             )
-            # FIXME: with UDP, we can get out-of-order packets, so it's possible
-            # that we hit this condition "too soon", because we got a packet
-            # from the next frame, but there are still packets en route for this one...
+            # FIXME: possibly split DataTile if partition is not divisible by num_frames
             if frame_idx > end_after_idx:
+                logger.info(
+                    "called bulk decode with len(inp)=%d, num_packets=%d",
+                    len(p[0]), num_packets,
+                )
                 self.buffered_tile = (frame_id, dt)
                 return
             else:
@@ -427,21 +452,23 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def state_is_connected(self):
         return self.is_connected
 
-    def main_loop(self, s, read_iter):
+    def main_loop(self, s):
         self.replica.do_events()
 
         logger.info("MsgReaderThread: waiting for first packet(s)")
+
+        read_iter_sync = self.read_loop(s)
 
         while not self.should_process():
             # we are connected but aren't running a UDF yet, so we need to drain
             # the socket until we are told to run:
             if self.is_stopped():
                 break
-            _ = next(read_iter)
+            _ = next(read_iter_sync)
             self.replica.do_events()
 
         logger.info("syncing")
-        self.first_frame_id = self.sync(read_iter)
+        self.first_frame_id = self.sync(read_iter_sync)
         self.recent_frame_id = self.first_frame_id
         logger.info(f"synced to {self.first_frame_id}")
 
@@ -455,6 +482,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         frame_counter = 0
         epoch = 0
         tiling_scheme = None
+
+        read_iter = self.read_loop_bulk(s)
 
         while True:
             num_frames = np.prod(self.nav_shape, dtype=np.int64)
@@ -548,6 +577,8 @@ class K2ListenerProcess(mp.Process):
         return self._stop_event.is_set()
 
     def run(self):
+        import gc
+        gc.disable()
         if self.enable_tracing:
             import pytracing
             self._trace_f = open("/tmp/cam-server-%d.json" % os.getpid(), "wb")
@@ -559,6 +590,7 @@ class K2ListenerProcess(mp.Process):
                 self._trace_f.close()
         else:
             self.main()
+        gc.enable()
 
     def main(self):
         warmup()
