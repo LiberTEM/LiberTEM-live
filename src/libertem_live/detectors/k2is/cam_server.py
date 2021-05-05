@@ -5,9 +5,7 @@ import logging
 import zmq
 import click
 
-from libertem_live.detectors.common import (
-    recv_serialized, SerializedQueue,
-)
+from libertem_live.detectors.common import recv_serialized
 from .proto import K2ListenerProcess, SyncState
 from .state import (
     Event, Store, cam_server_reducer,
@@ -25,7 +23,7 @@ def debug_events(state, new_state, event, store) -> None:
     logger.info("got event: %r", event)
 
 
-def main_loop(force: bool, enable_tracing: bool) -> None:
+def main_loop(force: bool, enable_tracing: bool, pdb: bool) -> None:
     event_queue: queue.Queue[Event] = queue.Queue()
     initial_state = CamServerState(
         lifecycle=LifecycleState.STARTING,
@@ -55,7 +53,6 @@ def main_loop(force: bool, enable_tracing: bool) -> None:
     poller.register(control, zmq.POLLIN)
 
     processes = []
-    oqs = []
 
     try:
         store.dispatch(StartingEvent())
@@ -64,16 +61,14 @@ def main_loop(force: bool, enable_tracing: bool) -> None:
         # FIXME: magic constant?
         ss = SyncState(num_processes=8)
         for idx in range(8):
-            oq = SerializedQueue()
             p = K2ListenerProcess(
                 idx=idx,
                 sync_state=ss,
-                out_queue=oq,
                 enable_tracing=enable_tracing,
+                pdb=pdb,
             )
             p.start()
             processes.append(p)
-            oqs.append(oq)
 
         store.dispatch(StartupCompleteEvent())
 
@@ -121,13 +116,14 @@ def main_loop(force: bool, enable_tracing: bool) -> None:
 @click.option('--force/--no-force', default=False, is_flag=True,
               help='forcefully stop processes')
 @click.option('--enable-tracing/--disable-tracing', default=False, is_flag=True)
-def main(force, enable_tracing):
+@click.option('--pdb/--no-pdb', default=False, is_flag=True)
+def main(force, enable_tracing, pdb):
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)-8s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
     )
-    main_loop(force=force, enable_tracing=enable_tracing)
+    main_loop(force=force, enable_tracing=enable_tracing, pdb=pdb)
     sys.exit(0)
 
 

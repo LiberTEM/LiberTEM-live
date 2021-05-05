@@ -1,5 +1,4 @@
 import multiprocessing as mp
-import uuid
 import os
 import time
 import socket
@@ -8,6 +7,7 @@ import contextlib
 import logging
 
 import numpy as np
+import zmq
 
 from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 from libertem.common.buffers import bytes_aligned, zeros_aligned
@@ -16,14 +16,13 @@ from libertem_live.detectors.k2is.decode import decode_uint12_le
 from libertem.io.dataset.base.tiling import TilingScheme, DataTile
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import Partition, DataSetMeta
-from libertem.udf.base import UDFRunner, UDFMeta, UDFResults
+from libertem.udf.base import UDFRunner
 from libertem.executor.base import Environment
-from libertem.common.buffers import BufferWrapper
-from ..common import SerializedQueue, ErrThreadMixin
+from ..common import ErrThreadMixin, send_serialized
 from .state import (
     EventReplicaClient,
     CamConnectionState, ProcessingState,
-    CamConnectedEvent, CamDisconnectedEvent, StopProcessingEvent,
+    CamConnectedEvent, CamDisconnectedEvent,
 )
 
 GROUP = '225.1.1.1'
@@ -42,179 +41,6 @@ class FakeEnvironment(Environment):
     @contextlib.contextmanager
     def enter(self):
         yield
-
-
-class FakeDataSet:
-    def __init__(self, nav_shape):
-        self.nav_shape = nav_shape
-        self.shape = Shape(nav_shape + (1860, 2048), sig_dims=2)
-        self.dtype = np.uint16
-
-
-class K2ISTask:
-    def __init__(self, sector_idx, udfs):
-        self.idx = sector_idx
-        self.udfs = udfs
-
-
-def make_udf_tasks(udfs, dataset, roi, corrections, backends):
-    assert roi is None
-    assert corrections is None or not corrections.have_corrections()
-
-    # in case of a k2is live dataset, we need to create "tasks" for each
-    # partition, so for each sector:
-    return [
-        K2ISTask(idx, udfs)
-        for idx in range(8)
-    ]
-
-
-class FakeExecutor:
-    def run_tasks(self, tasks, cancel_id):
-        ss = SyncState(num_processes=len(tasks))
-        processes = []
-        oqs = []
-        try:
-            for task in tasks:
-                oq = SerializedQueue()
-                p = K2ListenerProcess(
-                    idx=task.idx,
-                    sync_state=ss,
-                    out_queue=oq
-                )
-                p.start()
-                processes.append(p)
-                oqs.append(oq)
-            for idx, q in enumerate(oqs):
-                print(f"getting result from q {idx}")
-                part_results = q.get()
-                for timing in part_results.timings:
-                    print(f"{idx}: {timing}")
-                yield part_results, idx
-        finally:
-            for p in processes:
-                p.join()
-
-    def ensure_sync(self):
-        return self
-
-
-def _get_dtype(udfs, dtype, corrections):
-    if corrections is not None and corrections.have_corrections():
-        tmp_dtype = np.result_type(np.float32, dtype)
-    else:
-        tmp_dtype = dtype
-    for udf in udfs:
-        tmp_dtype = np.result_type(
-            udf.get_preferred_input_dtype(),
-            tmp_dtype
-        )
-    return tmp_dtype
-
-
-def _prepare_run_for_dataset(
-    udfs, dataset, executor, roi, corrections, backends, dry
-):
-    meta = UDFMeta(
-        partition_shape=None,
-        dataset_shape=dataset.shape,
-        roi=roi,
-        dataset_dtype=dataset.dtype,
-        input_dtype=_get_dtype(udfs, dataset.dtype, corrections),
-        corrections=corrections,
-    )
-    for udf in udfs:
-        udf.set_meta(meta)
-        udf.init_result_buffers()
-        udf.allocate_for_full(dataset, roi)
-
-        if hasattr(udf, 'preprocess'):
-            udf.set_views_for_dataset(dataset)
-            udf.preprocess()
-    if dry:
-        tasks = []
-    else:
-        tasks = list(make_udf_tasks(udfs, dataset, roi, corrections, backends))
-    return tasks
-
-
-def _partition_by_idx(idx):
-    # num_frames = 1800  # less than 10 seconds
-
-    meta = DataSetMeta(
-        shape=Shape((num_frames, 1860, 2048), sig_dims=2),
-        image_count=num_frames,
-        raw_dtype=np.uint16,
-    )
-
-    x_offset = 256 * idx
-
-    partition_slice = Slice(
-        origin=(0, 0, x_offset),
-        shape=Shape((num_frames, 1860, 256), sig_dims=2),
-    )
-
-    # let's first create single partition per sector, with size >= what
-    # we expect during 10 seconds of runtime
-    return PlaceholderPartition(
-        meta=meta,
-        partition_slice=partition_slice,
-        tiles=[],
-        start_frame=0,
-        num_frames=num_frames,
-    )
-
-
-def run_for_dataset_sync(udfs, dataset, executor,
-                         roi=None, progress=False, corrections=None, backends=None, dry=False):
-    tasks = _prepare_run_for_dataset(
-        udfs, dataset, executor, roi, corrections, backends, dry
-    )
-    cancel_id = str(uuid.uuid4())
-
-    if progress:
-        from tqdm import tqdm
-        t = tqdm(total=len(tasks))
-
-    executor = executor.ensure_sync()
-
-    damage = BufferWrapper(kind='nav', dtype=bool)
-    damage.set_shape_ds(dataset.shape, roi)
-    damage.allocate()
-    if tasks:
-        for part_results, task in executor.run_tasks(tasks, cancel_id):
-            if progress:
-                t.update(1)
-            for results, udf in zip(part_results.buffers, udfs):
-                udf.set_views_for_partition(_partition_by_idx(task))
-                udf.merge(
-                    dest=udf.results.get_proxy(),
-                    src=results.get_proxy()
-                )
-                udf.clear_views()
-            v = damage.get_view_for_partition(_partition_by_idx(task))
-            v[:] = True
-            yield UDFResults(
-                buffers=tuple(
-                    udf._do_get_results()
-                    for udf in udfs
-                ),
-                damage=damage
-            )
-    else:
-        # yield at least one result (which should be empty):
-        for udf in udfs:
-            udf.clear_views()
-        yield UDFResults(
-            buffers=tuple(
-                udf._do_get_results()
-                for udf in udfs
-            ),
-            damage=damage
-        )
-
-    if progress:
-        t.close()
 
 
 class SyncState:
@@ -274,6 +100,7 @@ class SyncState:
                 self.reset_barrier.reset()
 
 
+# FIXME later...
 ts = TilingScheme.make_for_shape(
     tileshape=Shape((1, 930, 16), sig_dims=2),
     dataset_shape=Shape((1, 2*930, 16*8*16), sig_dims=2)
@@ -315,10 +142,11 @@ class PlaceholderPartition(Partition):
 
 class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
-        self, idx, port, affinity_set, sync_state, out_queue,
-        local_addr='0.0.0.0', iface='enp193s0f0', timeout=0.1,
+        self, idx, port, affinity_set, sync_state,
+        local_addr='0.0.0.0', iface='enp193s0f0', timeout=0.1, pdb=False,
         *args, **kwargs
     ):
+        # TODO: separate this class... way too much state!
         self.idx = idx
         self.port = port
         self.affinity_set = affinity_set
@@ -327,15 +155,23 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.timeout = timeout
         self.sync_state = sync_state
         self.sync_timeout = 1  # TODO: make this a parameter?
-        self.out_queue = out_queue
         self.replica = EventReplicaClient()
         self.first_frame_id = None
-        self.last_frame_id = None  # the last frame_id we have seen
+        self.recent_frame_id = None  # the last frame_id we have seen
         self.buffered_tile = None  # a bufferd DataTile between calls of `get_tiles`
         self.sync_barrier = mp.Barrier(8)  # FIXME: hardcoded number of participants
+        self.zctx = None
+        self.result_socket = None
+        self.is_connected = False
+        self.packet_counter = 0
+        self.pdb = pdb
+
         super().__init__(*args, **kwargs)
 
     def run(self):
+        self.zctx = zmq.Context.instance()
+        self.result_socket = self.zctx.socket(zmq.PUSH)
+        self.result_socket.connect("tcp://127.0.0.1:7205")
         logger.info(f"thread {threading.get_native_id()}")
         os.sched_setaffinity(0, self.affinity_set)
         warmup()
@@ -366,6 +202,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             try:
                 p = s.recvmsg_into([buf])
                 assert p[0] == 0x5758
+                self.packet_counter += 1
+                self.is_connected = True
             except socket.timeout:
                 # On timeout, disconnect and make sure cancellation works by
                 # processing events. Also reset synchronization, to make sure
@@ -373,6 +211,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 if self.state_is_connected():
                     logger.warn("read_loop timeout while connected, resetting")
                     self.replica.dispatch(CamDisconnectedEvent())
+                    self.is_connected = False
                     self.sync_state.reset()
                 self.replica.do_events()
                 continue
@@ -431,6 +270,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # ... and wait, until all processes have sent their frame_id:
         if not self.sync_state.sync_done.wait(timeout=self.sync_timeout):
             raise RuntimeError("timed out waiting for sync")
+        self.packet_counter = 0
         return self.sync_state.get_first_frame_id()
 
     @property
@@ -448,12 +288,25 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         for idx, slice_ in ts.slices:
             origin_to_idx[slice_.origin] = idx
 
+        logger.info("get_tiles: ending after index %d", end_after_idx)
+
         # the first tile may be left over from the last run of this function:
         if self.buffered_tile is not None:
-            yield self.buffered_tile
+            frame_id, dt = self.buffered_tile
+            frame_idx = frame_id - self.first_frame_id
+            dt = DataTile(
+                np.array(dt),
+                tile_slice=Slice(
+                    origin=(frame_idx,) + dt.tile_slice.origin[1:],
+                    shape=dt.tile_slice.shape,
+                ),
+                scheme_idx=dt.scheme_idx,
+            )
+            yield dt
             self.buffered_tile = None
 
         for p in read_iter:
+            # FIXME: magic number
             decode_uint12_le(inp=p[0][40:], out=buf_flat)
             h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
             frame_id = int(h['frame_id'])
@@ -468,7 +321,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                     # Discard any remaining packets from the sync procedure,
                     # which may include out-of-order packets:
                     continue
-            self.last_frame_id = frame_id
+            self.recent_frame_id = frame_id
 
             sig_origin = (
                 int(h['pixel_y_start']),
@@ -485,8 +338,11 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 tile_slice=tile_slice,
                 scheme_idx=scheme_idx,
             )
+            # FIXME: with UDP, we can get out-of-order packets, so it's possible
+            # that we hit this condition "too soon", because we got a packet
+            # from the next frame, but there are still packets en route for this one...
             if frame_idx > end_after_idx:
-                self.buffered_tile = dt
+                self.buffered_tile = (frame_id, dt)
                 return
             else:
                 yield dt
@@ -495,22 +351,20 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def nav_shape(self):
         return self.replica.store.state.nav_shape
 
-    def state_is_running(self):
+    def should_process(self):
         if self.replica.store.state is None:
             return False
         return self.replica.store.state.processing is ProcessingState.RUNNING
 
     def state_is_connected(self):
-        if self.replica.store.state is None:
-            return False
-        return self.replica.store.state.cam_connection is CamConnectionState.CONNECTED
+        return self.is_connected
 
     def main_loop(self, s, read_iter):
         self.replica.do_events()
 
         logger.info("MsgReaderThread: waiting for first packet(s)")
 
-        while not self.state_is_running():
+        while not self.should_process():
             # we are connected but aren't running a UDF yet, so we need to drain
             # the socket until we are told to run:
             if self.is_stopped():
@@ -519,7 +373,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             self.replica.do_events()
 
         self.first_frame_id = self.sync(read_iter)
-        self.last_frame_id = self.first_frame_id
+        self.recent_frame_id = self.first_frame_id
         logger.info(f"synced to {self.first_frame_id}")
 
         # NOTE: we could make this dynamic, but that's for another day;
@@ -534,23 +388,23 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         tiling_scheme = None
 
         while True:
-            num_frames = np.prod(self.nav_shape)
+            num_frames = np.prod(self.nav_shape, dtype=np.int64)
             frames_in_partition = min(frames_per_partition, num_frames - frame_counter)
 
             if frames_in_partition <= 0:
                 # FIXME: if not in continuous mode, dispatch a stop event here
                 frame_counter = 0
                 epoch += 1
-                self.first_frame_id = self.last_frame_id + 1
+                self.first_frame_id = self.recent_frame_id
                 continue
 
             self.replica.do_events()
-            if self.is_stopped() or not self.state_is_running():
+            if self.is_stopped() or not self.should_process():
                 return
 
             tiles = self.get_tiles(
                 read_iter,
-                end_after_idx=frame_counter + frames_in_partition
+                end_after_idx=frame_counter + frames_in_partition - 1,
             )
 
             meta = DataSetMeta(
@@ -572,7 +426,12 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 num_frames=frames_in_partition,
             )
 
-            runner = UDFRunner(self.replica.store.state.udfs)
+            # udfs = [
+            #     udf.copy()
+            #     for udf in self.replica.store.state.udfs
+            # ]
+            udfs = self.replica.store.state.udfs
+            runner = UDFRunner(udfs)
 
             logger.debug(f"before run_for_partition {frame_counter}")
             result = runner.run_for_partition(
@@ -581,11 +440,15 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 roi=None,
                 env=FakeEnvironment(threads_per_worker=1),
                 tiling_scheme=tiling_scheme,
+                pdb_port=4444 + self.idx if self.pdb else None,
             )
             tiling_scheme = result.tiling_scheme
             logger.info("sending some result for %r (sector %d)", partition_slice, self.idx)
-            self.out_queue.put(result)  # FIXME: replace with a zmq socket
+            self.send_result(partition_slice, result, epoch, self.packet_counter)
             frame_counter += frames_in_partition
+
+    def send_result(self, partition_slice, result, epoch, packet_counter):
+        send_serialized(self.result_socket, (partition_slice, result, epoch, packet_counter))
 
 
 def get_settings_for_sector(idx):
@@ -600,11 +463,11 @@ def get_settings_for_sector(idx):
 
 
 class K2ListenerProcess(mp.Process):
-    def __init__(self, idx, sync_state, out_queue, enable_tracing, *args, **kwargs):
+    def __init__(self, idx, sync_state, enable_tracing, pdb, *args, **kwargs):
         self.idx = idx
         self.sync_state = sync_state
-        self.out_queue = out_queue
         self.enable_tracing = enable_tracing
+        self.pdb = pdb
         self._stop_event = mp.Event()
         super().__init__(*args, **kwargs)
 
@@ -633,7 +496,7 @@ class K2ListenerProcess(mp.Process):
         settings = get_settings_for_sector(self.idx)
         settings.update({
             'sync_state': self.sync_state,
-            'out_queue': self.out_queue,
+            'pdb': self.pdb,
         })
         t = MsgReaderThread(**settings)
 
@@ -648,7 +511,5 @@ class K2ListenerProcess(mp.Process):
         finally:
             t.stop()
             t.join()
-            logger.info(f"MySubProcess {self.idx} closing out_queue")
-            self.out_queue.close()
             self.stop()
         logger.info(f"MySubProcess {self.idx} end of run()")

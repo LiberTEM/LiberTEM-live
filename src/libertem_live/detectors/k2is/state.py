@@ -339,8 +339,10 @@ class EventReplicaClient:
         timeout : float, optional
             Timeout in milliseconds
         """
-        events = dict(self.poller.poll(timeout))
-        if self.sub in events:
+        while True:
+            events = dict(self.poller.poll(timeout))
+            if self.sub not in events:
+                break
             upd = recv_serialized(self.sub)
             self.store.dispatch_update(upd)
 
