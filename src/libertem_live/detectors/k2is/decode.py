@@ -61,6 +61,10 @@ def decode_bulk_uint12_le(inp, out, num_packets, meta_out=None):
         # assert inp_part[2] == 0x00
         # assert inp_part[3] == 0x55
 
+        # TODO: maybe return sync flag info, which can be used
+        # to stop processing if sync flag is not set on one of the
+        # received packets
+
         byteswap_4_decode(inp=inp_part[24:28], out=meta_out[p, 0:1])  # frame_id
         byteswap_2_decode(inp=inp_part[30:32], out=meta_out[p, 1:2])  # pixel_y_start
         byteswap_2_decode(inp=inp_part[28:30], out=meta_out[p, 2:3])  # pixel_x_start

@@ -143,7 +143,7 @@ class PlaceholderPartition(Partition):
 class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
         self, idx, port, affinity_set, sync_state,
-        local_addr='0.0.0.0', iface='enp193s0f0', timeout=0.1, pdb=False,
+        local_addr='0.0.0.0', iface='enp193s0f0', timeout=5, pdb=False,
         profile=False,
         *args, **kwargs
     ):
@@ -259,6 +259,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         while True:
             p = s.recvmsg_into([buf_part])
             h = np.frombuffer(buf_part, dtype=DataBlock.header_dtype, count=1, offset=0)
+            # TODO: wraparound here? frame_id set to 0 here?
             if int(h['frame_id']) >= self.first_frame_id:
                 idx = 1
                 break
@@ -308,10 +309,12 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             self.replica.dispatch(CamConnectedEvent())
 
         # discard packets until the shutter is active:
-        while h['flags'] & SHUTTER_ACTIVE_MASK != 1 and False:
+        while h['flags'] & SHUTTER_ACTIVE_MASK != 1:
             p = next(read_iter)
             h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
-            first_frame_id = max(first_frame_id, int(h['frame_id']))
+            # TODO: maybe not a max() here?
+            # first_frame_id = max(first_frame_id, int(h['frame_id']))
+            first_frame_id = int(h['frame_id'])
 
         # we send the highest frame_id we have seen:
         return self.sync_to_frame_id(first_frame_id)
@@ -407,7 +410,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 # We select an arbitrary threshold of 10 frames to detect a)
                 if frame_id == 0 or abs(frame_idx) > 10:
                     logging.info(
-                        "wraparound? frame_id=%d frame_idx=%d", 
+                        "wraparound? frame_id=%d frame_idx=%d",
                         frame_id, frame_idx,
                     )
                     assert False, "TODO"
