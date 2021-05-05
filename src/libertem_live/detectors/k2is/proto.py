@@ -144,6 +144,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
         self, idx, port, affinity_set, sync_state,
         local_addr='0.0.0.0', iface='enp193s0f0', timeout=0.1, pdb=False,
+        profile=False,
         *args, **kwargs
     ):
         # TODO: separate this class... way too much state!
@@ -165,10 +166,36 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.is_connected = False
         self.packet_counter = 0
         self.pdb = pdb
+        self.profile = profile
 
         super().__init__(*args, **kwargs)
 
     def run(self):
+        profiler = None
+        if self.profile:
+            from line_profiler import LineProfiler
+            profiler = LineProfiler()
+            profiler.add_function(self.read_loop)
+            profiler.add_function(self.get_tiles)
+            profiler.add_function(self.main_loop)
+            profiler.add_function(UDFRunner.run_for_partition)
+            profiler.add_function(UDFRunner._run_udfs)
+            profiler.add_function(UDFRunner._run_tile)
+            try:
+                profiler.runcall(self._real_run)
+            finally:
+                import io
+                out = io.StringIO()
+                profiler.print_stats(stream=out)
+                out.seek(0)
+                with open("/tmp/profile-%d.txt" % os.getpid(), "w") as f:
+                    print("writing profile")
+                    f.write(out.read())
+        else:
+            self._real_run()
+
+    def _real_run(self):
+
         self.zctx = zmq.Context.instance()
         self.result_socket = self.zctx.socket(zmq.PUSH)
         self.result_socket.connect("tcp://127.0.0.1:7205")
@@ -218,6 +245,46 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
             yield (buf, p[1])
 
+    def read_loop_bulk(self, s):
+        """
+        Read 32*2 packets at once
+        """
+        # NOTE: non-IS data is truncated - we only read the first 0x5758 bytes of the message
+        packets_per_batch = 32 * 2
+        packet_size = 0x5758
+        buf = bytes_aligned(packet_size * packets_per_batch)
+        buf_arr = np.frombuffer(buf)
+        s.settimeout(self.timeout)
+        idx = 0
+        while True:
+            if self.is_stopped():
+                return
+            try:
+                buf_part = buf[idx*packet_size:(idx + 1) * packet_size]
+                p = s.recvmsg_into([buf_part])
+                assert p[0] == packet_size
+                idx += 1
+                if idx == packets_per_batch:
+                    yield (buf, p[1])
+                    idx = 0
+                    buf_arr[:] = 0
+
+                self.packet_counter += 1
+                self.is_connected = True
+            except socket.timeout:
+                # On timeout, disconnect and make sure cancellation works by
+                # processing events. Also reset synchronization, to make sure
+                # we re-sync when data starts to come in again
+                if self.state_is_connected():
+                    logger.warn("read_loop timeout while connected, resetting")
+                    self.replica.dispatch(CamDisconnectedEvent())
+                    self.is_connected = False
+                    self.sync_state.reset()
+                self.replica.do_events()
+                idx = 0
+                buf_arr[:] = 0
+                continue
+
     def sync(self, read_iter):
         """
         Initial synchronization of all sectors
@@ -235,7 +302,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             self.replica.dispatch(CamConnectedEvent())
 
         # discard packets until the shutter is active:
-        while h['flags'] & SHUTTER_ACTIVE_MASK != 1:
+        while h['flags'] & SHUTTER_ACTIVE_MASK != 1 and False:
             p = next(read_iter)
             h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
             first_frame_id = max(first_frame_id, int(h['frame_id']))
@@ -292,6 +359,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
         # the first tile may be left over from the last run of this function:
         if self.buffered_tile is not None:
+            assert False, "FIXME update for bulk"
             frame_id, dt = self.buffered_tile
             frame_idx = frame_id - self.first_frame_id
             dt = DataTile(
@@ -306,8 +374,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             self.buffered_tile = None
 
         for p in read_iter:
-            # FIXME: magic number
-            decode_uint12_le(inp=p[0][40:], out=buf_flat)
+            # FIXME: magic number for slice
+            decode_bulk_uint12_le(inp=p[0], out=buf_flat)
             h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
             frame_id = int(h['frame_id'])
             frame_idx = frame_id - self.first_frame_id
@@ -372,6 +440,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             _ = next(read_iter)
             self.replica.do_events()
 
+        logger.info("syncing")
         self.first_frame_id = self.sync(read_iter)
         self.recent_frame_id = self.first_frame_id
         logger.info(f"synced to {self.first_frame_id}")
@@ -457,17 +526,18 @@ def get_settings_for_sector(idx):
         'local_addr': '225.1.1.1',
         'port': 2001 + idx,
         'affinity_set': {8 + idx},
-        'iface': 'veth2',
-        # 'iface': 'enp193s0f0' if idx < 4 else 'enp193s0f1',
+        # 'iface': 'veth2',
+        'iface': 'enp193s0f0' if idx < 4 else 'enp193s0f1',
     }
 
 
 class K2ListenerProcess(mp.Process):
-    def __init__(self, idx, sync_state, enable_tracing, pdb, *args, **kwargs):
+    def __init__(self, idx, sync_state, enable_tracing, pdb, profile, *args, **kwargs):
         self.idx = idx
         self.sync_state = sync_state
         self.enable_tracing = enable_tracing
         self.pdb = pdb
+        self.profile = profile
         self._stop_event = mp.Event()
         super().__init__(*args, **kwargs)
 
@@ -497,6 +567,7 @@ class K2ListenerProcess(mp.Process):
         settings.update({
             'sync_state': self.sync_state,
             'pdb': self.pdb,
+            'profile': self.profile,
         })
         t = MsgReaderThread(**settings)
 

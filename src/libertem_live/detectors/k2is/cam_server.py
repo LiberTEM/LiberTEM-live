@@ -23,7 +23,7 @@ def debug_events(state, new_state, event, store) -> None:
     logger.info("got event: %r", event)
 
 
-def main_loop(force: bool, enable_tracing: bool, pdb: bool) -> None:
+def main_loop(force: bool, enable_tracing: bool, pdb: bool, profile: bool) -> None:
     event_queue: queue.Queue[Event] = queue.Queue()
     initial_state = CamServerState(
         lifecycle=LifecycleState.STARTING,
@@ -66,6 +66,7 @@ def main_loop(force: bool, enable_tracing: bool, pdb: bool) -> None:
                 sync_state=ss,
                 enable_tracing=enable_tracing,
                 pdb=pdb,
+                profile=profile,
             )
             p.start()
             processes.append(p)
@@ -117,13 +118,14 @@ def main_loop(force: bool, enable_tracing: bool, pdb: bool) -> None:
               help='forcefully stop processes')
 @click.option('--enable-tracing/--disable-tracing', default=False, is_flag=True)
 @click.option('--pdb/--no-pdb', default=False, is_flag=True)
-def main(force, enable_tracing, pdb):
+@click.option('--profile/--no-profile', default=False, is_flag=True)
+def main(force, enable_tracing, pdb, profile):
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s %(levelname)-8s %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
     )
-    main_loop(force=force, enable_tracing=enable_tracing, pdb=pdb)
+    main_loop(force=force, enable_tracing=enable_tracing, pdb=pdb, profile=profile)
     sys.exit(0)
 
 
