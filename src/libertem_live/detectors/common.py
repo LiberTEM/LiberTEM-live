@@ -6,8 +6,13 @@ from typing import Optional
 import multiprocessing as mp
 
 import cloudpickle
+import zmq
 
 logger = logging.getLogger(__name__)
+
+
+class RecvTimeout(Exception):
+    pass
 
 
 def send_serialized(socket, msg):
@@ -15,7 +20,13 @@ def send_serialized(socket, msg):
     return socket.send(s)
 
 
-def recv_serialized(socket):
+def recv_serialized(socket, timeout=None):
+    if timeout is not None:
+        poller = zmq.Poller()
+        poller.register(socket, zmq.POLLIN)
+        events = dict(poller.poll(timeout))
+        if socket not in events:
+            raise RecvTimeout("timeout receiving response")
     msg = socket.recv()
     s = cloudpickle.loads(msg)
     return s

@@ -243,7 +243,9 @@ class ReplicatedStore(Store):
 
     def dispatch(self, event: Event):
         send_serialized(self.control, event)
-        recv_serialized(self.control)
+        # we need to handle timeout here, because the other side could be
+        # shutting down right at this point:
+        recv_serialized(self.control, timeout=1000)
 
 
 class EventReplicaServer(ErrThreadMixin, threading.Thread):

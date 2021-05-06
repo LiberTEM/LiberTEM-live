@@ -24,7 +24,9 @@ def debug_events(state, new_state, event, store) -> None:
     logger.info("got event: %r", event)
 
 
-def main_loop(force: bool, enable_tracing: bool, pdb: bool, profile: bool) -> None:
+def main_loop(
+    force: bool, enable_tracing: bool, pdb: bool, profile: bool, use_veth: bool,
+) -> None:
     event_queue: queue.Queue[Event] = queue.Queue()
     initial_state = CamServerState(
         lifecycle=LifecycleState.STARTING,
@@ -68,6 +70,7 @@ def main_loop(force: bool, enable_tracing: bool, pdb: bool, profile: bool) -> No
                 enable_tracing=enable_tracing,
                 pdb=pdb,
                 profile=profile,
+                use_veth=use_veth,
             )
             p.start()
             processes.append(p)
@@ -107,12 +110,12 @@ def main_loop(force: bool, enable_tracing: bool, pdb: bool, profile: bool) -> No
                 p.join()
 
 
-# inspired by https://stackoverflow.com/a/6290946/540644
+# stolen from https://stackoverflow.com/a/6290946/540644
 class MicrosecondFormatter(logging.Formatter):
-    converter = dt.datetime.fromtimestamp
+    custom_converter = dt.datetime.fromtimestamp
 
     def formatTime(self, record, datefmt=None):
-        ct = self.converter(record.created)
+        ct = self.custom_converter(record.created)
 
         if datefmt:
             s = ct.strftime(datefmt)
@@ -123,25 +126,14 @@ class MicrosecondFormatter(logging.Formatter):
 
 
 @click.command()
-# @click.argument('path', type=click.Path(exists=True))
-# @click.option('--cached', default='NONE', type=click.Choice(
-#     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
-# )
-# FIXME: what is the IANA guideline on unregistered port numbers?
-# @click.option('--port', type=int, default=7201)
-# @click.option('--max-runs', type=int, default=-1)
 @click.option('--force/--no-force', default=False, is_flag=True,
               help='forcefully stop processes')
-@click.option('--enable-tracing/--disable-tracing', default=False, is_flag=True)
+@click.option('--enable-tracing/--disable-tracing', default=False, is_flag=True,
+              help='enable tracing to chrome profiler format')
 @click.option('--pdb/--no-pdb', default=False, is_flag=True)
 @click.option('--profile/--no-profile', default=False, is_flag=True)
-def main(force, enable_tracing, pdb, profile):
-    # logging.basicConfig(
-    #     level=logging.INFO,
-    #     format='%(asctime)s %(levelname)-8s %(message)s',
-    #     datefmt='%Y-%m-%d %H:%M:%S.%f',
-    # )
-
+@click.option('--use-veth/--no-use-veth', default=False, is_flag=True)
+def main(force, enable_tracing, pdb, profile, use_veth):
     console = logging.StreamHandler()
     logging.root.setLevel(logging.INFO)
     logging.root.addHandler(console)
@@ -151,7 +143,13 @@ def main(force, enable_tracing, pdb, profile):
     )
     console.setFormatter(formatter)
 
-    main_loop(force=force, enable_tracing=enable_tracing, pdb=pdb, profile=profile)
+    main_loop(
+        force=force,
+        enable_tracing=enable_tracing,
+        pdb=pdb,
+        profile=profile,
+        use_veth=use_veth,
+    )
     sys.exit(0)
 
 

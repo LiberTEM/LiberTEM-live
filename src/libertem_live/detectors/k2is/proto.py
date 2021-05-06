@@ -18,10 +18,10 @@ from libertem.common import Shape, Slice
 from libertem.io.dataset.base import Partition, DataSetMeta
 from libertem.udf.base import UDFRunner
 from libertem.executor.base import Environment
-from ..common import ErrThreadMixin, send_serialized
+from ..common import ErrThreadMixin, send_serialized, recv_serialized
 from .state import (
     EventReplicaClient,
-    CamConnectionState, ProcessingState,
+    ProcessingState,
     CamConnectedEvent, CamDisconnectedEvent,
 )
 
@@ -161,8 +161,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.recent_frame_id = None  # the last frame_id we have seen
         self.buffered_tile = None  # a bufferd DataTile between calls of `get_tiles`
         self.sync_barrier = mp.Barrier(8)  # FIXME: hardcoded number of participants
-        self.zctx = None
-        self.result_socket = None
         self.is_connected = False
         self.packet_counter = 0
         self.pdb = pdb
@@ -195,16 +193,15 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             self._real_run()
 
     def _real_run(self):
-        self.zctx = zmq.Context.instance()
-        self.result_socket = self.zctx.socket(zmq.PUSH)
-        self.result_socket.connect("tcp://127.0.0.1:7205")
+        self.result_socket = ResultSource()
         logger.info(f"thread {threading.get_native_id()}")
         os.sched_setaffinity(0, self.affinity_set)
         warmup()
         try:
             # FIXME: benchmark number of threads
             env = Environment(threads_per_worker=1)
-            with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s, env.enter():
+            with mcast_socket(self.port, GROUP, self.local_addr, self.iface) as s,\
+                    env.enter(), self.result_socket:
                 logger.info(f"listening on {self.local_addr}:{self.port}/{GROUP} on {self.iface}")
                 while True:
                     if self.is_stopped():
@@ -450,6 +447,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def should_process(self):
         if self.replica.store.state is None:
             return False
+        if not self.is_connected:
+            return False
         return self.replica.store.state.processing is ProcessingState.RUNNING
 
     def state_is_connected(self):
@@ -480,7 +479,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # are per partition. we could keep this rather small and
         # have another thread `merge` all the intermediate results,
         # and then sample _that_ intermediate result to the main process
-        frames_per_partition = 100
+        frames_per_partition = 40
 
         frame_counter = 0
         epoch = 0
@@ -501,7 +500,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
             self.replica.do_events()
             if self.is_stopped() or not self.should_process():
-                return
+                read_iter = self.read_loop_bulk(s)
+                continue
 
             tiles = self.get_tiles(
                 read_iter,
@@ -549,27 +549,75 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             frame_counter += frames_in_partition
 
     def send_result(self, partition_slice, result, epoch, packet_counter):
-        send_serialized(self.result_socket, (partition_slice, result, epoch, packet_counter))
+        self.result_socket.send((partition_slice, result, epoch, packet_counter))
 
 
-def get_settings_for_sector(idx):
-    return {
+class ResultSink:
+    def __init__(self, conn="tcp://*:7205", timeout=0.1):
+        self.conn = conn
+        self.sink_socket = None
+        self.poller = zmq.Poller()
+        self.timeout = timeout
+
+    def __enter__(self):
+        zctx = zmq.Context.instance()
+        self.sink_socket = zctx.socket(zmq.PULL)
+        self.sink_socket.bind(self.conn)
+        self.poller.register(self.sink_socket, zmq.POLLIN)
+
+    def __exit__(self, *args, **kwargs):
+        self.sink_socket.close()
+        self.poller.unregister(self.sink_socket)
+
+    def poll(self, timeout=None):
+        if timeout is None:
+            timeout = self.timeout
+        poll_events = dict(self.poller.poll(timeout))
+        if self.sink_socket in poll_events:
+            res = recv_serialized(self.sink_socket)
+            return res
+
+
+class ResultSource:
+    def __init__(self, conn="tcp://127.0.0.1:7205"):
+        self.conn = conn
+        self.result_socket = None
+
+    def __enter__(self):
+        zctx = zmq.Context.instance()
+        self.result_socket = zctx.socket(zmq.PUSH)
+        self.result_socket.connect(self.conn)
+
+    def __exit__(self, *args, **kwargs):
+        self.result_socket.close()
+
+    def send(self, result_obj):
+        send_serialized(self.result_socket, result_obj)
+
+
+def get_settings_for_sector(idx, use_veth):
+    settings = {
         'idx': idx,  # zero-based index of sector
         'local_addr': '225.1.1.1',
         'port': 2001 + idx,
         'affinity_set': {8 + idx},
-        # 'iface': 'veth2',
         'iface': 'enp193s0f0' if idx < 4 else 'enp193s0f1',
     }
+    if use_veth:
+        settings.update({
+            'iface': 'veth2',
+        })
+    return settings
 
 
 class K2ListenerProcess(mp.Process):
-    def __init__(self, idx, sync_state, enable_tracing, pdb, profile, *args, **kwargs):
+    def __init__(self, idx, sync_state, enable_tracing, pdb, profile, use_veth, *args, **kwargs):
         self.idx = idx
         self.sync_state = sync_state
         self.enable_tracing = enable_tracing
         self.pdb = pdb
         self.profile = profile
+        self.use_veth = use_veth
         self._stop_event = mp.Event()
         super().__init__(*args, **kwargs)
 
@@ -598,7 +646,7 @@ class K2ListenerProcess(mp.Process):
     def main(self):
         warmup()
 
-        settings = get_settings_for_sector(self.idx)
+        settings = get_settings_for_sector(self.idx, use_veth=self.use_veth)
         settings.update({
             'sync_state': self.sync_state,
             'pdb': self.pdb,
@@ -608,11 +656,11 @@ class K2ListenerProcess(mp.Process):
 
         try:
             t.start()
-            logger.info(f"MySubProcess {self.idx} started processing")
+            logger.info(f"MySubProcess {self.idx} started")
             while not (t.is_stopped() or self.is_stopped()):
                 t.maybe_raise()
                 time.sleep(1)
-            logger.info(f"MySubProcess {self.idx} stopped processing")
+            logger.info(f"MySubProcess {self.idx} stopped")
             t.maybe_raise()
         finally:
             t.stop()
