@@ -491,6 +491,9 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             num_frames = np.prod(self.nav_shape, dtype=np.int64)
             frames_in_partition = min(frames_per_partition, num_frames - frame_counter)
 
+            if self.is_stopped():
+                return  # process should shut down
+
             if frames_in_partition <= 0:
                 # FIXME: if not in continuous mode, dispatch a stop event here
                 frame_counter = 0
@@ -499,7 +502,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 continue
 
             self.replica.do_events()
-            if self.is_stopped() or not self.should_process():
+            if not self.should_process():
                 read_iter = self.read_loop_bulk(s)
                 continue
 
