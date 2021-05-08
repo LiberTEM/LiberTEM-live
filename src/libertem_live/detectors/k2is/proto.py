@@ -479,7 +479,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # are per partition. we could keep this rather small and
         # have another thread `merge` all the intermediate results,
         # and then sample _that_ intermediate result to the main process
-        frames_per_partition = 40
+        frames_per_partition = 100
 
         frame_counter = 0
         epoch = 0
