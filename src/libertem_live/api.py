@@ -44,7 +44,7 @@ class LiveContext(Context):
             It will be entered when an acquisition is started.
             Parameters supplied to the context manager are the live dataset and a list of UDFs.
             It is expected to yield after entering the dataset's
-            :meth:`libertem-live.dataset.base.LiveDataSet.start_acquisition`
+            :meth:`libertem-live.dataset.base.LiveDataSetMixin.start_acquisition`
             context manager and perform any cleanup after that yield.
         *args, **kwargs
             Additional parameters for the acquisition, see below

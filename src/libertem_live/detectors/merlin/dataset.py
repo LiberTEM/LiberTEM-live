@@ -3,10 +3,10 @@ import logging
 import numpy as np
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import (
-    DataTile, DataSetMeta, BasePartition, Partition,
+    DataTile, DataSetMeta, BasePartition, Partition, DataSet,
 )
 
-from libertem_live.detectors.base.dataset import LiveDataSet
+from libertem_live.detectors.base.dataset import LiveDataSetMixin
 from .data import MerlinDataSource
 from .control import MerlinControl
 
@@ -14,7 +14,7 @@ from .control import MerlinControl
 logger = logging.getLogger(__name__)
 
 
-class MerlinLiveDataSet(LiveDataSet):
+class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
     '''
     Live dataset to read from a Quantum Detectors Merlin camera
 
@@ -31,6 +31,8 @@ class MerlinLiveDataSet(LiveDataSet):
         frames_per_partition=256,
         pool_size=2
     ):
+        # This will also call the DataSet constructor, additional arguments
+        # could be passed -- currently not necessary
         super().__init__(setup=setup)
         self._source = MerlinDataSource(host, port, pool_size)
         if control_port is None:
