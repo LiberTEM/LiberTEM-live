@@ -26,7 +26,7 @@ parameters:
     Options:
     --continuous
     --cached [NONE|MEM|MEMFD]
-    --port INTEGER
+    --data-port INTEGER
     --control-port INTEGER
     --max-runs INTEGER
     --help                     Show this message and exit.

@@ -404,10 +404,10 @@ class ControlSocketServer:
 @click.option('--cached', default='NONE', type=click.Choice(
     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
 )
-@click.option('--port', type=int, default=6342)
+@click.option('--data-port', type=int, default=6342)
 @click.option('--control-port', type=int, default=6341)
 @click.option('--max-runs', type=int, default=-1)
-def main(path, continuous, port, control_port, cached, max_runs):
+def main(path, continuous, data_port, control_port, cached, max_runs):
     if cached == 'MEM':
         sim = CachedDataSocketSim(path=path, continuous=continuous, max_runs=max_runs)
     elif cached == 'MEMFD':
@@ -421,7 +421,7 @@ def main(path, continuous, port, control_port, cached, max_runs):
     t_c.daemon = True
     t_c.start()
 
-    server = DataSocketServer(sim=sim, port=port)
+    server = DataSocketServer(sim=sim, port=data_port)
     t = Thread(target=server.run)
     # Make sure the thread dies with the main program
     t.daemon = True
