@@ -8,7 +8,7 @@ from libertem.io.dataset.base import (
 
 from libertem_live.detectors.base.dataset import LiveDataSet
 from .data import MerlinDataSource
-from .control import SimpleMerlinControl
+from .control import MerlinControl
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class MerlinLiveDataSet(LiveDataSet):
         if control_port is None:
             self._control = None
         else:
-            self._control = SimpleMerlinControl(host, control_port, control_timeout)
+            self._control = MerlinControl(host, control_port, control_timeout)
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
 

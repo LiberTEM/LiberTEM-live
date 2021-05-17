@@ -1,7 +1,7 @@
 from .data import MerlinDataSource
-from .control import SimpleMerlinControl
+from .control import MerlinControl
 from .dataset import MerlinLiveDataSet
 
 __all__ = [
-    "MerlinDataSource", "SimpleMerlinControl", "MerlinLiveDataSet"
+    "MerlinDataSource", "MerlinControl", "MerlinLiveDataSet"
 ]

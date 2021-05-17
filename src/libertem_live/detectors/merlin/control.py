@@ -4,7 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class SimpleMerlinControl:
+class MerlinControl:
     def __init__(self, host='127.0.0.1', port=6341, timeout=1.0):
         self._host = host
         self._port = port
