@@ -331,7 +331,7 @@ class ControlSocketServer:
     def handle_conn(self, connection):
         print("handling control connection")
         # This code is only a proof of concept. It works just well enough to send
-        # commands and parse responses with control.SimpleMerlinControl.
+        # commands and parse responses with control.MerlinControl.
         # A few points to improve:
         # * Handle incomplete messages properly. Right now,
         #   the assumption is that a complete command will be received with

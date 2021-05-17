@@ -1,7 +1,7 @@
 from tango.server import Device, DeviceProxy
 from tango.server import command, device_property
 
-from .control import SimpleMerlinControl
+from .control import MerlinControl
 
 
 class Merlin(Device):
@@ -10,7 +10,7 @@ class Merlin(Device):
 
     def init_device(self):
         super().init_device()
-        self._control = SimpleMerlinControl(host=self.host, port=self.port)
+        self._control = MerlinControl(host=self.host, port=self.port)
 
     @command
     def connect(self):
