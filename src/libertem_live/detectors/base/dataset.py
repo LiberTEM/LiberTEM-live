@@ -2,14 +2,15 @@ from contextlib import contextmanager
 import logging
 
 from libertem.common import Shape
-from libertem.io.dataset.base import DataSet, TilingScheme
+from libertem.io.dataset.base import TilingScheme
 
 logger = logging.getLogger(__name__)
 
 
-class LiveDataSet(DataSet):
-    def __init__(self, setup):
+class LiveDataSetMixin:
+    def __init__(self, setup, *args, **kwargs):
         self._setup = setup
+        super().__init__(*args, **kwargs)
 
     @contextmanager
     def run_setup(self, udfs):
