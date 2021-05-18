@@ -6,7 +6,9 @@ import socket
 import itertools
 import functools
 import platform
-from threading import Thread
+import threading
+from typing import Optional
+import logging
 
 import click
 import numpy as np
@@ -15,6 +17,43 @@ from tqdm import tqdm
 from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet
 from libertem.common import Shape
+
+
+logger = logging.getLogger(__name__)
+
+
+# Copied from the k2is branch as a temporary fix.
+# FIXME use a proper import as soon as the k2is branch is merged
+class StoppableThreadMixin:
+    def __init__(self, *args, **kwargs):
+        self._stop_event = threading.Event()
+        super().__init__(*args, **kwargs)
+
+    def stop(self):
+        self._stop_event.set()
+
+    def is_stopped(self):
+        return self._stop_event.is_set()
+
+
+# Copied from the k2is branch as a temporary fix.
+# FIXME use a proper import as soon as the k2is branch is merged
+class ErrThreadMixin(StoppableThreadMixin):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._error: Optional[Exception] = None
+
+    def get_error(self):
+        return self._error
+
+    def error(self, exc):
+        logger.error("got exception %r, shutting down thread", exc)
+        self._error = exc
+        self.stop()
+
+    def maybe_raise(self):
+        if self._error is not None:
+            raise self._error
 
 
 @functools.lru_cache
@@ -34,8 +73,13 @@ class MITExecutor:
         return fn(*args, **kwargs)
 
 
+class StopException(Exception):
+    pass
+
+
 class DataSocketSimulator:
-    def __init__(self, path: str, continuous=False, rois=None, max_runs=-1):
+    def __init__(self, path: str, continuous=False, rois=None,
+                 max_runs=-1):
         """
         Parameters
         ----------
@@ -53,6 +97,7 @@ class DataSocketSimulator:
         max_runs: int
             Maximum number of continuous runs
         """
+        self.stop_event = threading.Event()
         if rois is None:
             rois = []
         if not path.lower().endswith(".hdr"):
@@ -166,6 +211,8 @@ class DataSocketSimulator:
         mpx_header = get_mpx_header(full_frame_size)
 
         for idx in range(slices.shape[0]):
+            if self.is_stopped():
+                raise StopException("Server stopped")
             origin = slices[idx, 0]
             # shape = slices[idx, 1]
             # origin, shape = slices[idx]
@@ -192,12 +239,15 @@ class DataSocketSimulator:
             print("cycle %d took %.05fs" % (i, t1 - t0))
             i += 1
             if self._max_runs != -1 and i >= self._max_runs:
-                raise RuntimeError("max_runs exceeded")
+                raise StopException("max_runs exceeded")
 
     def handle_conn(self, conn):
         for chunk in self.get_chunks():
             conn.sendall(chunk)
         conn.close()
+
+    def is_stopped(self):
+        return self.stop_event.is_set()
 
 
 class CachedDataSocketSim(DataSocketSimulator):
@@ -257,6 +307,8 @@ class MemfdSocketSim(DataSocketSimulator):
         roi = np.ones(self._ds.shape.nav, dtype=bool)
         total_size = 0
         for chunk in super()._get_single_scan(roi):
+            if self.is_stopped():
+                raise StopException("Server stopped")
             os.write(self._cache_fd, chunk)
             total_size += len(chunk)
         os.lseek(self._cache_fd, 0, 0)
@@ -268,6 +320,8 @@ class MemfdSocketSim(DataSocketSimulator):
         total_sent = 0
         reps = 0
         while total_sent < self._size:
+            if self.is_stopped():
+                raise StopException("Server stopped")
             total_sent += os.sendfile(
                 conn.fileno(),
                 self._cache_fd,
@@ -294,7 +348,7 @@ class MemfdSocketSim(DataSocketSimulator):
                 print("cycle %d took %.05fs (%.2fMiB/s)" % (i, t1 - t0, throughput))
                 i += 1
                 if self._max_runs != -1 and i >= self._max_runs:
-                    raise RuntimeError("max_runs exceeded")
+                    raise StopException("max_runs exceeded")
         else:
             print("yielding from single scan")
             t0 = time.time()
@@ -305,41 +359,56 @@ class MemfdSocketSim(DataSocketSimulator):
         conn.close()
 
 
-class DataSocketServer:
+class DataSocketServer(ErrThreadMixin, threading.Thread):
     def __init__(self, sim: DataSocketSimulator, port=6342):
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._port = port
         self._sim = sim
+        super().__init__()
+        self._sim.stop_event = self._stop_event
 
     def run(self):
-        self._sim.open()
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket.bind(('0.0.0.0', self._port))
-        self._socket.listen(1)
-        print("listening")
-        while True:
-            try:
-                connection, client_addr = self._socket.accept()
-                with connection:
-                    print("accepted from %s" % (client_addr,))
-                    self._sim.handle_conn(connection)
-            except ConnectionResetError:
-                print("disconnected")
-            except RuntimeError as e:
-                print("exception %s -> stopping" % e)
-                break
-            except Exception as e:
-                print("exception? %s" % e)
+        try:
+            self._sim.open()
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.bind(('0.0.0.0', self._port))
+            self._socket.settimeout(1)
+            self._socket.listen(1)
+            print("listening")
+            while not self.is_stopped():
+                try:
+                    connection, client_addr = self._socket.accept()
+                    with connection:
+                        print("accepted from %s" % (client_addr,))
+                        self._sim.handle_conn(connection)
+                except socket.timeout:
+                    continue
+                except ConnectionResetError:
+                    print("disconnected")
+                except RuntimeError as e:
+                    print("exception %s -> stopping" % e)
+                    self.error(e)
+                    break
+                except StopException:
+                    break
+                except Exception as e:
+                    print("exception? %s" % e)
+                    self.error(e)
+            print("exiting data server")
+        except Exception as e:
+            return self.error(e)
 
 
-class ControlSocketServer:
+class ControlSocketServer(ErrThreadMixin, threading.Thread):
     def __init__(self, sim, port=6341):
         self._sim = sim
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._port = port
         self._params = {}
+        super().__init__()
 
     def handle_conn(self, connection):
+        connection.settimeout(1)
         print("handling control connection")
         # This code is only a proof of concept. It works just well enough to send
         # commands and parse responses with control.MerlinControl.
@@ -350,9 +419,13 @@ class ControlSocketServer:
         # * Figure out the missing parts of the response to match Merlin behavior
         # * Actually respond to commands that can be simulated, such as 'numframes'
         # * Possibly emit errors like a real Merlin detector upon bad commands?
-        while True:
-            chunk = connection.recv(1024*1024)
+        while not self.is_stopped():
+            try:
+                chunk = connection.recv(1024*1024)
+            except socket.timeout:
+                continue
             if len(chunk) == 0:
+                print("closed control")
                 return
             parts = chunk.split(b',')
             print("Control command received: ", chunk)
@@ -390,23 +463,32 @@ class ControlSocketServer:
         return self._sim
 
     def run(self):
-        self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._socket.bind(('0.0.0.0', self._port))
-        self._socket.listen(1)
-        print("control port listening")
-        while True:
-            try:
-                connection, client_addr = self._socket.accept()
-                with connection:
-                    print("accepted control from %s" % (client_addr,))
-                    self.handle_conn(connection)
-            except ConnectionResetError:
-                print("control disconnected")
-            except RuntimeError as e:
-                print("control exception %s -> stopping" % e)
-                break
-            except Exception as e:
-                print("control exception? %s" % e)
+        try:
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.bind(('0.0.0.0', self._port))
+            self._socket.settimeout(1)
+            self._socket.listen(1)
+            print("control port listening")
+            while not self.is_stopped():
+                try:
+                    connection, client_addr = self._socket.accept()
+                    with connection:
+                        print("accepted control from %s" % (client_addr,))
+                        self.handle_conn(connection)
+                except socket.timeout:
+                    continue
+                except ConnectionResetError:
+                    print("control disconnected")
+                except RuntimeError as e:
+                    self.error(e)
+                    print("control exception %s -> stopping" % e)
+                    break
+                except Exception as e:
+                    print("control exception? %s" % e)
+                    self.error(e)
+            print("exiting control server")
+        except Exception as e:
+            return self.error(e)
 
 
 @click.command()
@@ -426,23 +508,45 @@ def main(path, continuous, data_port, control_port, cached, max_runs):
     else:
         sim = DataSocketSimulator(path=path, continuous=continuous, max_runs=max_runs)
 
-    ctrl = ControlSocketServer(sim=sim, port=control_port)
-    t_c = Thread(target=ctrl.run)
+    control_t = ControlSocketServer(sim=sim, port=control_port)
     # Make sure the thread dies with the main program
-    t_c.daemon = True
-    t_c.start()
+    control_t.daemon = True
+    control_t.start()
 
-    server = DataSocketServer(sim=sim, port=data_port)
-    t = Thread(target=server.run)
+    server_t = DataSocketServer(sim=sim, port=data_port)
     # Make sure the thread dies with the main program
-    t.daemon = True
-    t.start()
+    server_t.daemon = True
+    server_t.start()
 
     # This allows us to handle Ctrl-C, and the main program
     # stops in a timely fashion when continuous scanning stops.
-    while t.is_alive():
-        time.sleep(1)
-    sys.exit(0)
+    try:
+        while control_t.is_alive() and server_t.is_alive():
+            control_t.maybe_raise()
+            server_t.maybe_raise()
+            time.sleep(1)
+    except KeyboardInterrupt:
+        # Just to not print "Aborted!"" from click
+        sys.exit(0)
+    finally:
+        print("Stopping...")
+        control_t.stop()
+        server_t.stop()
+        timeout = 2
+        start = time.time()
+        while True:
+            control_t.maybe_raise()
+            server_t.maybe_raise()
+            if (not control_t.is_alive()) and (not server_t.is_alive()):
+                break
+
+            if (time.time() - start) >= timeout:
+                print("Killing server threads")
+                # Since the threads are daemon threads, they will die abruptly
+                # when this main thread finishes.
+                break
+
+            time.sleep(0.1)
 
 
 if __name__ == "__main__":
