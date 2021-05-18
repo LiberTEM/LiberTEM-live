@@ -1,3 +1,5 @@
+.. _`usage`:
+
 Usage
 =====
 
@@ -39,7 +41,7 @@ This command runs an emulation server on the default ports 6341 for control and
     
     (libertem) $ libertem-live-mib-sim "Ptycho01/20200518 165148/default.hdr"
 
-See :ref:`merlin` for all available command line arguments.
+See :ref:`merlin detector` for all available command line arguments.
 
 Start a LiveContext
 -------------------
@@ -50,58 +52,76 @@ Start a LiveContext
 
     ctx = LiveContext()
 
-Define a routine to start and stop an acquisition
+.. _`enter exit`:
+
+Define routines to start and stop an acquisition
 -------------------------------------------------
 
-TODO to be discussed!
+These functions will be included in a live dataset object to be called when an
+acquisition is started resp. after it is finished.
+
+:code:`on_enter()`: can be used to execute setup commands, for example to
+configure camera, scan system and triggers for the desired scan, and to initiate
+the scan.
+
+:code:`on_exit()`: can be used to bring the setup back to the default state, for
+example by disarming triggers.
 
 .. testcode::
 
-    from contextlib import contextmanager
-
-    @contextmanager
-    def mem_setup(dataset, udfs):
-        print("memory prep")
-        # additional setup commands go here
-        print("running acquisition")
-        with dataset.start_acquisition():
-            yield
-        print("camera teardown")
-        # additional cleanup commands go here
+    def on_enter(meta):
+        print("Calling on_enter")
+        print("Dataset shape:", meta.dataset_shape)
+    
+    def on_exit(meta):
+        print("Calling on_exit")
  
 Prepare an acquisition
 ----------------------
 
 The acquisition definition is deliberately similar to a LiberTEM dataset.
-It splices the setup context manager into the general camera interface. 
+The :code:`on_enter()` and :code:`on_exit()` functions are included in the
+acquisition object and are called when the acquisition is run.
 
 .. testcode::
 
     import numpy as np
 
+    # We use a memory-based acquisition to make this example runnable
+    # without a real detector or detector simulation.
     data = np.random.random((23, 42, 51, 67))
 
     ds = ctx.prepare_acquisition(
         'memory',
-        mem_setup,
+        on_enter=on_enter,
+        on_exit=on_exit,
         data=data,
-        num_partitions=23
     )
 
 Run an acquisition
 ------------------
 
-This first initializes the acquisition system, for example by connecting to the
-camera control interface. Then it enters the user-provided context manager to
-execute additional setup commands. After that, it reads the data from the camera
-and feeds it into the provided UDFs. Finally, the control flow leaves the
-user-provided context manager and all connections to the camera are closed.
+This first calls the user-provided :code:`on_enter` function. After that, it reads the data from the camera and feeds
+it into the provided UDFs. Finally, it closes the camera connection and calls
+the user-provided :code:`on_exit` function.
+
+The :code:`on_enter` and :code:`on_exit` functions are called with a
+:class:`~libertem_live.detectors.base.meta.LiveMeta` object that contains meta
+information about the acquisition. See the documentation of
+:class:`~libertem_live.detectors.base.meta.LiveMeta` for an overview over the
+available information.
 
 .. testcode::
 
     from libertem_live.udf.monitor import SignalMonitorUDF
 
-    ctx.run_udf(dataset=ds, udf=SignalMonitorUDF(), plots=True)
+    res = ctx.run_udf(dataset=ds, udf=SignalMonitorUDF(), plots=True)
+
+.. testoutput::
+
+    Calling on_enter
+    Dataset shape: (23, 42, 51, 67)
+    Calling on_exit
 
 Examples
 --------

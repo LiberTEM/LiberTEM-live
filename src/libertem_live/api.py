@@ -3,6 +3,8 @@ import contextlib
 from libertem.executor.inline import InlineJobExecutor
 from libertem.api import Context
 
+from libertem_live.detectors.base.meta import LiveMeta
+
 
 class LiveContext(Context):
     def _create_local_executor(self):
@@ -13,19 +15,21 @@ class LiveContext(Context):
         return InlineJobExecutor()
 
     @contextlib.contextmanager
-    def _do_setup(self, dataset, udf):
-        if hasattr(dataset, 'start_control') and hasattr(dataset, 'run_setup'):
-            with dataset.start_control():
-                # We simplify the setup interface by always supplying
-                # a list of UDFs, not a single one
-                if not isinstance(udf, (list, tuple)):
-                    udf = [udf]
-                with dataset.run_setup(udfs=udf):
-                    yield
+    def _do_acquisition(self, dataset, udf):
+        if hasattr(dataset, 'run_acquisition'):
+            if not isinstance(udf, (list, tuple)):
+                udf = [udf]
+            meta = LiveMeta(
+                dataset_shape=dataset.shape,
+                dataset_dtype=dataset.dtype,
+                udfs=udf
+            )
+            with dataset.run_acquisition(meta=meta):
+                yield
         else:
             yield
 
-    def prepare_acquisition(self, detector_type, setup, *args, **kwargs):
+    def prepare_acquisition(self, detector_type, *args, on_enter=None, on_exit=None, **kwargs):
         # FIXME implement similar to LiberTEM datasets once
         # we have more detector types to support
         '''
@@ -37,62 +41,53 @@ class LiveContext(Context):
         detector_type : str
             - :code:`'merlin'`: Quantum Detectors Merlin camera.
             - :code:`'memory'`: Memory-based live data stream.
-        setup : contextmanager
-            Context manager to initialize the camera and tear it down.
-            This can be used to send the commands to the camera and
-            other parts of the setup to start a scan and clean up afterwards.
-            It will be entered when an acquisition is started.
-            Parameters supplied to the context manager are the live dataset and a list of UDFs.
-            It is expected to yield after entering the dataset's
-            :meth:`libertem-live.dataset.base.LiveDataSetMixin.start_acquisition`
-            context manager and perform any cleanup after that yield.
+        on_enter, on_exit : function(LiveMeta)
+            Keyword-only parameter, function to set up and initiate an acquisition resp.
+            clean up afterwards. This can be used to send the commands to the camera and
+            other parts of the setup to start a scan.
+            :code:`on_enter(meta)` will be called before an acquisition is started.
+            :code:`on_exit(meta)` will be called after an acquisition is finished, including
+            after an error.
+            The function is called with a :class:`libertem_live.detectors.base.meta.LiveMeta`
+            object as a parameter that contains information about the current acquisition.
         *args, **kwargs
-            Additional parameters for the acquisition, see below
-
-        Merlin Parameters
-        -----------------
-
-        scan_size : tuple(int)
-        host : str
-            Hostname of the Merlin data server, default '127.0.0.1'
-        port : int
-            Data port of the Merlin data server, default 6342
-        control_port : int
-            Control port of the Merlin data server, default 6341.
-            Set to :code:`None` to deactivate control.
-        control_timeout : float
-            Timeout for control port of the Merlin data server
-            in seconds. Default 1.0.
-        frames_per_partition : int
-        pool_size`: int
-            Number of decoding threads. Defaults to 2
-
-        Memory Parameters
-        -----------------
-
-        *args, **kwargs
-            See :class:`libertem.io.dataset.memory.MemoryDataSet`!
+            Additional parameters for the acquisition. See :ref:`detector reference` for details
+            of individual acquisition types!
 
         Examples
         --------
 
-        >>> @contextmanager
-        ... def medipix_setup(dataset, udfs):
-        ...     print("priming camera for acquisition")
-        ...     # TODO: medipix control socket commands go here
-        ...     # TODO interface to be tested, not supported in simulator yet
-
-        ...     # dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
-        ...     # dataset.control.set(...)
-
-        ...     # microscope.configure_scan()
-        ...     # microscope.start_scanning()
-        ...     print("running acquisition")
-        ...     with dataset.start_acquisition():
-        ...         yield
-        ...     print("camera teardown")
-        ...     # teardown routines go here
-
+        >>> import numpy as np
+        >>>
+        >>> from libertem_live.udf.monitor import SignalMonitorUDF
+        >>> from libertem_live import api as ltl
+        >>>
+        >>> ctx = ltl.LiveContext()
+        >>> def on_enter(meta):
+        ...     print("Calling on_enter")
+        ...     print("Dataset shape:", meta.dataset_shape)
+        >>>
+        >>> def on_exit(meta):
+        ...     print("Calling on_exit")
+        >>>
+        >>> # We use a memory-based acquisition for demonstration
+        >>> # This allows to run this example without a real detector
+        >>> data = np.random.random((23, 42, 51, 67))
+        >>>
+        >>> ds = ctx.prepare_acquisition(
+        ...     'memory',
+        ...     on_enter=on_enter,
+        ...     on_exit=on_exit,
+        ...     data=data,
+        ... )
+        >>>
+        >>>
+        >>> udf = SignalMonitorUDF()
+        >>>
+        >>> res = ctx.run_udf(dataset=ds, udf=udf, plots=True)
+        Calling on_enter
+        Dataset shape: (23, 42, 51, 67)
+        Calling on_exit
         '''
         detector_type = str(detector_type).lower()
         if detector_type == 'merlin':
@@ -103,12 +98,12 @@ class LiveContext(Context):
             cls = MemoryLiveDataSet
         else:
             raise ValueError(f"Unknown detector type '{detector_type}', supported is 'merlin'")
-        return cls(setup, *args, **kwargs).initialize(self.executor)
+        return cls(*args, on_enter=on_enter, on_exit=on_exit, **kwargs).initialize(self.executor)
 
     def run_udf(self, dataset, udf, *args, **kwargs):
-        with self._do_setup(dataset, udf):
+        with self._do_acquisition(dataset, udf):
             return super().run_udf(dataset=dataset, udf=udf, *args, **kwargs)
 
     def run_udf_iter(self, dataset, udf, *args, **kwargs):
-        with self._do_setup(dataset, udf):
+        with self._do_acquisition(dataset, udf):
             return super().run_udf_iter(dataset=dataset, udf=udf, *args, **kwargs)

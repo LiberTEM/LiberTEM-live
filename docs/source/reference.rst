@@ -7,10 +7,18 @@ Live Context
 .. automodule:: libertem_live.api
    :members:
 
+Meta information
+~~~~~~~~~~~~~~~~
+
+.. automodule:: libertem_live.detectors.base.meta
+   :members:
+
+.. _`detector reference`:
+
 Detectors
 ~~~~~~~~~
 
-.. _`merlin`:
+.. _`merlin detector`:
 
 Quantum Detectors Merlin
 ........................
@@ -34,6 +42,8 @@ parameters:
 .. automodule:: libertem_live.detectors.merlin
     :members:
     :undoc-members:
+
+.. _`memory detector`:
 
 Memory
 ......
