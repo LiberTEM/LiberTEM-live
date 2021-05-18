@@ -8,24 +8,22 @@ logger = logging.getLogger(__name__)
 
 
 class LiveDataSetMixin:
-    def __init__(self, setup, *args, **kwargs):
-        self._setup = setup
+    def __init__(self, on_enter, on_exit, *args, **kwargs):
+        self._on_enter = on_enter
+        self._on_exit = on_exit
         super().__init__(*args, **kwargs)
 
     @contextmanager
-    def run_setup(self, udfs):
-        if self._setup is not None:
-            with self._setup(self, udfs):
-                yield
-        else:
+    def run_acquisition(self, meta):
+        if self._on_enter is not None:
+            self._on_enter(meta)
+        with self.acquire():
             yield
+        if self._on_exit is not None:
+            self._on_exit(meta)
 
     @contextmanager
-    def start_control(self):
-        raise NotImplementedError
-
-    @contextmanager
-    def start_acquisition(self):
+    def acquire(self):
         raise NotImplementedError
 
 

@@ -8,7 +8,6 @@ from libertem.io.dataset.base import (
 
 from libertem_live.detectors.base.dataset import LiveDataSetMixin
 from .data import MerlinDataSource
-from .control import MerlinControl
 
 
 logger = logging.getLogger(__name__)
@@ -18,27 +17,36 @@ class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
     '''
     Live dataset to read from a Quantum Detectors Merlin camera
 
-    TODO more...
+    Parameters
+    ----------
+
+    on_enter, on_exit : function(LiveMeta)
+        See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
+        and :ref:`enter exit` for details!
+    scan_size : tuple(int)
+    host : str
+        Hostname of the Merlin data server, default '127.0.0.1'
+    port : int
+        Data port of the Merlin data server, default 6342
+    frames_per_partition : int
+        Number of frames to process before performing a merge operation. Decreasing this number
+        increases the update rate, but can decrease performance.
+    pool_size : int
+        Number of decoding threads. Defaults to 2
     '''
     def __init__(
         self,
-        setup,
+        on_enter, on_exit,
         scan_size,
         host='127.0.0.1',
         port=6342,
-        control_port=6341,
-        control_timeout=1.0,
         frames_per_partition=256,
         pool_size=2
     ):
         # This will also call the DataSet constructor, additional arguments
         # could be passed -- currently not necessary
-        super().__init__(setup=setup)
+        super().__init__(on_enter=on_enter, on_exit=on_exit)
         self._source = MerlinDataSource(host, port, pool_size)
-        if control_port is None:
-            self._control = None
-        else:
-            self._control = MerlinControl(host, control_port, control_timeout)
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
 
@@ -51,19 +59,11 @@ class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
             raw_dtype=dtype,
             dtype=dtype,
         )
-        # Test connection to the control socket
-        if self.control is not None:
-            with self.control:
-                pass
         return self
 
     @property
     def source(self):
         return self._source
-
-    @property
-    def control(self):
-        return self._control
 
     @property
     def dtype(self):
@@ -82,15 +82,7 @@ class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
         return self._meta
 
     @contextmanager
-    def start_control(self):
-        if self.control is not None:
-            with self.control:
-                yield
-        else:
-            yield
-
-    @contextmanager
-    def start_acquisition(self):
+    def acquire(self):
         with self.source:
             yield
 
