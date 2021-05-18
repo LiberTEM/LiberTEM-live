@@ -13,14 +13,25 @@ import numpy as np
 from tqdm import tqdm
 
 from libertem.io.dataset.base import TilingScheme
-from libertem.executor.inline import InlineJobExecutor
-from libertem.api import Context
+from libertem.io.dataset.mib import MIBDataSet
 from libertem.common import Shape
 
 
 @functools.lru_cache
 def get_mpx_header(length):
     return b"MPX,%010d," % ((length + 1),)
+
+
+class MITExecutor:
+    '''
+    This is an incomplete implementation of a LiberTEM executor that is
+    just sufficient to initialize a MIB dataset.
+
+    This avoids a dependency on the GPL-licensed
+    :class:`~libertem.executor.inline.InlineJobExecutor`.
+    '''
+    def run_function(self, fn, *args, **kwargs):
+        return fn(*args, **kwargs)
 
 
 class DataSocketSimulator:
@@ -49,13 +60,13 @@ class DataSocketSimulator:
         self._path = path
         self._continuous = continuous
         self._rois = rois
-        self._ctx = Context(executor=InlineJobExecutor())
         self._ds = None
         self._max_runs = max_runs
         self._mmaps = {}
 
     def open(self):
-        ds = self._ctx.load("mib", path=self._path)
+        ds = MIBDataSet(path=self._path)
+        ds.initialize(MITExecutor())
         print("dataset shape: %s" % (ds.shape,))
         self._ds = ds
         self._warmup()
