@@ -7,12 +7,6 @@ Live Context
 .. automodule:: libertem_live.api
    :members:
 
-Meta information
-~~~~~~~~~~~~~~~~
-
-.. automodule:: libertem_live.detectors.base.meta
-   :members:
-
 .. _`detector reference`:
 
 Detectors

@@ -452,6 +452,15 @@ class ControlSocketServer(ErrThreadMixin, threading.Thread):
                     "noideafourth",  # 3
                     "0",  # 4
                 )
+            elif method == 'CMD':
+                self._params[param] = value
+                response_parts = (
+                    "noideafirst",  # 0
+                    "noideasecond",  # 1
+                    method,  # 2
+                    "noideafourth",  # 3
+                    "0",  # 4
+                )
             else:
                 raise RuntimeError("Unknown method %s", method)
             response_str = ','.join(response_parts)

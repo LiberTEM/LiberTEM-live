@@ -6,23 +6,23 @@ from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet,
 )
 
-from libertem_live.detectors.base.dataset import LiveDataSetMixin
+from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from .data import MerlinDataSource
 
 
 logger = logging.getLogger(__name__)
 
 
-class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
+class MerlinAcquisition(AcquisitionMixin, DataSet):
     '''
-    Live dataset to read from a Quantum Detectors Merlin camera
+    Acquisition from a Quantum Detectors Merlin camera
 
     Parameters
     ----------
 
-    on_enter, on_exit : function(LiveMeta)
+    trigger : function()
         See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
-        and :ref:`enter exit` for details!
+        and :ref:`trigger` for details!
     scan_size : tuple(int)
     host : str
         Hostname of the Merlin data server, default '127.0.0.1'
@@ -36,7 +36,7 @@ class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
     '''
     def __init__(
         self,
-        on_enter, on_exit,
+        trigger,
         scan_size,
         host='127.0.0.1',
         port=6342,
@@ -45,7 +45,7 @@ class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
     ):
         # This will also call the DataSet constructor, additional arguments
         # could be passed -- currently not necessary
-        super().__init__(on_enter=on_enter, on_exit=on_exit)
+        super().__init__(trigger=trigger)
         self._source = MerlinDataSource(host, port, pool_size)
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
@@ -84,6 +84,7 @@ class MerlinLiveDataSet(LiveDataSetMixin, DataSet):
     @contextmanager
     def acquire(self):
         with self.source:
+            self.trigger()
             yield
 
     def check_valid(self):

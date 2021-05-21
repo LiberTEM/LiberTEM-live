@@ -1,3 +1,3 @@
-from .dataset import MemoryLiveDataSet
+from .acquisition import MemoryAcquisition
 
-__all__ = ["MemoryLiveDataSet"]
+__all__ = ["MemoryAcquisition"]

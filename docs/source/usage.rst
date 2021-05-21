@@ -13,23 +13,16 @@ It differs in only a few aspects:
 * It uses the :class:`libertem_live.api.LiveContext` that extends the
   :class:`libertem.api.Context` with methods to prepare and run live
   acquisitions on top of loading offline datasets.
-* It requires using a compatible executor since task scheduling has to be
-  coordinated with the incoming detector data. The
-  :class:`~libertem_live.api.LiveContext` starts a suitable executor by default
-  when it is instantiated, currently the
-  :class:`~libertem.executor.inline.InlineJobExecutor`.
 * The concept of a LiberTEM :class:`~libertem.io.dataset.base.DataSet` is
-  extended with provisions for controlling, starting and stopping data
-  acquisition from a detector instead of reading from a file. That includes
-  running user-provided code to send the necessary control commands to the
-  microscope and other devices to perform an acquisition.
+  adapted to acquiring data from a detector instead of reading
+  from a file.
 
 Simulating a detector
 ---------------------
 
 For basic testing, the
-:class:`~libertem_live.detectors.memory.MemoryLiveDataSet` can be used. It
-implements the additional functionality of a live dataset on top of the
+:class:`~libertem_live.detectors.memory.MemoryAcquisition` can be used. It
+implements the additional functionality of an acquisition on top of the
 :class:`libertem.io.dataset.memory.MemoryDataSet`. A more advanced data source
 that emulates the Merlin data and control socket is available as well. Please
 note that this emulation is still very basic for the time being.
@@ -46,42 +39,69 @@ See :ref:`merlin detector` for all available command line arguments.
 Start a LiveContext
 -------------------
 
+A :class:`~libertem_live.api.LiveContext` requires using a compatible executor
+since task scheduling has to be coordinated with the incoming detector data. It
+starts a suitable executor by default when it is instantiated, currently the
+:class:`~libertem.executor.inline.InlineJobExecutor`.
+
 .. testcode::
 
     from libertem_live.api import LiveContext
 
     ctx = LiveContext()
 
-.. _`enter exit`:
+.. _`trigger`:
 
-Define routines to start and stop an acquisition
--------------------------------------------------
+Define a callback function to trigger an acquisition
+----------------------------------------------------
 
-These functions will be included in a live dataset object to be called when an
-acquisition is started resp. after it is finished.
+This callback function will be include in an acquisition object to be called
+when LiberTEM-live is ready and waiting for data. It should trigger the start of
+the acquisition, for example by starting a scan. If a scan is triggered before
+the acquisition system is ready to receive, data may be lost depending on the
+timimg and architecture.
 
-:code:`on_enter()`: can be used to execute setup commands, for example to
-configure camera, scan system and triggers for the desired scan, and to initiate
-the scan.
-
-:code:`on_exit()`: can be used to bring the setup back to the default state, for
-example by disarming triggers.
+Setting up the devices before the scan with a configuration that generates the
+expected data as well as cleanup after a scan is finished should be handled by
+the user.
 
 .. testcode::
 
-    def on_enter(meta):
-        print("Calling on_enter")
-        print("Dataset shape:", meta.dataset_shape)
-    
-    def on_exit(meta):
-        print("Calling on_exit")
+    def trigger():
+        print("Triggering!")
+        # microscope.trigger_scan()
  
 Prepare an acquisition
 ----------------------
 
-The acquisition definition is deliberately similar to a LiberTEM dataset.
-The :code:`on_enter()` and :code:`on_exit()` functions are included in the
-acquisition object and are called when the acquisition is run.
+The API of an acquisition is deliberately similar to a LiberTEM offline
+:class:`~libertem.io.dataset.base.dataset.DataSet` to make the internals of
+LiberTEM work the same. However, the behavior and usage are different. An
+offline dataset represents immutable data on a storage medium that can be
+accessed at any time and be shared between all processes that have access to the
+underlying file system. As a consequence,
+:class:`~libertem.io.dataset.base.dataset.DataSet` objects can be long-lived and
+re-used easily.
+
+:class:`~libertem_live.detector.base.acquisition.AcquisitionMixin` objects, in
+contrast, are just a vehicle to communicate to the LiberTEM internals what data
+to expect. What data will actually arrive depends entirely on the settings of
+the acquisition system. Since doing a 4D STEM acquisition requires coordinating
+at least camera, scan engine and microscope, it is usually customized for each
+setup. Furthermore, interactive user adjustments such as focusing and navigating
+are usually required. That makes generalizing a live acquisition harder than an
+offline dataset: It doesn't represent an immutable state on storage like an
+offline dataset, but a desired action of an acquisition system that usually has
+a unique configuration and depends on a state that is dynamic, complex and
+diverse in nature.
+
+For that reason, the functionality of a
+:class:`~libertem_live.detector.base.acquisition.AcquisitionMixin` object is
+strictly limited to reading data from the camera, expecting data in the shape
+and kind that was specified. Controlling the settings of the acquisition system
+is the responsibility of the user. Usually, the acquisition object should be
+created directly before running an acquisition with parameters that match the
+current configuration of the acquisition system. 
 
 .. testcode::
 
@@ -91,37 +111,30 @@ acquisition object and are called when the acquisition is run.
     # without a real detector or detector simulation.
     data = np.random.random((23, 42, 51, 67))
 
-    ds = ctx.prepare_acquisition(
+    aq = ctx.prepare_acquisition(
         'memory',
-        on_enter=on_enter,
-        on_exit=on_exit,
+        trigger=trigger,
         data=data,
     )
 
 Run an acquisition
 ------------------
 
-This first calls the user-provided :code:`on_enter` function. After that, it reads the data from the camera and feeds
-it into the provided UDFs. Finally, it closes the camera connection and calls
-the user-provided :code:`on_exit` function.
-
-The :code:`on_enter` and :code:`on_exit` functions are called with a
-:class:`~libertem_live.detectors.base.meta.LiveMeta` object that contains meta
-information about the acquisition. See the documentation of
-:class:`~libertem_live.detectors.base.meta.LiveMeta` for an overview over the
-available information.
+This first initializes the acquisition to the point that it can receive data, for
+example by connecting to the data socket in the case of the Merlin detector. Then it
+calls the user-provided :code:`trigger` callback function that should set off
+the acquisition. After that, it reads the data from the camera and feeds it into
+the provided UDFs. Finally, it closes the camera connection, if applicable.
 
 .. testcode::
 
     from libertem_live.udf.monitor import SignalMonitorUDF
 
-    res = ctx.run_udf(dataset=ds, udf=SignalMonitorUDF(), plots=True)
+    res = ctx.run_udf(dataset=aq, udf=SignalMonitorUDF(), plots=True)
 
 .. testoutput::
 
-    Calling on_enter
-    Dataset shape: (23, 42, 51, 67)
-    Calling on_exit
+    Triggering!
 
 Examples
 --------
