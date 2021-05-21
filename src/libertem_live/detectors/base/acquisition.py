@@ -7,24 +7,18 @@ from libertem.io.dataset.base import TilingScheme
 logger = logging.getLogger(__name__)
 
 
-class LiveDataSetMixin:
-    def __init__(self, on_enter, on_exit, *args, **kwargs):
-        self._on_enter = on_enter
-        self._on_exit = on_exit
+class AcquisitionMixin:
+    def __init__(self, trigger, *args, **kwargs):
+        self._trigger = trigger
         super().__init__(*args, **kwargs)
-
-    @contextmanager
-    def run_acquisition(self, meta):
-        if self._on_enter is not None:
-            self._on_enter(meta)
-        with self.acquire():
-            yield
-        if self._on_exit is not None:
-            self._on_exit(meta)
 
     @contextmanager
     def acquire(self):
         raise NotImplementedError
+
+    def trigger(self):
+        if self._trigger is not None:
+            self._trigger()
 
 
 def bench_noop(ds, data_source):
