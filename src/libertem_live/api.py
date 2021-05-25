@@ -1,10 +1,12 @@
 import contextlib
 
 from libertem.executor.inline import InlineJobExecutor
-from libertem.api import Context
+# Avoid having Context in this module to make sure
+# it is not imported by accident instead of LiveContext
+from libertem.api import Context as LiberTEM_Context
 
 
-class LiveContext(Context):
+class LiveContext(LiberTEM_Context):
     def _create_local_executor(self):
         '''
         Live acquisition currently requires a suitable executor, for
