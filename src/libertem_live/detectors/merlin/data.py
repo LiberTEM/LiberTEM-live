@@ -503,19 +503,24 @@ class MerlinDataSource:
 
     def inline_stream(self, read_dtype=np.float32, chunk_size=10):
         with self:
-            hdr, frame_header = self.socket.read_headers()
-            logger.info(hdr, frame_header)
+            hdr = self.socket.get_acquisition_header()
+            logger.info(hdr)
 
             out = self.socket.get_out_buffer(chunk_size, dtype=read_dtype)
             input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
 
             while True:
-                self.socket.read_multi_frames(
+                res = self.socket.read_multi_frames(
                     out=out,
                     num_frames=chunk_size,
                     input_buffer=input_buffer
                 )
-                yield out
+                if not res:
+                    break
+                buf, frame_idx_start, frame_idx_end = res
+                if frame_idx_end - frame_idx_start == 0:
+                    break
+                yield buf
 
     def stream(self, num_frames=None, chunk_size=11):
         pool = self.pool.get_impl(

@@ -26,12 +26,14 @@ parameters:
     Usage: libertem-live-mib-sim [OPTIONS] PATH
 
     Options:
+    --nav-shape <INTEGER INTEGER>...
     --continuous
     --cached [NONE|MEM|MEMFD]
+    --host TEXT
     --data-port INTEGER
     --control-port INTEGER
     --max-runs INTEGER
-    --help                     Show this message and exit.
+    --help                          Show this message and exit.
 
 .. automodule:: libertem_live.detectors.merlin
     :members:

@@ -12,7 +12,8 @@ from libertem_live import api as ltl
 
 @pytest.fixture
 def ltl_ctx():
-    inline_executor = InlineJobExecutor(debug=True, inline_threads=2)
+    # Debugging disabled since acquisition objects can't always be serialized
+    inline_executor = InlineJobExecutor(debug=False, inline_threads=2)
     return ltl.LiveContext(executor=inline_executor, plot_class=Dummy2DPlot)
 
 

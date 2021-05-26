@@ -15,7 +15,7 @@ import numpy as np
 from tqdm import tqdm
 
 from libertem.io.dataset.base import TilingScheme
-from libertem.io.dataset.mib import MIBDataSet
+from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
 
@@ -56,7 +56,56 @@ class ErrThreadMixin(StoppableThreadMixin):
             raise self._error
 
 
-@functools.lru_cache
+class ServerThreadMixin(ErrThreadMixin):
+    def __init__(self, host, port, name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._host = host
+        self._port = port
+        self._name = name
+        self.listen_event = threading.Event()
+
+    @property
+    def sockname(self):
+        return self._socket.getsockname()
+
+    def handle_conn(self, connection):
+        raise NotImplementedError
+
+    def run(self):
+        try:
+            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._socket.bind((self._host, self._port))
+            self._socket.settimeout(1)
+            self._socket.listen(1)
+            print(f"{self._name} listening {self.sockname}")
+            self.listen_event.set()
+            while not self.is_stopped():
+                try:
+                    connection, client_addr = self._socket.accept()
+                    with connection:
+                        print(f"{self._name} accepted from %s" % (client_addr,))
+                        self.handle_conn(connection)
+                except socket.timeout:
+                    continue
+                except ConnectionResetError:
+                    print(f"{self._name} disconnected")
+                except RuntimeError as e:
+                    print(f"{self._name} exception %s -> stopping" % e)
+                    self.error(e)
+                    break
+                except StopException:
+                    break
+                except Exception as e:
+                    print(f"{self._name} exception? %s" % e)
+                    self.error(e)
+        except Exception as e:
+            return self.error(e)
+        finally:
+            print(f"{self._name} exiting")
+            self._socket.close()
+
+@functools.lru_cache(maxsize=None)
 def get_mpx_header(length):
     return b"MPX,%010d," % ((length + 1),)
 
@@ -78,7 +127,7 @@ class StopException(Exception):
 
 
 class DataSocketSimulator:
-    def __init__(self, path: str, continuous=False, rois=None,
+    def __init__(self, path: str, nav_shape=None, continuous=False, rois=None,
                  max_runs=-1):
         """
         Parameters
@@ -100,9 +149,10 @@ class DataSocketSimulator:
         self.stop_event = threading.Event()
         if rois is None:
             rois = []
-        if not path.lower().endswith(".hdr"):
-            raise ValueError("please pass the path to the HDR file!")
+        if nav_shape is None and not is_valid_hdr(path):
+            raise ValueError("please pass the path to a valid HDR file or specify a nav shape!")
         self._path = path
+        self._nav_shape = nav_shape
         self._continuous = continuous
         self._rois = rois
         self._ds = None
@@ -110,22 +160,40 @@ class DataSocketSimulator:
         self._mmaps = {}
 
     def open(self):
-        ds = MIBDataSet(path=self._path)
+        ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
         ds.initialize(MITExecutor())
         print("dataset shape: %s" % (ds.shape,))
         self._ds = ds
         self._warmup()
 
+    def _make_hdr(self):
+        hdr = (
+        f"HDR,\n"
+        f"Frames in Acquisition (Number):\t{np.prod(self._nav_shape, dtype=np.int64)}\n"
+        f"Frames per Trigger (Number):\t{self._nav_shape[1]}\n"
+        f"End\t"
+        )
+        return hdr.encode('latin1')
+
+    @property
+    def hdr(self):
+        if is_valid_hdr(self._path):
+            with open(self._path, 'rb') as f:
+                # FIXME: possibly change header in continuous mode?
+                hdr = f.read()
+        else:
+            hdr = self._make_hdr()
+        return hdr
+
     def get_chunks(self):
         """
         generator of `bytes` for the given configuration
         """
+
         # first, send acquisition header:
-        with open(self._path, 'rb') as f:
-            # FIXME: possibly change header in continuous mode?
-            hdr = f.read()
-            yield get_mpx_header(len(hdr))
-            yield hdr
+        hdr = self.hdr
+        yield get_mpx_header(len(hdr))
+        yield hdr
         if self._continuous:
             print("yielding from continuous")
             yield from self._get_continuous()
@@ -333,11 +401,10 @@ class MemfdSocketSim(DataSocketSimulator):
 
     def handle_conn(self, conn):
         # first, send acquisition header:
-        with open(self._path, 'rb') as f:
-            # FIXME: possibly change header in continuous mode?
-            hdr = f.read()
-            conn.sendall(get_mpx_header(len(hdr)))
-            conn.sendall(hdr)
+        hdr = self.hdr
+        # FIXME: possibly change header in continuous mode?
+        conn.sendall(get_mpx_header(len(hdr)))
+        conn.sendall(hdr)
         if self._continuous:
             i = 0
             while True:
@@ -359,53 +426,27 @@ class MemfdSocketSim(DataSocketSimulator):
         conn.close()
 
 
-class DataSocketServer(ErrThreadMixin, threading.Thread):
-    def __init__(self, sim: DataSocketSimulator, port=6342):
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._port = port
+class DataSocketServer(ServerThreadMixin, threading.Thread):
+    def __init__(self, sim: DataSocketSimulator, host='0.0.0.0', port=6342):
         self._sim = sim
-        super().__init__()
+        super().__init__(host=host, port=port, name=self.__class__.__name__)
         self._sim.stop_event = self._stop_event
 
     def run(self):
         try:
             self._sim.open()
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._socket.bind(('0.0.0.0', self._port))
-            self._socket.settimeout(1)
-            self._socket.listen(1)
-            print("listening")
-            while not self.is_stopped():
-                try:
-                    connection, client_addr = self._socket.accept()
-                    with connection:
-                        print("accepted from %s" % (client_addr,))
-                        self._sim.handle_conn(connection)
-                except socket.timeout:
-                    continue
-                except ConnectionResetError:
-                    print("disconnected")
-                except RuntimeError as e:
-                    print("exception %s -> stopping" % e)
-                    self.error(e)
-                    break
-                except StopException:
-                    break
-                except Exception as e:
-                    print("exception? %s" % e)
-                    self.error(e)
-            print("exiting data server")
+            super().run()
         except Exception as e:
             return self.error(e)
 
+    def handle_conn(self, connection):
+        return self._sim.handle_conn(connection)
 
-class ControlSocketServer(ErrThreadMixin, threading.Thread):
-    def __init__(self, sim, port=6341):
-        self._sim = sim
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._port = port
+
+class ControlSocketServer(ServerThreadMixin, threading.Thread):
+    def __init__(self, host='0.0.0.0', port=6341):
         self._params = {}
-        super().__init__()
+        super().__init__(host=host, port=port, name=self.__class__.__name__)
 
     def handle_conn(self, connection):
         connection.settimeout(1)
@@ -467,62 +508,37 @@ class ControlSocketServer(ErrThreadMixin, threading.Thread):
             print("Control response: ", response_str)
             connection.send(response_str.encode('ascii'))
 
-    @property
-    def sim(self):
-        return self._sim
-
-    def run(self):
-        try:
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._socket.bind(('0.0.0.0', self._port))
-            self._socket.settimeout(1)
-            self._socket.listen(1)
-            print("control port listening")
-            while not self.is_stopped():
-                try:
-                    connection, client_addr = self._socket.accept()
-                    with connection:
-                        print("accepted control from %s" % (client_addr,))
-                        self.handle_conn(connection)
-                except socket.timeout:
-                    continue
-                except ConnectionResetError:
-                    print("control disconnected")
-                except RuntimeError as e:
-                    self.error(e)
-                    print("control exception %s -> stopping" % e)
-                    break
-                except Exception as e:
-                    print("control exception? %s" % e)
-                    self.error(e)
-            print("exiting control server")
-        except Exception as e:
-            return self.error(e)
-
 
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
+@click.option('--nav-shape', type=(int, int), default=(0, 0))
 @click.option('--continuous', default=False, is_flag=True)
 @click.option('--cached', default='NONE', type=click.Choice(
     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
 )
+@click.option('--host', type=str, default='0.0.0.0')
 @click.option('--data-port', type=int, default=6342)
 @click.option('--control-port', type=int, default=6341)
 @click.option('--max-runs', type=int, default=-1)
-def main(path, continuous, data_port, control_port, cached, max_runs):
+def main(path, nav_shape, continuous, host, data_port, control_port, cached, max_runs):
     if cached == 'MEM':
-        sim = CachedDataSocketSim(path=path, continuous=continuous, max_runs=max_runs)
+        cls = CachedDataSocketSim
     elif cached == 'MEMFD':
-        sim = MemfdSocketSim(path=path, continuous=continuous, max_runs=max_runs)
+        cls = MemfdSocketSim
     else:
-        sim = DataSocketSimulator(path=path, continuous=continuous, max_runs=max_runs)
+        cls = DataSocketSimulator
 
-    control_t = ControlSocketServer(sim=sim, port=control_port)
+    if nav_shape == (0, 0):
+        nav_shape = None
+
+    sim = cls(path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs)
+
+    control_t = ControlSocketServer(host=host, port=control_port)
     # Make sure the thread dies with the main program
     control_t.daemon = True
     control_t.start()
 
-    server_t = DataSocketServer(sim=sim, port=data_port)
+    server_t = DataSocketServer(sim=sim, host=host, port=data_port)
     # Make sure the thread dies with the main program
     server_t.daemon = True
     server_t.start()

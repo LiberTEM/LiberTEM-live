@@ -90,23 +90,23 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def check_valid(self):
         pass
 
-    def wait_for_acquisition(self):
-        logger.info("waiting for acquisition header")
-        header = self.source.socket.get_acquisition_header()
+    # def wait_for_acquisition(self):
+    #     logger.info("waiting for acquisition header")
+    #     header = self.source.socket.get_acquisition_header()
 
-        bit_depth = int(header['Counter Depth (number)'])
-        if bit_depth in (1, 6):
-            dtype = np.uint8
-        elif bit_depth in (12,):
-            dtype = np.uint16
-        else:  # 24 bit?
-            dtype = np.uint32
-        self._meta = DataSetMeta(
-            shape=Shape(self._scan_size + (256, 256), sig_dims=2),
-            raw_dtype=dtype,
-            dtype=dtype,
-        )
-        return header
+    #     bit_depth = int(header['Counter Depth (number)'])
+    #     if bit_depth in (1, 6):
+    #         dtype = np.uint8
+    #     elif bit_depth in (12,):
+    #         dtype = np.uint16
+    #     else:  # 24 bit?
+    #         dtype = np.uint32
+    #     self._meta = DataSetMeta(
+    #         shape=Shape(self._scan_size + (256, 256), sig_dims=2),
+    #         raw_dtype=dtype,
+    #         dtype=dtype,
+    #     )
+    #     return header
 
     def get_partitions(self):
         # FIXME: only works for inline executor or similar, as we pass a
@@ -204,30 +204,30 @@ class MerlinLivePartition(Partition):
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None):
         yield from self._get_tiles_fullframe(tiling_scheme, dest_dtype, roi)
         return
-        # assert len(tiling_scheme) == 1
-        print(tiling_scheme)
-        pool = self._data_source.pool.get_impl(
-            read_upto_frame=self._end_idx,
-            chunk_size=tiling_scheme.depth,
-        )
-        to_read = int(self._end_idx - self._start_idx)
-        nav_slices_raw = [
-            (...,) + slice_.get(sig_only=True)
-            for idx, slice_ in tiling_scheme.slices
-        ]
-        with pool:
-            while to_read > 0:
-                with pool.get_result() as res_wrapped:
-                    frames_in_tile = res_wrapped.stop - res_wrapped.start
-                    for (idx, slice_), nav_slice_raw in zip(tiling_scheme.slices, nav_slices_raw):
-                        tile_shape = Shape(
-                            (frames_in_tile,) + tuple(slice_.shape),
-                            sig_dims=2
-                        )
-                        tile_slice = Slice(
-                            origin=(res_wrapped.start,) + tuple(slice_.origin),
-                            shape=tile_shape,
-                        )
-                        sliced_res = res_wrapped.buf[nav_slice_raw]
-                        yield DataTile(sliced_res, tile_slice=tile_slice, scheme_idx=idx)
-                    to_read -= frames_in_tile
+        # # assert len(tiling_scheme) == 1
+        # print(tiling_scheme)
+        # pool = self._data_source.pool.get_impl(
+        #     read_upto_frame=self._end_idx,
+        #     chunk_size=tiling_scheme.depth,
+        # )
+        # to_read = int(self._end_idx - self._start_idx)
+        # nav_slices_raw = [
+        #     (...,) + slice_.get(sig_only=True)
+        #     for idx, slice_ in tiling_scheme.slices
+        # ]
+        # with pool:
+        #     while to_read > 0:
+        #         with pool.get_result() as res_wrapped:
+        #             frames_in_tile = res_wrapped.stop - res_wrapped.start
+        #             for (idx, slice_), nav_slice_raw in zip(tiling_scheme.slices, nav_slices_raw):
+        #                 tile_shape = Shape(
+        #                     (frames_in_tile,) + tuple(slice_.shape),
+        #                     sig_dims=2
+        #                 )
+        #                 tile_slice = Slice(
+        #                     origin=(res_wrapped.start,) + tuple(slice_.origin),
+        #                     shape=tile_shape,
+        #                 )
+        #                 sliced_res = res_wrapped.buf[nav_slice_raw]
+        #                 yield DataTile(sliced_res, tile_slice=tile_slice, scheme_idx=idx)
+        #             to_read -= frames_in_tile
