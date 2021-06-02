@@ -3,11 +3,14 @@ import socket
 import threading
 import contextlib
 import queue
+import time
 
 import numba
 import numpy as np
 
 from libertem.io.dataset.base.decode import byteswap_2_decode
+
+from libertem_live.detectors.base.acquisition import AcquisitionTimeout
 
 logger = logging.getLogger(__name__)
 
@@ -123,12 +126,11 @@ class MerlinDataSocket:
         self._socket.settimeout(self._timeout)
         self._is_connected = True
         self._frame_counter = 0
-        self.read_headers()  # FIXME: incompatible with drain?
 
     def is_connected(self):
         return self._is_connected
 
-    def read_unbuffered(self, length):
+    def read_unbuffered(self, length, cancel_timeout=None):
         """
         read exactly length bytes from the socket
 
@@ -140,17 +142,20 @@ class MerlinDataSocket:
         buf = bytearray(16*1024*1024)
         assert length < len(buf)
         view = memoryview(buf)
+        start_time = time.time()
         while total_bytes_read < length:
             try:
                 bytes_read = self._socket.recv_into(
                     view[total_bytes_read:],
                     length - total_bytes_read
                 )
+                if bytes_read == 0:
+                    raise EOFError("EOF")
+                total_bytes_read += bytes_read
             except socket.timeout:
-                continue
-            if bytes_read == 0:
-                raise EOFError("EOF")
-            total_bytes_read += bytes_read
+                pass
+            if cancel_timeout is not None and time.time() - start_time > cancel_timeout:
+                raise AcquisitionTimeout(f"Timeout after reading {total_bytes_read} bytes.")
         return buf[:total_bytes_read]
 
     def read_into(self, out):
@@ -175,9 +180,9 @@ class MerlinDataSocket:
             total_bytes_read += bytes_read
         return total_bytes_read
 
-    def read_mpx_length(self):
+    def read_mpx_length(self, cancel_timeout=None):
         # structure: MPX,<ten digits>,<header>
-        hdr = self.read_unbuffered(15)
+        hdr = self.read_unbuffered(15, cancel_timeout=cancel_timeout)
         # logger.debug("MPX prefix: %r", hdr)
         assert hdr.startswith(b'MPX,'), "Should start with MPX, first bytes are %r" % hdr[:16]
         parts = hdr.split(b',')
@@ -186,12 +191,12 @@ class MerlinDataSocket:
         # length calculation, that's why we substract 1 here:
         return length - 1
 
-    def _read_acquisition_header(self):
+    def _read_acquisition_header(self, cancel_timeout=None):
         # assumption: when we connect, the connection is idle
         # so the first thing we will get is the acquisition header.
         # we read it in an inefficient way, but the header is small,
         # so this should be ok:
-        length = self.read_mpx_length()
+        length = self.read_mpx_length(cancel_timeout=cancel_timeout)
         header = self.read_unbuffered(length)
         header = self._parse_acq_header(header)
         self._acquisition_header = header
@@ -200,14 +205,14 @@ class MerlinDataSocket:
     def get_acquisition_header(self):
         return self._acquisition_header
 
-    def read_headers(self):
+    def read_headers(self, cancel_timeout=None):
         """
         Read acquisition header, and peek first frame header
 
         The acquisition header is consumed, the first frame header will
         be kept in the socket queue, and can be read regularly afterwards.
         """
-        self._acquisition_header = self._read_acquisition_header()
+        self._acquisition_header = self._read_acquisition_header(cancel_timeout=cancel_timeout)
         self._first_frame_header = self._peek_frame_header()
         return self._acquisition_header, self._first_frame_header
 

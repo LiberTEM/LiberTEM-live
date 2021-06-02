@@ -25,8 +25,9 @@ def test_trigger(ltl_ctx):
 
     triggered = np.array((False,))
 
-    def trigger():
+    def trigger(acquisition):
         triggered[:] = True
+        assert tuple(acquisition.shape.nav) == data.shape[:2]
 
     aq = ltl_ctx.prepare_acquisition('memory', trigger=trigger, data=data)
 

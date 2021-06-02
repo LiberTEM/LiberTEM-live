@@ -67,8 +67,9 @@ the user.
 
 .. testcode::
 
-    def trigger():
+    def trigger(acquisition):
         print("Triggering!")
+        height, width = acquisition.shape.nav
         # microscope.trigger_scan()
  
 Prepare an acquisition

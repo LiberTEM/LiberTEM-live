@@ -41,7 +41,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         host='127.0.0.1',
         port=6342,
         frames_per_partition=256,
-        pool_size=2
+        pool_size=2,
+        timeout=5,
     ):
         # This will also call the DataSet constructor, additional arguments
         # could be passed -- currently not necessary
@@ -49,6 +50,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         self._source = MerlinDataSource(host, port, pool_size)
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
+        self._timeout = timeout
 
     def initialize(self, executor):
         # FIXME: possibly need to have an "acquisition plan" object
@@ -84,7 +86,9 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     @contextmanager
     def acquire(self):
         with self.source:
+            #self.source.socket.drain()
             self.trigger()
+            self.source.socket.read_headers(cancel_timeout=self._timeout)
             yield
 
     def check_valid(self):
