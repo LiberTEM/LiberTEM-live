@@ -78,8 +78,9 @@ def merlin_ds(ltl_ctx):
 def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
 
-    def trigger():
+    def trigger(acquisition):
         triggered[:] = True
+        assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
     aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port)
@@ -94,8 +95,9 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
 def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
     triggered = triggered = np.array((False,))
 
-    def trigger():
+    def trigger(acquisition):
         triggered[:] = True
+        assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_cached
     aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port)
@@ -110,8 +112,9 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
 def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     triggered = triggered = np.array((False,))
 
-    def trigger():
+    def trigger(acquisition):
         triggered[:] = True
+        assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_memfd
     aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port)

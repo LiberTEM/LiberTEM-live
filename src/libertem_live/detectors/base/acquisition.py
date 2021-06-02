@@ -5,6 +5,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+class AcquisitionTimeout(Exception):
+    pass
+
+
 class AcquisitionMixin:
     def __init__(self, trigger, *args, **kwargs):
         self._trigger = trigger
@@ -16,4 +20,4 @@ class AcquisitionMixin:
 
     def trigger(self):
         if self._trigger is not None:
-            self._trigger()
+            self._trigger(self)
