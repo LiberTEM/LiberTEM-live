@@ -78,7 +78,7 @@ def merlin_detector_memfd_thread():
 
 
 @pytest.fixture(scope='module')
-def merlin_detector_memfd(merlin_detector_sim_thread):
+def merlin_detector_memfd(merlin_detector_memfd_thread):
     return merlin_detector_memfd_thread.sockname
 
 
@@ -100,19 +100,24 @@ def merlin_detector_sim_garbage_thread():
 
 
 @pytest.fixture(scope='module')
-def triggered_sim(merlin_detector_sim_garbage_thread):
+def triggered_sim_thread(merlin_detector_sim_garbage_thread):
     sim = merlin_detector_sim_garbage_thread
     cls = functools.partial(
         TriggerSocketServer,
         trigger_event=sim.trigger_event,
         finish_event=sim.finish_event
     )
-    trig_gen = serve(cls)
-    try:
-        trig = next(trig_gen)
-        yield trig.sockname, sim.sockname
-    finally:
-        next(trig_gen)
+    yield from serve(cls)
+
+
+@pytest.fixture(scope='module')
+def trigger_sim(triggered_sim_thread):
+    return triggered_sim_thread.sockname
+
+
+@pytest.fixture(scope='module')
+def garbage_sim(merlin_detector_sim_garbage_thread):
+    return merlin_detector_sim_garbage_thread.sockname
 
 
 @pytest.fixture
@@ -129,7 +134,7 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port)
+    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port, drain=False)
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -146,7 +151,7 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_cached
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port)
+    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port, drain=False)
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -163,7 +168,7 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_memfd
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port)
+    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port, drain=False)
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -172,36 +177,35 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     assert np.allclose(res['intensity'], ref['intensity'])
 
 
-def test_acquisition_triggered_garbage(ltl_ctx, triggered_sim, merlin_ds):
-    trig, sim = triggered_sim
-    sim_host, sim_port = sim
+def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin_ds):
+    sim_host, sim_port = garbage_sim
 
     pool = concurrent.futures.ThreadPoolExecutor(1)
 
-    res = [0]
+    trig_res = {
+        0: None
+    }
 
     def trigger(acquisition):
+        tr = TriggerClient(*trigger_sim)
+        print("Trigger connection:", trigger_sim)
+        tr.connect()
+        tr.trigger()
         def do_scan():
             '''
             Emulated blocking scan function using the Merlin simulator
             '''
             print("do_scan()")
-            tr = TriggerClient(*trig)
-            try:
-                tr.connect()
-                tr.trigger()
-                return tr.wait()
-            finally:
-                tr.close()
 
         fut = pool.submit(do_scan)
-        res[0] = fut
+        trig_res[0] = fut
+        tr.close()
 
     aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=sim_host, port=sim_port)
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
-    assert res[0].result() is None
+    assert trig_res[0].result() is None
 
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
@@ -209,9 +213,10 @@ def test_acquisition_triggered_garbage(ltl_ctx, triggered_sim, merlin_ds):
 
 
 @pytest.mark.parametrize(
-    'inline', (False, True)
+    'inline', (True, False)
 )
 def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline):
+    print("Merlin sim:", merlin_detector_sim)
     source = MerlinDataSource(*merlin_detector_sim)
 
     res = np.zeros(merlin_ds.shape.sig)
@@ -250,8 +255,8 @@ def test_server_throws(exception_cls):
     exception = exception_cls("Testing...")
     cls = functools.partial(BadServer, exception=exception, name="BadServer")
     with pytest.raises(exception_cls, match="Testing..."):
-        with server(cls) as sockname:
-            host, port = sockname
+        with server(cls) as serv:
+            host, port = serv.sockname
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect((host, port))
                 time.sleep(1)
@@ -266,8 +271,8 @@ def test_server_stop():
     server = contextmanager(serve)
     exception = StopException("Testing...")
     cls = functools.partial(BadServer, exception=exception, name="BadServer")
-    with server(cls) as sockname:
-        host, port = sockname
+    with server(cls) as serv:
+        host, port = serv.sockname
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((host, port))
             time.sleep(1)

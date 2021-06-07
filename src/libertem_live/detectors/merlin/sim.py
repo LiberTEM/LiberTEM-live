@@ -452,9 +452,7 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
             if self._wait_trigger:
                 if self._garbage:
                     print("Sending some garbage...")
-                    connection.send(b'GARBAGEGARBAGEGARBAGE')
-                    time.sleep(0.01)
-                    connection.send(b'GARBAGEGARBAGEGARBAGE')
+                    connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
                 print("Waiting for trigger...")
                 self.trigger_event.wait()
                 self.trigger_event.clear()
@@ -564,7 +562,7 @@ class TriggerClient():
 
     def connect(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(('localhost', 6343))
+        s.connect((self._host, self._port))
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.settimeout(1)
         self._socket = s
