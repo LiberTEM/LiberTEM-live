@@ -28,6 +28,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         Hostname of the Merlin data server, default '127.0.0.1'
     port : int
         Data port of the Merlin data server, default 6342
+    drain : bool
+        Drain the socket before triggering.
     frames_per_partition : int
         Number of frames to process before performing a merge operation. Decreasing this number
         increases the update rate, but can decrease performance.
@@ -40,6 +42,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         scan_size,
         host='127.0.0.1',
         port=6342,
+        drain=True,
         frames_per_partition=256,
         pool_size=2,
         timeout=5,
@@ -48,6 +51,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         # could be passed -- currently not necessary
         super().__init__(trigger=trigger)
         self._source = MerlinDataSource(host, port, pool_size)
+        self._drain = drain
         self._scan_size = scan_size
         self._frames_per_partition = frames_per_partition
         self._timeout = timeout
@@ -86,7 +90,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     @contextmanager
     def acquire(self):
         with self.source:
-            #self.source.socket.drain()
+            if self._drain:
+                self.source.socket.drain()
             self.trigger()
             self.source.socket.read_headers(cancel_timeout=self._timeout)
             yield
