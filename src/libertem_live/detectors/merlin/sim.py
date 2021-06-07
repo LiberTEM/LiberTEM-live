@@ -428,13 +428,17 @@ class MemfdSocketSim(DataSocketSimulator):
 
 
 class DataSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, sim: DataSocketSimulator, host='0.0.0.0', port=6342, wait_trigger=False):
+    def __init__(self, sim: DataSocketSimulator,
+            host='0.0.0.0', port=6342, wait_trigger=False, garbage=False):
         self._sim = sim
         super().__init__(host=host, port=port, name=self.__class__.__name__)
         self._sim.stop_event = self._stop_event
         self.trigger_event = threading.Event()
         self.finish_event = threading.Event()
         self._wait_trigger = wait_trigger
+        if garbage and not wait_trigger:
+            raise ValueError("Can only send garbage if wait_trigger is set!")
+        self._garbage = garbage
 
     def run(self):
         try:
@@ -446,6 +450,11 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
     def handle_conn(self, connection):
         try:
             if self._wait_trigger:
+                if self._garbage:
+                    print("Sending some garbage...")
+                    connection.send(b'GARBAGEGARBAGEGARBAGE')
+                    time.sleep(0.01)
+                    connection.send(b'GARBAGEGARBAGEGARBAGE')
                 print("Waiting for trigger...")
                 self.trigger_event.wait()
                 self.trigger_event.clear()
@@ -588,9 +597,17 @@ class TriggerClient():
 @click.option('--control-port', type=int, default=6341)
 @click.option('--trigger-port', type=int, default=6343)
 @click.option('--wait-trigger', default=False, is_flag=True)
+@click.option(
+    '--garbage', default=False, is_flag=True,
+    help="Send garbage before trigger. Implies --wait-trigger"
+)
 @click.option('--max-runs', type=int, default=-1)
 def main(path, nav_shape, continuous,
-        host, data_port, control_port, trigger_port, wait_trigger, cached, max_runs):
+        host, data_port, control_port, trigger_port, wait_trigger, garbage, cached, max_runs):
+
+    if garbage:
+        wait_trigger = True
+
     if cached == 'MEM':
         cls = CachedDataSocketSim
     elif cached == 'MEMFD':
@@ -608,7 +625,9 @@ def main(path, nav_shape, continuous,
     control_t.daemon = True
     control_t.start()
 
-    server_t = DataSocketServer(sim=sim, host=host, port=data_port, wait_trigger=wait_trigger)
+    server_t = DataSocketServer(
+        sim=sim, host=host, port=data_port, wait_trigger=wait_trigger, garbage=garbage
+    )
     # Make sure the thread dies with the main program
     server_t.daemon = True
     server_t.start()
@@ -644,7 +663,11 @@ def main(path, nav_shape, continuous,
             control_t.maybe_raise()
             server_t.maybe_raise()
             trigger_t.maybe_raise()
-            if (not control_t.is_alive()) and (not server_t.is_alive()) and (not trigger_t.is_alive()):
+            if (
+                    (not control_t.is_alive())
+                    and (not server_t.is_alive())
+                    and (not trigger_t.is_alive())
+            ):
                 break
 
             if (time.time() - start) >= timeout:
