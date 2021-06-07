@@ -1,5 +1,6 @@
 import functools
 import os
+import platform
 import time
 import concurrent.futures
 import socket
@@ -184,6 +185,8 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
     assert np.allclose(res['intensity'], ref['intensity'])
 
 
+@pytest.mark.skipif(platform.system() != 'Linux',
+                    reason="MemFD is Linux-only")
 def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     triggered = triggered = np.array((False,))
 
