@@ -2,6 +2,7 @@ import functools
 import os
 import time
 from typing_extensions import runtime
+import concurrent.futures
 import socket
 import threading
 from contextlib import contextmanager
@@ -15,7 +16,7 @@ from libertem_live.detectors.merlin import MerlinDataSource, MerlinControl
 from libertem_live.detectors.merlin.sim import (
         DataSocketServer, ControlSocketServer,
         DataSocketSimulator, CachedDataSocketSim, MemfdSocketSim,
-        ServerThreadMixin, StopException
+        ServerThreadMixin, StopException, TriggerSocketServer, TriggerClient
 )
 
 from utils import get_testdata_path
@@ -31,7 +32,7 @@ def serve(cls, host='127.0.0.1', port=0):
     server = cls(host=host, port=port)
     server.start()
     server.listen_event.wait()
-    yield server.sockname
+    yield server
     server.maybe_raise()
     server.stop()
     timeout = 2
@@ -46,27 +47,72 @@ def serve(cls, host='127.0.0.1', port=0):
 
 
 @pytest.fixture(scope='module')
-def merlin_detector_sim():
+def merlin_detector_sim_thread():
     sim = DataSocketSimulator(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
     cls = functools.partial(DataSocketServer, sim=sim)
     yield from serve(cls)
 
+
 @pytest.fixture(scope='module')
-def merlin_detector_cached():
+def merlin_detector_sim(merlin_detector_sim_thread):
+    return merlin_detector_sim_thread.sockname
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_cached_thread():
     sim = CachedDataSocketSim(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
     cls = functools.partial(DataSocketServer, sim=sim)
     yield from serve(cls)
 
+
 @pytest.fixture(scope='module')
-def merlin_detector_memfd():
+def merlin_detector_cached(merlin_detector_cached_thread):
+    return merlin_detector_cached_thread.sockname
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_memfd_thread():
     sim = MemfdSocketSim(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
     cls = functools.partial(DataSocketServer, sim=sim)
     yield from serve(cls)
 
 
 @pytest.fixture(scope='module')
-def merlin_control_sim():
+def merlin_detector_memfd(merlin_detector_sim_thread):
+    return merlin_detector_memfd_thread.sockname
+
+
+@pytest.fixture(scope='module')
+def merlin_control_sim_thread():
     yield from serve(ControlSocketServer)
+
+
+@pytest.fixture(scope='module')
+def merlin_control_sim(merlin_control_sim_thread):
+    return merlin_control_sim_thread.sockname
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_sim_garbage_thread():
+    sim = DataSocketSimulator(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
+    cls = functools.partial(DataSocketServer, sim=sim, garbage=True, wait_trigger=True)
+    yield from serve(cls)
+
+
+@pytest.fixture(scope='module')
+def triggered_sim(merlin_detector_sim_garbage_thread):
+    sim = merlin_detector_sim_garbage_thread
+    cls = functools.partial(
+        TriggerSocketServer,
+        trigger_event=sim.trigger_event,
+        finish_event=sim.finish_event
+    )
+    trig_gen = serve(cls)
+    try:
+        trig = next(trig_gen)
+        yield trig.sockname, sim.sockname
+    finally:
+        next(trig_gen)
 
 
 @pytest.fixture
@@ -124,6 +170,43 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
     assert np.allclose(res['intensity'], ref['intensity'])
+
+
+def test_acquisition_triggered_garbage(ltl_ctx, triggered_sim, merlin_ds):
+    trig, sim = triggered_sim
+    sim_host, sim_port = sim
+
+    pool = concurrent.futures.ThreadPoolExecutor(1)
+
+    res = [0]
+
+    def trigger(acquisition):
+        def do_scan():
+            '''
+            Emulated blocking scan function using the Merlin simulator
+            '''
+            print("do_scan()")
+            tr = TriggerClient(*trig)
+            try:
+                tr.connect()
+                tr.trigger()
+                return tr.wait()
+            finally:
+                tr.close()
+
+        fut = pool.submit(do_scan)
+        res[0] = fut
+
+    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=sim_host, port=sim_port)
+    udf = SumUDF()
+
+    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+    assert res[0].result() is None
+
+    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert np.allclose(res['intensity'], ref['intensity'])
+
 
 @pytest.mark.parametrize(
     'inline', (False, True)
