@@ -105,6 +105,7 @@ class ServerThreadMixin(ErrThreadMixin):
             print(f"{self._name} exiting")
             self._socket.close()
 
+
 @functools.lru_cache(maxsize=None)
 def get_mpx_header(length):
     return b"MPX,%010d," % ((length + 1),)
@@ -168,10 +169,10 @@ class DataSocketSimulator:
 
     def _make_hdr(self):
         hdr = (
-        f"HDR,\n"
-        f"Frames in Acquisition (Number):\t{np.prod(self._nav_shape, dtype=np.int64)}\n"
-        f"Frames per Trigger (Number):\t{self._nav_shape[1]}\n"
-        f"End\t"
+            f"HDR,\n"
+            f"Frames in Acquisition (Number):\t{np.prod(self._nav_shape, dtype=np.int64)}\n"
+            f"Frames per Trigger (Number):\t{self._nav_shape[1]}\n"
+            f"End\t"
         )
         return hdr.encode('latin1')
 
@@ -427,10 +428,13 @@ class MemfdSocketSim(DataSocketSimulator):
 
 
 class DataSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, sim: DataSocketSimulator, host='0.0.0.0', port=6342):
+    def __init__(self, sim: DataSocketSimulator, host='0.0.0.0', port=6342, wait_trigger=False):
         self._sim = sim
         super().__init__(host=host, port=port, name=self.__class__.__name__)
         self._sim.stop_event = self._stop_event
+        self.trigger_event = threading.Event()
+        self.finish_event = threading.Event()
+        self._wait_trigger = wait_trigger
 
     def run(self):
         try:
@@ -440,7 +444,14 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
             return self.error(e)
 
     def handle_conn(self, connection):
-        return self._sim.handle_conn(connection)
+        try:
+            if self._wait_trigger:
+                print("Waiting for trigger...")
+                self.trigger_event.wait()
+                self.trigger_event.clear()
+            return self._sim.handle_conn(connection)
+        finally:
+            self.finish_event.set()
 
 
 class ControlSocketServer(ServerThreadMixin, threading.Thread):
@@ -509,6 +520,62 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             connection.send(response_str.encode('ascii'))
 
 
+class TriggerSocketServer(ServerThreadMixin, threading.Thread):
+    def __init__(self, trigger_event, finish_event, host='0.0.0.0', port=6343):
+        self._trigger_event = trigger_event
+        self._finish_event = finish_event
+        super().__init__(host, port, name=self.__class__.__name__)
+
+    def handle_conn(self, connection):
+        connection.settimeout(1)
+        print("handling trigger connection")
+        while not self.is_stopped():
+            try:
+                chunk = connection.recv(1024)
+            except socket.timeout:
+                continue
+            if len(chunk) == 0:
+                print("closed trigger control")
+                return
+            if chunk == b'TRIGGER\n':
+                print("Triggered, waiting for finish!")
+                self._finish_event.clear()
+                self._trigger_event.set()
+                self._finish_event.wait()
+                connection.send(b'FINISH\n')
+                print("Finished!")
+                self._finish_event.clear()
+
+
+class TriggerClient():
+    def __init__(self, host='localhost', port=6343):
+        self._host = host
+        self._port = port
+        self._socket = None
+
+    def connect(self):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.connect(('localhost', 6343))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.settimeout(1)
+        self._socket = s
+
+    def trigger(self):
+        self._socket.send(b'TRIGGER\n')
+
+    def wait(self):
+        while True:
+            try:
+                res = self._socket.recv(1024)
+                if res == b'FINISH\n':
+                    break
+            except socket.timeout:
+                pass
+
+    def close(self):
+        self._socket.close()
+
+
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--nav-shape', type=(int, int), default=(0, 0))
@@ -519,8 +586,11 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
 @click.option('--host', type=str, default='0.0.0.0')
 @click.option('--data-port', type=int, default=6342)
 @click.option('--control-port', type=int, default=6341)
+@click.option('--trigger-port', type=int, default=6343)
+@click.option('--wait-trigger', default=False, is_flag=True)
 @click.option('--max-runs', type=int, default=-1)
-def main(path, nav_shape, continuous, host, data_port, control_port, cached, max_runs):
+def main(path, nav_shape, continuous,
+        host, data_port, control_port, trigger_port, wait_trigger, cached, max_runs):
     if cached == 'MEM':
         cls = CachedDataSocketSim
     elif cached == 'MEMFD':
@@ -538,17 +608,27 @@ def main(path, nav_shape, continuous, host, data_port, control_port, cached, max
     control_t.daemon = True
     control_t.start()
 
-    server_t = DataSocketServer(sim=sim, host=host, port=data_port)
+    server_t = DataSocketServer(sim=sim, host=host, port=data_port, wait_trigger=wait_trigger)
     # Make sure the thread dies with the main program
     server_t.daemon = True
     server_t.start()
 
+    trigger_t = TriggerSocketServer(
+        host=host, port=trigger_port,
+        trigger_event=server_t.trigger_event,
+        finish_event=server_t.finish_event
+    )
+    # Make sure the thread dies with the main program
+    trigger_t.daemon = True
+    trigger_t.start()
+
     # This allows us to handle Ctrl-C, and the main program
     # stops in a timely fashion when continuous scanning stops.
     try:
-        while control_t.is_alive() and server_t.is_alive():
+        while control_t.is_alive() and server_t.is_alive() and trigger_t.is_alive():
             control_t.maybe_raise()
             server_t.maybe_raise()
+            trigger_t.maybe_raise()
             time.sleep(1)
     except KeyboardInterrupt:
         # Just to not print "Aborted!"" from click
@@ -557,12 +637,14 @@ def main(path, nav_shape, continuous, host, data_port, control_port, cached, max
         print("Stopping...")
         control_t.stop()
         server_t.stop()
+        trigger_t.stop()
         timeout = 2
         start = time.time()
         while True:
             control_t.maybe_raise()
             server_t.maybe_raise()
-            if (not control_t.is_alive()) and (not server_t.is_alive()):
+            trigger_t.maybe_raise()
+            if (not control_t.is_alive()) and (not server_t.is_alive()) and (not trigger_t.is_alive()):
                 break
 
             if (time.time() - start) >= timeout:
