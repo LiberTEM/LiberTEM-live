@@ -1,7 +1,13 @@
-|gitter|_
+|gitter|_ |azure|_ |github|_
 
 .. |gitter| image:: https://badges.gitter.im/Join%20Chat.svg
 .. _gitter: https://gitter.im/LiberTEM/Lobby
+
+.. |azure| image:: https://dev.azure.com/LiberTEM/LiberTEM-live/_apis/build/status/LiberTEM.LiberTEM-live?branchName=master
+.. _azure: https://dev.azure.com/LiberTEM/LiberTEM-live/_build/latest?definitionId=5&branchName=master
+
+.. |github| image:: https://img.shields.io/badge/GitHub-GPL--3.0-informational
+.. _github: https://github.com/LiberTEM/LiberTEM-live/
 
 LiberTEM-live is an extension module for `LiberTEM
 <https://libertem.github.io/LiberTEM/>`_ :cite:`Clausen2018` that allows live

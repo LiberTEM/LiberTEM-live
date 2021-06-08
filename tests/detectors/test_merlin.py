@@ -25,7 +25,10 @@ from utils import get_testdata_path
 MIB_TESTDATA_PATH = os.path.join(get_testdata_path(), 'default.mib')
 HAVE_MIB_TESTDATA = os.path.exists(MIB_TESTDATA_PATH)
 
-pytestmark = pytest.mark.skipif(not HAVE_MIB_TESTDATA, reason="need .mib testdata")  # NOQA
+pytestmark = [
+    pytest.mark.skipif(not HAVE_MIB_TESTDATA, reason="need .mib testdata"),
+    pytest.mark.data,
+]
 
 
 def serve(cls, host='127.0.0.1', port=0):
@@ -33,13 +36,17 @@ def serve(cls, host='127.0.0.1', port=0):
     server.start()
     server.wait_for_listen()
     yield server
+    print("cleaning up server thread")
     server.maybe_raise()
+    print("stopping server thread")
     server.stop()
     timeout = 2
     start = time.time()
     while True:
+        print("are we there yet?")
         server.maybe_raise()
         if not server.is_alive():
+            print("server is dead, we are there")
             break
         if (time.time() - start) >= timeout:
             raise RuntimeError("Server didn't stop gracefully")
