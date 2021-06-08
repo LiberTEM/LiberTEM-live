@@ -28,6 +28,9 @@ stages:
           Python38:
             python.version: '3.8'
             TOXENV: 'py38'
+          Python39:
+            python.version: '3.9'
+            TOXENV: 'py39'
       variables:
         TOXENV: '$(TOXENV)'
       steps:
@@ -49,7 +52,7 @@ stages:
         displayName: 'install requirements'
 
       - bash: tox
-        displayName: 'Run tox tests'
+        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: bash <(curl -s https://codecov.io/bash) -f coverage.xml
         displayName: 'Submit coverage to codecov.io'
@@ -75,7 +78,7 @@ stages:
       - task: UsePythonVersion@0
         displayName: 'Use Python $(python.version)'
         inputs:
-          versionSpec: '3.8'
+          versionSpec: '3.9'
 
       - task: Cache@2
         inputs:
@@ -90,7 +93,7 @@ stages:
         displayName: 'install requirements'
 
       - bash: tox
-        displayName: 'Run tox tests'
+        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: bash <(curl -s https://codecov.io/bash) -f coverage.xml
         displayName: 'Submit coverage to codecov.io'
@@ -122,9 +125,9 @@ stages:
         TOXENV: '$(TOXENV)'
       steps:
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.8'
+        displayName: 'Use Python 3.9'
         inputs:
-          versionSpec: '3.8'
+          versionSpec: '3.9'
       - task: Cache@2
         inputs:
           key: 'python | "$(Agent.OS)" | test_requirements.txt'
@@ -138,7 +141,7 @@ stages:
       - bash: pip install -U tox
         displayName: 'install requirements'
       - bash: tox
-        displayName: 'Run tox tests'
+        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
     - job: lint_allow_failure
       pool:
@@ -153,11 +156,11 @@ stages:
       - task: UsePythonVersion@0
         displayName: 'Use Python $(python.version)'
         inputs:
-          versionSpec: '3.8'
+          versionSpec: '3.9'
       - bash: pip install -U tox
         displayName: 'install requirements'
       - bash: tox || exit 0
-        displayName: 'Run tox tests'
+        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
     - job: windows_tests
       pool:
@@ -173,6 +176,9 @@ stages:
           Python38:
             python.version: '3.8'
             TOXENV: 'py38'
+          Python39:
+            python.version: '3.9'
+            TOXENV: 'py39'
       variables:
         TOXENV: '$(TOXENV)'
       steps:
@@ -194,7 +200,7 @@ stages:
         displayName: 'install requirements'
 
       - bash: tox
-        displayName: 'Run tox tests'
+        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: bash <(curl -s https://codecov.io/bash) -f coverage.xml
         displayName: 'Submit coverage to codecov.io'
@@ -225,6 +231,9 @@ stages:
           Python38:
             python.version: '3.8'
             TOXENV: 'py38'
+          Python39:
+            python.version: '3.9'
+            TOXENV: 'py39'
       variables:
         TOXENV: '$(TOXENV)'
       steps:
@@ -246,7 +255,7 @@ stages:
         displayName: 'install requirements'
 
       - bash: tox
-        displayName: 'Run tox tests'
+        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: bash <(curl -s https://codecov.io/bash) -f coverage.xml
         displayName: 'Submit coverage to codecov.io'
@@ -263,65 +272,34 @@ stages:
           summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
           reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
 
-    - job: node_tests
-      pool:
-        vmImage: 'ubuntu-latest'
-      steps:
-      - task: NodeTool@0
-        inputs:
-          versionSpec: '12'
+    #- job: distributed_tests
+    #  pool:
+    #    vmImage: 'ubuntu-latest'
+    #  variables:
+    #    DASK_SCHEDULER_ADDRESS: tcp://localhost:8786
+    #    DOCKER_BUILDKIT: "1"
+    #  steps:
 
-      - task: Cache@2
-        inputs:
-          key: 'npm | "$(Agent.OS)" | client/package-lock.json'
-          restoreKeys: |
-            npm | "$(Agent.OS)"
-          path: $(npm_config_cache)
-        displayName: Cache npm
+    #  - task: UsePythonVersion@0
+    #    inputs:
+    #      versionSpec: '3.9'
 
-      - bash: (cd client && npm install)
-        displayName: 'install npm dependencies'
+    #  - bash: pip install -U tox 'virtualenv>19' pip-tools
+    #    displayName: 'install requirements'
 
-      - bash: (cd client && npm run build)
-        displayName: 'ensure the typescript build works'
+    #  - script: |
+    #      cd packaging/docker/
+    #      ./update_reqs.sh
+    #      docker pull libertem/libertem-dev || true
+    #      docker build --cache-from=libertem/libertem-dev -t libertem/libertem-dev --build-arg BUILDKIT_INLINE_CACHE=1 ../../ -f Dockerfile
+    #      # make this succeed even if the access token is not available:
+    #      (docker login -u sk1p -p $(DOCKER_ACCESS_TOKEN) && docker push libertem/libertem-dev) || true
+    #    displayName: 'Build docker container(s)'
+    #    env:
+    #      DOCKER_ACCESS_TOKEN: $(DOCKER_ACCESS_TOKEN)
 
-      - bash: (cd client && CI=1 npm test -- --coverage --all)
-        displayName: 'run client tests'
-
-      - bash: (cd client && npm run lint)
-        displayName: 'run client linter'
-
-      - bash: bash <(curl -s https://codecov.io/bash) -f client/coverage/coverage-final.json
-        displayName: 'Submit coverage to codecov.io'
-
-    - job: distributed_tests
-      pool:
-        vmImage: 'ubuntu-latest'
-      variables:
-        DASK_SCHEDULER_ADDRESS: tcp://localhost:8786
-        DOCKER_BUILDKIT: "1"
-      steps:
-
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: '3.7'
-
-      - bash: pip install -U tox 'virtualenv>19' pip-tools
-        displayName: 'install requirements'
-
-      - script: |
-          cd packaging/docker/
-          ./update_reqs.sh
-          docker pull libertem/libertem-dev || true
-          docker build --cache-from=libertem/libertem-dev -t libertem/libertem-dev --build-arg BUILDKIT_INLINE_CACHE=1 ../../ -f Dockerfile
-          # make this succeed even if the access token is not available:
-          (docker login -u sk1p -p $(DOCKER_ACCESS_TOKEN) && docker push libertem/libertem-dev) || true
-        displayName: 'Build docker container(s)'
-        env:
-          DOCKER_ACCESS_TOKEN: $(DOCKER_ACCESS_TOKEN)
-
-      - bash: (cd packaging/docker/ && docker-compose run tests)
-        displayName: 'run tests'
+    #  - bash: (cd packaging/docker/ && docker-compose run tests)
+    #    displayName: 'run tests'
 
   - stage: deploy
     jobs:
@@ -330,9 +308,9 @@ stages:
         vmImage: 'ubuntu-latest'
       steps:
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.8'
+        displayName: 'Use Python 3.9'
         inputs:
-          versionSpec: '3.8'
+          versionSpec: '3.9'
       - bash: sudo apt install -y pandoc
         displayName: 'install required debian packages'
 
@@ -371,9 +349,9 @@ stages:
         vmImage: 'ubuntu-latest'
       steps:
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.8'
+        displayName: 'Use Python 3.9'
         inputs:
-          versionSpec: '3.8'
+          versionSpec: '3.9'
       - task: Cache@2
         inputs:
           key: 'python | "$(Agent.OS)" | test_requirements.txt'
