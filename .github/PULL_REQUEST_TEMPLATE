@@ -7,11 +7,9 @@
 
 ## Reviewer Checklist:
 
-* [ ] `/azp run LiberTEM/LiberTEM-live-data` passed
+* [ ] `/azp run libertem.libertem-live-data` passed
 
 <!--
-
-## Please remove this section
 
 Starting by submitting an incomplete pull request (PR) or draft PR is OK. You
 can work on the checklist step by step by pushing additional commits into the
