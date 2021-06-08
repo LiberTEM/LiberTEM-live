@@ -65,6 +65,17 @@ class ServerThreadMixin(ErrThreadMixin):
         self._name = name
         self.listen_event = threading.Event()
 
+    def wait_for_listen(self, timeout=10):
+        """
+        To be called from the main thread
+        """
+        t0 = time.time()
+        while time.time() - t0 < timeout:
+            self.listen_event.wait(timeout=0.1)
+            self.maybe_raise()
+        if not self.listen_event.is_set():
+            raise RuntimeError("failed to start in %f seconds" % timeout)
+
     @property
     def sockname(self):
         return self._socket.getsockname()

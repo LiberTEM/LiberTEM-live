@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(not HAVE_MIB_TESTDATA, reason="need .mib testdat
 def serve(cls, host='127.0.0.1', port=0):
     server = cls(host=host, port=port)
     server.start()
-    server.listen_event.wait()
+    server.wait_for_listen()
     yield server
     server.maybe_raise()
     server.stop()
