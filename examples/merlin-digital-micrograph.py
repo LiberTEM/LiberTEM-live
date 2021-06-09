@@ -6,12 +6,13 @@ import sys
 import os
 import multiprocessing
 import threading
-from contextlib import contextmanager
-
-import numpy as np
+import concurrent.futures
+import time
 
 from libertem_live import api
 from libertem_live.udf.monitor import SignalMonitorUDF
+from libertem_live.detectors.merlin.sim import TriggerClient
+from libertem_live.detectors.merlin.control import MerlinControl
 
 from libertem.viz.gms import GMSLive2DPlot
 # Sum all detector frames, result is a map of the detector
@@ -21,8 +22,12 @@ from libertem.udf.sumsigudf import SumSigUDF
 
 
 # Adjust to match experiment
-MERLIN_DATA_SOCKET = ('192.168.116.1', 6342)
+MERLIN_DATA_SOCKET = ('127.0.0.1', 6342)
+MERLIN_CONTROL_SOCKET = ('127.0.0.1', 6341)
 SCAN_SIZE = (128, 128)
+
+# Used for the Merlin detector simulator to emulate hardware triggering
+SIM_TRIGGER_SOCKET = ('127.0.0.1', 6343)
 
 # Change to a writable folder. GMS may run in C:\Windows\system32
 # depending on the starting method.
@@ -31,50 +36,131 @@ os.chdir(os.environ['USERPROFILE'])
 multiprocessing.set_executable(os.path.join(sys.exec_prefix, 'pythonw.exe'))
 
 
-@contextmanager
-def medipix_setup(dataset, udfs):
-    print("priming camera for acquisition")
+def merlin_setup(c: MerlinControl, dwell_time=1e-3, depth=12, save_path=None):
+    print("Setting Merlin acquisition parameters")
     # Here go commands to control the camera and the rest of the setup
     # to perform an acquisition.
 
     # The Merlin simulator currently accepts all kinds of commands
     # and doesn't respond like a real Merlin detector.
+    c.set('CONTINUOUSRW', 1)
+    c.set('ACQUISITIONTIME', dwell_time * 1e3)  # Time in miliseconds
+    c.set('COUNTERDEPTH', depth)
+    c.set('TRIGGERSTART', 3)
+    c.set('TRIGGERSTOP', 0)
+    c.set('RUNHEADLESS', 1)
 
-    dataset.control.set('numframes', np.prod(SCAN_SIZE, dtype=np.int64))
-    # dataset.control.set(...)
-    print("GET 'numframes': ", dataset.control.get('numframes'))
+    if save_path is not None:
+        c.set('FILEENABLE', 1)
+        # raw format with timestamping is buggy, we need to do it ourselves
+        c.set('USETIMESTAMPING', 0)
+        c.set('FILEFORMAT', 2)  # raw format, less overhead?
+        c.set('FILEDIRECTORY', save_path)
+    else:
+        c.set('FILEENABLE', 0)
 
-    # microscope.configure_scan()
-    # microscope.start_scanning()
-    print("running acquisition")
-    with dataset.start_acquisition():
-        yield
-    print("camera teardown")
-    # teardown routines go here
+    print("Finished Merlin setup.")
+
+
+def microscope_setup(dwell_time=1e-3):
+    # Here go instructions to set dwell time and
+    # other scan parameters
+    # microscope.set_dwell_time(dwell_time)
+    pass
+
+
+def arm(c: MerlinControl):
+    print("Arming Merlin...")
+    c.cmd('STARTACQUISITION')
+    print("Merlin ready for trigger.")
+
+
+def set_nav(c: MerlinControl, aq):
+    height, width = aq.shape.nav
+    print("Setting resolution...")
+    c.set('NUMFRAMESTOACQUIRE', height * width)
+    c.set('NUMFRAMESPERTRIGGER', width)  # One trigger per scan line
+
+    # microscope.configure_scan(shape=aq.shape.nav)
+
+
+class AcquisitionState:
+    def __init__(self):
+        self.trigger_result = None
+
+    def set_trigger_result(self, result):
+        self.trigger_result = result
 
 
 # The workload is wrapped into a `main()` function
 # to run it in a separate background thread since using Numba
 # can hang when used directly in a GMS Python background thread
 def main():
+    acquisition_state = AcquisitionState()
+    pool = concurrent.futures.ThreadPoolExecutor(1)
+
+    # This uses the above variables as a closure
+    def trigger(aq):
+        print("Triggering!")
+        # microscope.start_scanning()
+
+        time.sleep(1)
+        height, width = aq.shape.nav
+
+        # do_scan = lambda: ceos.call.acquireScan(width=width, height=height+1, imageName="test")
+        def do_scan():
+            '''
+            Emulated blocking scan function using the Merlin simulator
+            '''
+            print("do_scan()")
+            tr = TriggerClient(*SIM_TRIGGER_SOCKET)
+            try:
+                tr.connect()
+                tr.trigger()
+                return tr.wait()
+            finally:
+                tr.close()
+
+        fut = pool.submit(do_scan)
+        acquisition_state.set_trigger_result(fut)
+
     with api.LiveContext() as ctx:
-        ds = ctx.prepare_acquisition(
+        aq = ctx.prepare_acquisition(
             'merlin',
-            medipix_setup,
+            trigger=trigger,
             scan_size=SCAN_SIZE,
             host=MERLIN_DATA_SOCKET[0],
             port=MERLIN_DATA_SOCKET[1],
             frames_per_partition=800,
             pool_size=2,
+            timeout=5
         )
 
         udfs = [SumUDF(), SumSigUDF(), SignalMonitorUDF()]
 
-        plots = [GMSLive2DPlot(ds, udf) for udf in udfs]
+        plots = [GMSLive2DPlot(aq, udf) for udf in udfs]
         for plot in plots:
             plot.display()
 
-        ctx.run_udf(dataset=ds, udf=udfs, plots=plots)
+        c = MerlinControl(*MERLIN_CONTROL_SOCKET)
+
+        print("Connecting Merlin control...")
+        with c:
+            merlin_setup(c)
+            microscope_setup()
+
+            set_nav(c, aq)
+            arm(c)
+        try:
+            ctx.run_udf(dataset=aq, udf=udfs, plots=plots)
+        finally:
+            try:
+                if acquisition_state.trigger_result is not None:
+                    print("Waiting for blocking scan function...")
+                    print(f"result = {acquisition_state.trigger_result.result()}")
+            finally:
+                pass  # microscope.stop_scanning()
+        print("Finished.")
 
 
 if __name__ == "__main__":
