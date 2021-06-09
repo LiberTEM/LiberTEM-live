@@ -228,12 +228,13 @@ def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline):
 
     res = np.zeros(merlin_ds.shape.sig)
 
-    if inline:
-        for chunk in source.inline_stream():
-            res += chunk.sum(axis=0)
-    else:
-        for chunk in source.stream():
-            res += chunk.buf.sum(axis=0)
+    with source:
+        if inline:
+            for chunk in source.inline_stream():
+                res += chunk.sum(axis=0)
+        else:
+            for chunk in source.stream():
+                res += chunk.buf.sum(axis=0)
 
     udf = SumUDF()
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)

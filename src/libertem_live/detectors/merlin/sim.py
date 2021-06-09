@@ -9,6 +9,7 @@ import platform
 import threading
 from typing import Optional
 import logging
+import select
 
 import click
 import numpy as np
@@ -101,6 +102,14 @@ class ServerThreadMixin(ErrThreadMixin):
                     continue
                 except ConnectionResetError:
                     print(f"{self._name} disconnected")
+                # except BrokenPipeError:
+                #     # catch broken pipe error - allow the server to continue
+                #     # running, even when a client prematurely disconnects
+                #     try:
+                #         connection.close()
+                #     except Exception:
+                #         pass
+                #     print(f"{self._name} disconnected")
                 except RuntimeError as e:
                     print(f"{self._name} exception %s -> stopping" % e)
                     self.error(e)
@@ -459,13 +468,25 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
             return self.error(e)
 
     def handle_conn(self, connection):
+        poller = select.poll()
+        poller.register(connection, select.POLLHUP | select.POLLRDHUP)
         try:
             if self._wait_trigger:
                 if self._garbage:
                     print("Sending some garbage...")
                     connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
                 print("Waiting for trigger...")
-                self.trigger_event.wait()
+                while True:
+                    if self.trigger_event.wait(0.1):
+                        # the trigger event is set, break out of the loop and
+                        # handle the connection below:
+                        break
+                    # check for connection reset:
+                    pollres = poller.poll(1)
+                    if len(pollres) > 0:
+                        print("POLL(RD)?HUP")
+                        connection.close()
+                        return
                 self.trigger_event.clear()
             return self._sim.handle_conn(connection)
         finally:

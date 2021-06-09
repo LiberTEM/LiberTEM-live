@@ -3,4 +3,5 @@
 # --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple
 # libertem-blobfinder
 
--e git+https://github.com/LiberTEM/LiberTEM.git@94ee12b6#egg=libertem
+libertem[bqplot] @ git+https://github.com/LiberTEM/LiberTEM.git@94ee12b6
+-e git+https://github.com/uellue/ptychography.git@a517b1e#egg=ptychography40
