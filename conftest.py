@@ -26,3 +26,9 @@ def ltl_ctx_fast():
 @pytest.fixture()
 def default_aq(ltl_ctx):
     return ltl_ctx.prepare_acquisition('memory', trigger=None, datashape=[16, 16, 32, 32])
+
+
+def pytest_collectstart(collector):
+    # nbval: ignore some output types
+    if collector.fspath and collector.fspath.ext == '.ipynb':
+        collector.skip_compare += 'text/html', 'application/javascript', 'stderr',

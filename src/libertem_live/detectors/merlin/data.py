@@ -507,39 +507,45 @@ class MerlinDataSource:
         self.socket.__exit__(*args, **kwargs)
 
     def inline_stream(self, read_dtype=np.float32, chunk_size=10):
-        with self:
-            self.socket.read_headers()
-            hdr = self.socket.get_acquisition_header()
-            logger.info(hdr)
+        self.socket.read_headers()
+        hdr = self.socket.get_acquisition_header()
+        logger.info(hdr)
 
-            out = self.socket.get_out_buffer(chunk_size, dtype=read_dtype)
-            input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
+        out = self.socket.get_out_buffer(chunk_size, dtype=read_dtype)
+        input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
 
-            while True:
-                res = self.socket.read_multi_frames(
-                    out=out,
-                    num_frames=chunk_size,
-                    input_buffer=input_buffer
-                )
-                if not res:
-                    break
-                buf, frame_idx_start, frame_idx_end = res
-                if frame_idx_end - frame_idx_start == 0:
-                    break
-                yield buf
+        while True:
+            res = self.socket.read_multi_frames(
+                out=out,
+                num_frames=chunk_size,
+                input_buffer=input_buffer
+            )
+            if not res:
+                break
+            buf, frame_idx_start, frame_idx_end = res
+            if frame_idx_end - frame_idx_start == 0:
+                break
+            yield buf
 
     def stream(self, num_frames=None, chunk_size=11):
-        with self:
-            self.socket.read_headers()
-            hdr = self.socket.get_acquisition_header()
-            logger.info(hdr)
-            pool = self.pool.get_impl(
-                read_upto_frame=num_frames,
-                chunk_size=chunk_size,
-            )
-            with pool:
-                while True:
-                    with pool.get_result() as res_wrapped:
-                        if pool.should_stop():
-                            break
-                        yield res_wrapped
+        """
+        Example:
+
+        source = MerlinDataSource()
+        with source:
+            for _ in sourge.stream():
+                ...
+        """
+        self.socket.read_headers()
+        hdr = self.socket.get_acquisition_header()
+        logger.info(hdr)
+        pool = self.pool.get_impl(
+            read_upto_frame=num_frames,
+            chunk_size=chunk_size,
+        )
+        with pool:
+            while True:
+                with pool.get_result() as res_wrapped:
+                    if pool.should_stop():
+                        break
+                    yield res_wrapped

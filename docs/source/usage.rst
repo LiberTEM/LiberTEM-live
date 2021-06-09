@@ -34,10 +34,12 @@ This command runs an emulation server on the default ports 6341 for control and
     
     (libertem) $ libertem-live-mib-sim "Ptycho01/20200518 165148/default.hdr"
 
-See :ref:`merlin detector` for all available command line arguments.
+See :ref:`merlin detector` for all available command line arguments. For
+running the example notebooks, you need to use at least the
+:code:`--wait-trigger` parameter.
 
-Start a LiveContext
--------------------
+Start a :code:`LiveContext`
+---------------------------
 
 A :class:`~libertem_live.api.LiveContext` requires using a compatible executor
 since task scheduling has to be coordinated with the incoming detector data. It
@@ -55,7 +57,7 @@ starts a suitable executor by default when it is instantiated, currently the
 Define a callback function to trigger an acquisition
 ----------------------------------------------------
 
-This callback function will be include in an acquisition object to be called
+This callback function will be included in an acquisition object to be called
 when LiberTEM-live is ready and waiting for data. It should trigger the start of
 the acquisition, for example by starting a scan. If a scan is triggered before
 the acquisition system is ready to receive, data may be lost depending on the
