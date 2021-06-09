@@ -6,7 +6,8 @@
             "grants": [
                 {"id": "10.13039/501100000780::780487"},
                 {"id": "10.13039/501100000780::686053"},
-                {"id": "10.13039/501100000780::823717"}
+                {"id": "10.13039/501100000780::823717"},
+                {"id": "10.13039/501100000780::856538"}
             ],
             "keywords": ["STEM", "TEM", "pixelated STEM", "4D STEM", "high-throughput", "electron microscopy", "live data processing"],
             "related_identifiers": [
@@ -17,7 +18,7 @@
             ],
             "access_right": "open",
             "license": "GPL-3.0",
-            "notes": "TODO"
+            "notes": "<p>We gratefully acknowledge funding from the Initiative and Network Fund of the Helmholtz Association within the Helmholtz Young Investigator Group moreSTEM under Contract No. VH-NG-1317 at Forschungszentrum Jülich in Germany.</p>\n\n<p>We gratefully acknowledge funding from the Information & Data Science Pilot Project 'Ptychography 4.0' of the Helmholtz Association.</p>\n\n<p>STEMx equipment and software for 4D STEM data acquisition with K2 IS camera courtesy of Gatan Inc.</p>\n\n<p>Forschungszentrum Jülich is supporting LiberTEM-live with funding for personnel, access to its infrastructure and administrative support.</p>"
         }
 
     }
