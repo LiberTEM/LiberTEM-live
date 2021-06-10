@@ -78,7 +78,7 @@ setup(
     zip_safe=False,
     python_requires='>=3.6',
     install_requires=[
-        "libertem>=0.7.0.dev0",
+        "libertem>=0.7.0",
         "numpy",
         "click",
         "tqdm",
