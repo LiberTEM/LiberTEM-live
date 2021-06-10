@@ -227,7 +227,7 @@ def get_archive(tag):
     filename = "libertem-repo-archive-%s.tar.gz" % tag['full']
     with tempfile.TemporaryDirectory() as tempdir:
         full_fn = os.path.join(tempdir, filename)
-        url = "https://github.com/LiberTEM/LiberTEM/archive/%s.tar.gz" % tag['full']
+        url = "https://github.com/LiberTEM/LiberTEM-live/archive/%s.tar.gz" % tag['full']
         stream_download(dest_fn=full_fn, url=url)
         yield full_fn
 
