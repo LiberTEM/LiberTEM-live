@@ -72,7 +72,8 @@ class ServerThreadMixin(ErrThreadMixin):
         """
         t0 = time.time()
         while time.time() - t0 < timeout:
-            self.listen_event.wait(timeout=0.1)
+            if self.listen_event.wait(timeout=0.1):
+                return
             self.maybe_raise()
         if not self.listen_event.is_set():
             raise RuntimeError("failed to start in %f seconds" % timeout)
