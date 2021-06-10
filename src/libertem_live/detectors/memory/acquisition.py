@@ -24,6 +24,30 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
         See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
         and :ref:`trigger` for details!
 
+    Examples
+    --------
+
+    >>> import numpy as np
+    >>> from libertem.udf.sum import SumUDF
+    >>> from libertem_live.api import LiveContext
+    ...
+    >>> ctx = LiveContext()
+    >>> data = np.random.random((23, 42, 51, 67))
+    ...
+    >>> def trigger(acquisition):
+    ...     print("Triggering!")
+    ...
+    >>> aq = ctx.prepare_acquisition(
+    ...    'memory',
+    ...    trigger=trigger,
+    ...    data=data
+    ... )
+    ...
+    >>> udf = SumUDF()
+    >>> ctx.run_udf(dataset=aq, udf=udf, plots=True)
+    Triggering!
+    {'intensity': <BufferWrapper kind=sig dtype=float64 extra_shape=()>}
+
     Notes
     -----
 

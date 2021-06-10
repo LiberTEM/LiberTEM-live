@@ -4,7 +4,7 @@ Changelog
 .. _continuous:
 .. _latest:
 
-0.0.1.dev0 (continuous)
+0.2.0.dev0 (continuous)
 #######################
 
 .. toctree::
@@ -12,3 +12,8 @@ Changelog
 
    changelog/*/*
 
+
+0.1.0 (in preparation)
+######################
+
+Initial release with support for Quantum Detectors Merlin.
