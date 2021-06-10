@@ -529,12 +529,13 @@ class MerlinDataSource:
 
     def stream(self, num_frames=None, chunk_size=11):
         """
-        Example:
+        Examples
+        --------
 
-        source = MerlinDataSource()
-        with source:
-            for _ in sourge.stream():
-                ...
+        >>> source = MerlinDataSource(...)  # doctest: +SKIP
+        >>> with source:  # doctest: +SKIP
+        ...     for _ in source.stream():  # doctest: +SKIP
+        ...         ...
         """
         self.socket.read_headers()
         hdr = self.socket.get_acquisition_header()
