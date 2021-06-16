@@ -602,20 +602,20 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                         end_after_idx,
                         end_dataset_after_idx
                     )
+                    packet = packets[i*packet_size:(i+1)*packet_size]
                     if target >= 0:  # happy case
-                        packet = packets[i*packet_size:(i+1)*packet_size]
                         merge_packet(bufs[target], headers[i], packet, offset=self.first_frame_id)
                     elif target == TARGET_STRAGGLER:
                         # skip stragglers for now
                         continue
                     elif target == TARGET_NEXT_TILE:
-                        # TODO carry internally
+                        carryover(tile_carry, packet)
                         c_tiles = True
                     elif target == TARGET_PARTITION_CARRY:
-                        # TODO carry to next get_tiles()
+                        carryover(self.partition_carry, packet)
                         c_partition = True
                     elif target == TARGET_DATASET_CARRY:
-                        # TODO carry to next epoch
+                        carryover(self.dataset_carry, packet)
                         c_dataset = True
                         pass
                     self.recent_frame_id = max(
