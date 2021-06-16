@@ -1,6 +1,6 @@
 import numpy as np
 
-from libertem_live.detectors.k2is.proto import MsgReaderThread
+from libertem_live.detectors.k2is.proto import MsgReaderThread, block_idx, block_xy, make_carry
 from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 
 
@@ -9,13 +9,16 @@ PACKET_SIZE = 0x5758
 
 class MockThread:
     buffered_tile = None
-    first_frame_id = 0
+    first_frame_id = 2
     timeout = 1
     # first sector
     x_offset = 0
 
     def __init__(self):
-        self.packet_counter = 1
+        self.packet_counter = 0
+        self.recent_frame_id = 0
+        self.partition_carry = make_carry(num_packets=256)
+        self.dataset_carry = make_carry(num_packets=256)
 
     def is_stopped(self):
         return False
@@ -79,11 +82,17 @@ def test_gettiles():
     thread = MockThread()
     socket = MockSocket()
     packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
-    tiles = MsgReaderThread.get_tiles(thread, packets, end_after_idx=8)
+    tiles = MsgReaderThread.get_tiles(
+        thread,
+        packets,
+        start_frame=0,
+        end_after_idx=10,
+        end_dataset_after_idx=10
+    )
     FRAMES_PER_TILE = 128 // 32
 
     for tile_idx, t in enumerate(tiles):
-        for frame in range(FRAMES_PER_TILE):
+        for frame in range(t.shape[0]):
             # Check that the block_count that was baked into the payload by MockSocket
             # ended up where it was supposed to
             for y in (0, 930):
@@ -91,6 +100,14 @@ def test_gettiles():
                     tag = t[frame, y, x]
                     offset = 0 if y == 0 else 16
                     # unwind the sequence from MockSocket
-                    target = 15 - x//16 + offset + 32*frame + 32*FRAMES_PER_TILE*tile_idx
+                    target = 15 - x//16 + offset + 32*frame + 32*FRAMES_PER_TILE*tile_idx + thread.first_frame_id*32
                     print(frame, y, x, tag, target)
                     assert tag == target
+
+
+def test_sequence():
+    socket = MockSocket()
+    for i in range(32):
+        x, y = block_xy(i)
+        assert socket.offsets[i] == (x, y)
+        assert block_idx(x, y) == i
