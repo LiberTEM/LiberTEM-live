@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 import numba
 import numpy as np
 
@@ -119,3 +121,22 @@ def decode_bulk_uint12_le(inp, out, num_packets, meta_out=None):
             )
 
     return meta_out
+
+
+# Fake object orientation, compatible with Numba
+PacketHeader = namedtuple('PacketHeader', ['frame_id', 'pixel_x_start', 'pixel_y_start'])
+
+
+def make_PacketHeader():
+    return PacketHeader(
+        frame_id=np.zeros(1, dtype=np.uint32),
+        pixel_x_start=np.zeros(1, dtype=np.uint16),
+        pixel_y_start=np.zeros(1, dtype=np.uint16),
+    )
+
+
+# @numba.njit
+def decode_header_into(header_inout: PacketHeader, packet: bytes):
+    byteswap_4_decode(inp=packet[24:28], out=header_inout.frame_id)
+    byteswap_2_decode(inp=packet[28:30], out=header_inout.pixel_x_start)
+    byteswap_2_decode(inp=packet[30:32], out=header_inout.pixel_y_start)
