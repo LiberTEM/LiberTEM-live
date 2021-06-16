@@ -6,14 +6,18 @@ import threading
 import contextlib
 import logging
 import enum
+from collections import namedtuple
 
 import numpy as np
+import numba
 import zmq
 
 from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 from libertem.common.buffers import bytes_aligned, zeros_aligned
 from libertem_live.utils.net import mcast_socket
-from libertem_live.detectors.k2is.decode import decode_bulk_uint12_le
+from libertem_live.detectors.k2is.decode import (
+    decode_bulk_uint12_le, PacketHeader, decode_header_into, decode_uint12_le, make_PacketHeader
+)
 from libertem.io.dataset.base.tiling import TilingScheme, DataTile
 from libertem.common import Shape, Slice
 from libertem.io.dataset.base import Partition, DataSetMeta
@@ -176,6 +180,175 @@ class DisconnectedError(Exception):
     pass
 
 
+Carry = namedtuple('Carry', ['data', 'packet_count'])
+
+
+# To be safe we allocate twice the space of a block so that we can completely
+# carry one buffer into another if there is a cascade of spills
+def make_carry(num_packets=256):
+    packet_size = 0x5758
+    return Carry(
+        data=bytearray(packet_size*num_packets),
+        packet_count=np.zeros(1, dtype=int)
+    )
+
+
+def reset_carry(carry_inout: Carry):
+    carry_inout.packet_count[0] = 0
+
+
+def carryover(carry_inout, packet):
+    packet_size = 0x5758
+    assert len(packet) == packet_size
+    start = carry_inout.packet_count[0] * packet_size
+    stop = start + packet_size
+    assert stop <= len(carry_inout.data)
+    carry_inout.data[start:stop] = packet
+
+
+# namedtuple is compatible with Numba
+# Do some "fake object orientation"
+Tile = namedtuple('Tile', ['frame_offset', 'data', 'damage', 'unique_count', 'expected_count'])
+
+
+def make_tile(tileshape, frame_offset) -> Tile:
+    frame_count = tileshape[0]
+    t = Tile(
+        frame_offset=np.full(1, frame_offset, dtype=int),
+        data=zeros_aligned(tileshape, dtype=np.uint16),
+        damage=np.zeros((frame_count, 32), dtype=bool),
+        unique_count=np.zeros(1, dtype=int),
+        expected_count=32*frame_count,
+    )
+    return t
+
+
+def is_complete(t: Tile):
+    return t.unique_count == t.expected_count
+
+
+@numba.njit
+def block_idx(x, y):
+    '''
+    Transform the pixel_x_start, pixel_y_start of a block to
+    a block index in 0:32 following the native sequence of K2IS packets
+
+    x in [240, 224, ..., 16, 0]
+    y in [0, 930]
+    '''
+    offset = 0 if y == 0 else 16
+    return 15 - x//16 + offset
+
+
+@numba.njit
+def block_xy(block_idx: int):
+    '''
+    Derive pixel_x_start, pixel_y_start from block index
+    '''
+    y_mult, xx = divmod(block_idx, 16)
+    return (240 - xx * 16, y_mult*930)
+
+
+@numba.njit
+def merge_packet(tile_inout: Tile, header: PacketHeader, packet: bytes, offset: int):
+    inp_part_data = packet[40:]
+    stride_y = tile_inout.data.shape[2]
+    index = block_idx(header.pixel_x_start[0], header.pixel_y_start[0])
+    frame_idx = header.frame_id[0] - tile_inout.frame_offset[0] - offset
+    if tile_inout.damage[frame_idx, index]:
+        print("skipping duplicate package")
+        return
+
+    if frame_idx >= tile_inout.data.shape[0]:
+        print(header.frame_id, frame_idx)
+        raise RuntimeError("frame_idx is out of bounds")
+
+    block_offset = header.pixel_y_start[0] * stride_y + header.pixel_x_start[0]
+
+    out_z = tile_inout.data[frame_idx].reshape((-1,))
+
+    # decode_uint12_le(inp=inp_part_data, out=out_part)
+    # we are inlining the decoding here to write directly
+    # to the right position inside the output array:o
+
+    # inp is uint8, so the outer loop needs to jump 24 bytes each time.
+    for row in range(len(inp_part_data) // 3 // 8):
+        # row is the output row index of a single block,
+        # so the beginning of the row in output coordinates:
+        out_pos = block_offset + row * stride_y
+        in_row_offset = row * 3 * 8
+
+        # processing for a single row:
+        # for each j, we process bytes of input into two output numbers
+        # -> we consume 8*3 = 24 bytes and generate 8*2=16 numbers
+        decode_uint12_le(
+            inp=inp_part_data[in_row_offset:in_row_offset+24],
+            out=out_z[out_pos:out_pos+16]
+        )
+    tile_inout.damage[frame_idx, index] = True
+    tile_inout.unique_count[0] += 1
+
+
+def erase_missing(tile_inout: Tile):
+    '''
+    Overwrite undamaged blocks with zeros
+    '''
+    if not is_complete(tile_inout):
+        for frame_idx in range(tile_inout.damage.shape[0]):
+            # 0..32
+            for i in range(tile_inout.damage.shape[1]):
+                if not tile_inout.damage[frame_idx, i]:
+                    x, y = block_xy(i)
+                    tile_inout.data[frame_idx, x:x+16, y:y+930] = 0
+
+
+def recycle(tile_inout: Tile, frame_offset):
+    '''
+    Reset the tile to a new frame offset and unset unique_count and damage
+
+    The contents are not zeroed out since new data will likely overwrite them.
+    Instead, :func:`erase_missing` can selectively overwrite undamaged blocks in
+    case of missing packages. This will hopefuilly be rare.
+    '''
+    tile_inout.frame_offset[0] = frame_offset
+    tile_inout.damage[:] = False
+    tile_inout.unique_count[0] = 0
+
+
+# To make sure we have a uniform int return type
+# The regular zero or positive return values indicate a buffer index
+TARGET_STRAGGLER = -1
+TARGET_NEXT_TILE = -2
+TARGET_FORERUNNER = -3
+TARGET_PARTITION_CARRY = -4
+TARGET_DATASET_CARRY = -5
+
+
+def find_target(bufs, header, frame_offset, end_after_idx, dataset_end_after_idx):
+    frame_idx = header.frame_id[0] - frame_offset
+    # FIXME or >=?
+    assert dataset_end_after_idx >= end_after_idx
+    if frame_idx > end_after_idx:
+        # FIXME or >=?
+        if frame_idx > dataset_end_after_idx:
+            return TARGET_DATASET_CARRY
+        else:
+            return TARGET_PARTITION_CARRY
+    for i, buf in enumerate(bufs):
+        if frame_idx >= buf.frame_offset[0] and frame_idx < buf.frame_offset[0] + buf.data.shape[0]:
+            return i
+        # before first tile or between tiles
+        if frame_idx < buf.frame_offset[0]:
+            return TARGET_STRAGGLER
+    # Block would be within next consecutive tile
+    if frame_idx < bufs[-1].frame_offset + 2*buf.data.shape[0]:
+        return TARGET_NEXT_TILE
+    else:
+        # Block lies beyond the next tile
+        # needs to make a jump
+        return TARGET_FORERUNNER
+
+
 class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
         self, idx, port, affinity_set, sync_state,
@@ -195,12 +368,14 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.replica = EventReplicaClient()
         self.first_frame_id = None
         self.recent_frame_id = None  # the last frame_id we have seen
-        self.buffered_tile = None  # a bufferd DataTile between calls of `get_tiles`
         self.sync_barrier = mp.Barrier(8)  # FIXME: hardcoded number of participants
         self.sector_state = SectorState.INIT
         self.packet_counter = 0
         self.pdb = pdb
         self.profile = profile
+        # FIXME we now rely on this being 2*128 throughout for the time being
+        self.partition_carry = make_carry(num_packets=256)
+        self.dataset_carry = make_carry(num_packets=256)
 
         super().__init__(*args, **kwargs)
 
@@ -421,95 +596,208 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def x_offset(self):
         return self.idx * 256
 
-    def get_tiles(self, read_iter, end_after_idx, num_packets=128):
+    def get_tiles(
+            self, read_iter, start_frame, end_after_idx, end_dataset_after_idx, num_packets=128):
         assert num_packets % 32 == 0
         num_frames = num_packets // 32
         tileshape = Shape((num_frames, 1860, 256), sig_dims=2)
-        buf = zeros_aligned(tileshape, dtype=np.uint16)
+
+        bufs = [
+            make_tile(tileshape, start_frame),
+            make_tile(tileshape, start_frame + num_frames),
+            make_tile(tileshape, start_frame + 2*num_frames),
+        ]
+        headers = [make_PacketHeader() for i in range(num_packets)]
+
+        tile_carry = make_carry(num_packets=2*num_packets)
 
         x_offset = self.x_offset
 
         origin_to_idx = {}
+        # ts is a module-level variable
         for idx, slice_ in ts.slices:
             origin_to_idx[slice_.origin] = idx
 
         logger.info(
-            "get_tiles: end_after_idx=%d, num_packets=%d, buf.shape=%s",
-            end_after_idx, num_packets, buf.shape,
+            "get_tiles: end_after_idx=%d, num_packets=%d, bufs[0].data.shape=%s",
+            end_after_idx, num_packets, bufs[0].data.shape,
         )
 
-        # the first tile may be left over from the last run of this function:
-        if self.buffered_tile is not None:
-            frame_id, dt = self.buffered_tile
-            frame_idx = frame_id - self.first_frame_id
-            dt = DataTile(
-                np.array(dt),
-                tile_slice=Slice(
-                    origin=(frame_idx,) + dt.tile_slice.origin[1:],
-                    shape=dt.tile_slice.shape,
-                ),
-                scheme_idx=dt.scheme_idx,
-            )
-            yield dt
-            self.buffered_tile = None
-
-        sig_origin = (0, x_offset)
-        for p in read_iter:
-            try:
-                meta_out = np.zeros((num_packets, 3), dtype=np.uint32)
-                decode_bulk_uint12_le(
-                    inp=p[0], out=buf, num_packets=num_packets, meta_out=meta_out,
+        def yield_and_rotate(new_start_idx=None):
+            '''
+            We finalize the first buffer,
+            yield it if it was touched at all, reset it, and set it as the last buffer
+            in case we still have work to do
+            '''
+            if not bufs:
+                return
+            buf = bufs.pop(0)
+            frame_idx = buf.frame_offset[0]
+            end_frame = min(frame_idx + buf.data.shape[0], end_after_idx)
+            real_tileshape = Shape((end_frame-frame_idx, ) + tileshape[1:], sig_dims=2)
+            if new_start_idx is None:
+                new_start_idx = end_frame
+            # tile has been touched, otherwise we just skip it
+            if buf.unique_count[0]:
+                tile_slice = Slice(
+                    origin=(frame_idx,) + sig_origin,
+                    shape=real_tileshape,
                 )
+                scheme_idx = origin_to_idx[sig_origin]
+                erase_missing(buf)
+                dt = DataTile(
+                    # slice out the part that contains data that still belongs to this partition
+                    buf.data[:end_frame-frame_idx],
+                    tile_slice=tile_slice,
+                    scheme_idx=scheme_idx,
+                )
+                yield dt
+            # TODO or <?
+            if new_start_idx <= end_after_idx:
+                recycle(buf, new_start_idx)
+                bufs.append(buf)
+
+        def process_packets(packets, num_packets):
+            c_tiles = False
+            c_partition = False
+            c_dataset = False
+            try:
+                for i in range(num_packets):
+                    packet = packets[i*packet_size:(i+1)*packet_size]
+                    decode_header_into(headers[i], packet)
+                for i in range(num_packets):
+                    target = find_target(
+                        bufs,
+                        headers[i],
+                        self.first_frame_id,
+                        end_after_idx,
+                        end_dataset_after_idx
+                    )
+                    if target >= 0:  # happy case
+                        packet = packets[i*packet_size:(i+1)*packet_size]
+                        merge_packet(bufs[target], headers[i], packet, offset=self.first_frame_id)
+                    elif target == TARGET_STRAGGLER:
+                        # skip stragglers for now
+                        continue
+                    elif target == TARGET_NEXT_TILE:
+                        # TODO carry internally
+                        c_tiles = True
+                    elif target == TARGET_PARTITION_CARRY:
+                        # TODO carry to next get_tiles()
+                        c_partition = True
+                    elif target == TARGET_DATASET_CARRY:
+                        # TODO carry to next epoch
+                        c_dataset = True
+                        pass
+                    self.recent_frame_id = max(
+                        self.recent_frame_id,
+                        headers[i].frame_id[0]
+                    )  # most recent frame id
             except RuntimeError:
                 logger.info(
-                    "called decode bulk w/ len(p[0])=%d, buf.shape=%s, num_packets=%d",
-                    len(p[0]), buf.shape, num_packets,
+                    "called decode bulk w/ len(p[0])=%d, bufs[0].data.shape=%s, num_packets=%d",
+                    len(p[0]), bufs[0].data.shape, num_packets,
                 )
                 logger.info(
-                    "meta_out=%r", meta_out,
+                    "headers=%r", headers,
                 )
                 raise
-            # FIXME: assumption on packet ordering
-            frame_id = meta_out[0, 0]  # first frame id
-            frame_idx = frame_id - self.first_frame_id
-            if frame_idx < 0:
-                # Detect wraparound either a) because we are replaying a finite
-                # input file, or b) because we reached the range of the integer type.
-                # We select an arbitrary threshold of 10 frames to detect a)
-                if frame_id == 0 or abs(frame_idx) > 10:
-                    logging.info(
-                        "wraparound? frame_id=%d frame_idx=%d",
-                        frame_id, frame_idx,
-                    )
-                    assert False, "TODO"
-                    self.update_first_frame_id(frame_id)
-                else:
-                    # Discard any remaining packets from the sync procedure,
-                    # which may include out-of-order packets:
-                    continue
-            self.recent_frame_id = frame_id
+            return c_tiles, c_partition, c_dataset
 
-            # FIXME: border handling where tileshape[0] < num_frames should hold
-            tile_slice = Slice(
-                origin=(frame_idx,) + sig_origin,
-                shape=tileshape,
-            )
-            scheme_idx = origin_to_idx[sig_origin]
-            dt = DataTile(
-                buf,
-                tile_slice=tile_slice,
-                scheme_idx=scheme_idx,
-            )
-            # FIXME: possibly split DataTile if partition is not divisible by num_frames
-            if frame_idx > end_after_idx:
-                logger.info(
-                    "called bulk decode with len(inp)=%d, num_packets=%d",
-                    len(p[0]), num_packets,
-                )
-                self.buffered_tile = (frame_id, dt)
-                return
+        def wrapup():
+            # end_after_idx + 1 makes sure we are not rotating the buffer, but emptying it out
+            yield from yield_and_rotate(end_after_idx + 1)
+            yield from yield_and_rotate(end_after_idx + 1)
+            yield from yield_and_rotate(end_after_idx + 1)
+
+        def deal_with_tile_carry():
+            # We should not come into carry in case we are already finished with the partition
+            assert bufs
+            # first rotate the buffers to make room for the carried packets
+            if self.recent_frame_id < bufs[-1].frame_offset + 2*num_frames:
+                yield from yield_and_rotate(None)
             else:
-                yield dt
+                yield from yield_and_rotate(self.recent_frame_id - num_frames)
+            # We should have a buffer at the end that can fit the last carried package
+            # and process whatever is left over.
+            # This should not re-carry anything for that reason, but rather drop stragglers
+            process_packets(tile_carry.data, tile_carry.packet_count[0])
+            reset_carry(tile_carry)
+            # Make sure we have a fresh buffer at the end
+            # to resume normal operation and not go into endless carry
+            yield from rotate_if_necessary()
+
+        def rotate_if_necessary():
+            if not bufs:
+                return
+            # Happy case: dispatch complete tiles
+            while is_complete(bufs[0]):
+                yield from yield_and_rotate(None)
+            # Not at the end of the partition
+            # and last tile touched
+            if len(bufs) == 3 and bufs[-1].unique_count[0]:
+                yield from yield_and_rotate(None)
+
+        # First deal with partition carry.
+        # We make a copy since we MIGHT carry right back
+        # The dataset carry buffer SHOULD have extra space
+        tmp_data = self.partition_carry.data.copy()
+        # int, by value
+        tmp_count = self.partition_carry.packet_count[0]
+        # We can carry right into the next partition if necessary
+        # Therefore empty out before processing
+        reset_carry(self.partition_carry)
+        c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
+
+        # Wrap up in case we are already in the next partition or epoch
+        if c_partition or c_dataset:
+            yield from wrapup()
+            return
+
+        if c_tiles:
+            yield from deal_with_tile_carry()
+        else:
+            yield from rotate_if_necessary()
+
+        # Then deal with dataset carry.
+        # We make a copy since we MIGHT carry right back
+        # The dataset and partition carry buffer SHOULD have extra space enough
+        tmp_data = self.dataset_carry.data.copy()
+        # int, by value
+        tmp_count = self.dataset_carry.packet_count[0]
+        reset_carry(self.dataset_carry)
+        c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
+
+        # Wrap up in case we are already in the next partition or dataset
+        if c_partition or c_dataset:
+            yield from wrapup()
+            return
+
+        if c_tiles:
+            yield from deal_with_tile_carry()
+        else:
+            yield from rotate_if_necessary()
+
+        # initialization for loop
+        c_tiles = False
+
+        packet_size = 0x5758
+        sig_origin = (0, x_offset)
+        # we might already be finished, see above
+        while bufs:
+            p = next(read_iter)
+            packets, anc = p
+            c_tiles, c_partition, c_dataset = process_packets(packets, num_packets)
+            # wrap up
+            if c_partition or c_dataset:
+                yield from wrapup()
+                return
+
+            if c_tiles:
+                yield from deal_with_tile_carry()
+            else:
+                yield from rotate_if_necessary()
+            # FIXME detect wrap-around of frame ID
 
     @property
     def nav_shape(self):
@@ -612,7 +900,9 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
             tiles = self.get_tiles(
                 read_iter,
+                start_frame=frame_counter,
                 end_after_idx=frame_counter + frames_in_partition - 1,
+                end_dataset_after_idx=num_frames
             )
 
             meta = DataSetMeta(
