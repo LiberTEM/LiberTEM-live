@@ -239,9 +239,21 @@ class StateUpdate(pydantic.BaseModel):
     state: BaseState
 
 
+def make_initial_state():
+    return CamServerState(
+        lifecycle=LifecycleState.STARTING,
+        cam_connection=CamConnectionState.DISCONNECTED,
+        processing=ProcessingState.IDLE,
+        udfs=[],
+        nav_shape=(),
+        continuous=False,
+        sectors_done=set(),
+    )
+
+
 class ReplicatedStore(Store):
     def __init__(self):
-        self.state: Optional[BaseState] = None
+        self.state: BaseState = make_initial_state()
         self.reducer = None  # we don't use a reducer in the replicated store:
         self.listeners: StoreListenersType = defaultdict(lambda: [])
         self.c = zmq.Context()
