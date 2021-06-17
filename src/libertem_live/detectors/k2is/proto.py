@@ -257,11 +257,11 @@ def merge_packet(tile_inout: Tile, header: PacketHeader, packet: bytes, offset: 
     index = block_idx(header.pixel_x_start[0], header.pixel_y_start[0])
     frame_idx = header.frame_id[0] - tile_inout.frame_offset[0] - offset
     if tile_inout.damage[frame_idx, index]:
-        print("skipping duplicate package")
+        # print("skipping duplicate package")
         return
 
     if frame_idx >= tile_inout.data.shape[0]:
-        print(header.frame_id, frame_idx)
+        # print(header.frame_id, frame_idx)
         raise RuntimeError("frame_idx is out of bounds")
 
     block_offset = header.pixel_y_start[0] * stride_y + header.pixel_x_start[0]
@@ -605,7 +605,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
     def get_tiles(
             self, read_iter, start_frame, end_after_idx, end_dataset_after_idx, num_packets=128):
-        print("begin tiles")
         packet_size = 0x5758
         assert num_packets % 32 == 0
         num_frames = num_packets // 32
@@ -617,8 +616,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             if buf_start < end_after_idx:
                 bufs.append(make_tile(tileshape, buf_start))
             buf_start += num_frames
-
-        print("bufs", len(bufs))
 
         header = make_PacketHeader()
 
@@ -672,7 +669,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 yield dt
             if new_start_idx < end_after_idx:
                 recycle(buf, new_start_idx)
-                print("recycle", new_start_idx, end_after_idx)
+                # print("recycle", new_start_idx, end_after_idx)
                 bufs.append(buf)
 
         def process_packets(packets, num_packets):
@@ -719,7 +716,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                     "headers=%r", header,
                 )
                 raise
-            print(c_tiles, c_partition, c_dataset)
+            # print(c_tiles, c_partition, c_dataset)
             return c_tiles, c_partition, c_dataset
 
         def wrapup():
@@ -729,7 +726,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             yield from yield_and_rotate(end_after_idx + 1)
 
         def deal_with_tile_carry():
-            print("tile carry")
+            # print("tile carry")
             # We should not come into carry in case we are already finished with the partition
             assert bufs
             # first rotate the buffers to make room for the carried packets
@@ -764,7 +761,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # We can carry right into the next partition if necessary
         # Therefore empty out before processing
         reset_carry(self.partition_carry)
-        print("partition carry", tmp_count)
+        # print("partition carry", tmp_count)
         c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
 
         # Wrap up in case we are already in the next partition or epoch
@@ -784,7 +781,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # int, by value
         tmp_count = self.dataset_carry.packet_count[0]
         reset_carry(self.dataset_carry)
-        print("dataset carry", tmp_count)
+        # print("dataset carry", tmp_count)
         c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
 
         # Wrap up in case we are already in the next partition or dataset
@@ -804,11 +801,11 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         while bufs:
             p = next(read_iter)
             packets, anc = p
-            print("loop process")
+            # print("loop process")
             c_tiles, c_partition, c_dataset = process_packets(packets, num_packets)
             # wrap up
             if c_partition or c_dataset:
-                print("loop wrapup")
+                # print("loop wrapup")
                 yield from wrapup()
                 return
 
@@ -817,7 +814,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             else:
                 yield from rotate_if_necessary()
             # FIXME detect wrap-around of frame ID
-    print("end tiles")
+    # print("end tiles")
 
     @property
     def nav_shape(self):
