@@ -188,7 +188,7 @@ Carry = namedtuple('Carry', ['data', 'packet_count'])
 def make_carry(num_packets=256):
     packet_size = 0x5758
     return Carry(
-        data=bytearray(packet_size*num_packets),
+        data=np.empty(packet_size*num_packets, dtype=np.uint8),
         packet_count=np.zeros(1, dtype=int)
     )
 
@@ -202,8 +202,9 @@ def carryover(carry_inout, packet):
     assert len(packet) == packet_size
     start = carry_inout.packet_count[0] * packet_size
     stop = start + packet_size
-    assert stop <= len(carry_inout.data)
+    assert stop <= carry_inout.data.shape[0]
     carry_inout.data[start:stop] = packet
+    carry_inout.packet_count[0] += 1
 
 
 # namedtuple is compatible with Numba
@@ -324,26 +325,32 @@ TARGET_PARTITION_CARRY = -4
 TARGET_DATASET_CARRY = -5
 
 
-def find_target(bufs, header, frame_offset, end_after_idx, dataset_end_after_idx):
+def find_target(bufs, header, frame_offset, end_after_idx, end_dataset_after_idx):
     frame_idx = header.frame_id[0] - frame_offset
     # FIXME or >=?
-    assert dataset_end_after_idx >= end_after_idx
-    if frame_idx > end_after_idx:
+    assert end_dataset_after_idx >= end_after_idx
+    if frame_idx >= end_after_idx:
         # FIXME or >=?
-        if frame_idx > dataset_end_after_idx:
+        if frame_idx >= end_dataset_after_idx:
+            # print("dataset carry")
             return TARGET_DATASET_CARRY
         else:
+            # print("partition carry", frame_offset, header.frame_id[0], frame_idx, end_after_idx)
             return TARGET_PARTITION_CARRY
     for i, buf in enumerate(bufs):
         if frame_idx >= buf.frame_offset[0] and frame_idx < buf.frame_offset[0] + buf.data.shape[0]:
+            # print("found target", i, frame_offset, header.frame_id[0], frame_idx, end_after_idx)
             return i
         # before first tile or between tiles
         if frame_idx < buf.frame_offset[0]:
+            # print("straggler")
             return TARGET_STRAGGLER
     # Block would be within next consecutive tile
     if frame_idx < bufs[-1].frame_offset + 2*buf.data.shape[0]:
+        # print("next tile")
         return TARGET_NEXT_TILE
     else:
+        # print("forerunner")
         # Block lies beyond the next tile
         # needs to make a jump
         return TARGET_FORERUNNER
@@ -598,20 +605,27 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
     def get_tiles(
             self, read_iter, start_frame, end_after_idx, end_dataset_after_idx, num_packets=128):
+        print("begin tiles")
+        packet_size = 0x5758
         assert num_packets % 32 == 0
         num_frames = num_packets // 32
         tileshape = Shape((num_frames, 1860, 256), sig_dims=2)
 
-        bufs = [
-            make_tile(tileshape, start_frame),
-            make_tile(tileshape, start_frame + num_frames),
-            make_tile(tileshape, start_frame + 2*num_frames),
-        ]
-        headers = [make_PacketHeader() for i in range(num_packets)]
+        bufs = []
+        buf_start = start_frame
+        for count in range(3):
+            if buf_start < end_after_idx:
+                bufs.append(make_tile(tileshape, buf_start))
+            buf_start += num_frames
+
+        print("bufs", len(bufs))
+
+        header = make_PacketHeader()
 
         tile_carry = make_carry(num_packets=2*num_packets)
 
         x_offset = self.x_offset
+        sig_origin = (0, x_offset)
 
         origin_to_idx = {}
         # ts is a module-level variable
@@ -636,7 +650,11 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             end_frame = min(frame_idx + buf.data.shape[0], end_after_idx)
             real_tileshape = Shape((end_frame-frame_idx, ) + tileshape[1:], sig_dims=2)
             if new_start_idx is None:
-                new_start_idx = end_frame
+                if bufs:
+                    last = bufs[-1]
+                    new_start_idx = last.frame_offset[0] + last.data.shape[0]
+                else:
+                    new_start_idx = end_after_idx
             # tile has been touched, otherwise we just skip it
             if buf.unique_count[0]:
                 tile_slice = Slice(
@@ -652,9 +670,9 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                     scheme_idx=scheme_idx,
                 )
                 yield dt
-            # TODO or <?
-            if new_start_idx <= end_after_idx:
+            if new_start_idx < end_after_idx:
                 recycle(buf, new_start_idx)
+                print("recycle", new_start_idx, end_after_idx)
                 bufs.append(buf)
 
         def process_packets(packets, num_packets):
@@ -664,18 +682,17 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             try:
                 for i in range(num_packets):
                     packet = packets[i*packet_size:(i+1)*packet_size]
-                    decode_header_into(headers[i], packet)
-                for i in range(num_packets):
+                    decode_header_into(header, packet)
                     target = find_target(
-                        bufs,
-                        headers[i],
-                        self.first_frame_id,
-                        end_after_idx,
-                        end_dataset_after_idx
+                        bufs=bufs,
+                        header=header,
+                        frame_offset=self.first_frame_id,
+                        end_after_idx=end_after_idx,
+                        end_dataset_after_idx=end_dataset_after_idx
                     )
                     packet = packets[i*packet_size:(i+1)*packet_size]
                     if target >= 0:  # happy case
-                        merge_packet(bufs[target], headers[i], packet, offset=self.first_frame_id)
+                        merge_packet(bufs[target], header, packet, offset=self.first_frame_id)
                     elif target == TARGET_STRAGGLER:
                         # skip stragglers for now
                         continue
@@ -691,7 +708,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                         pass
                     self.recent_frame_id = max(
                         self.recent_frame_id,
-                        headers[i].frame_id[0]
+                        header.frame_id[0]
                     )  # most recent frame id
             except RuntimeError:
                 logger.info(
@@ -699,9 +716,10 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                     len(p[0]), bufs[0].data.shape, num_packets,
                 )
                 logger.info(
-                    "headers=%r", headers,
+                    "headers=%r", header,
                 )
                 raise
+            print(c_tiles, c_partition, c_dataset)
             return c_tiles, c_partition, c_dataset
 
         def wrapup():
@@ -711,6 +729,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             yield from yield_and_rotate(end_after_idx + 1)
 
         def deal_with_tile_carry():
+            print("tile carry")
             # We should not come into carry in case we are already finished with the partition
             assert bufs
             # first rotate the buffers to make room for the carried packets
@@ -728,10 +747,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             yield from rotate_if_necessary()
 
         def rotate_if_necessary():
-            if not bufs:
-                return
             # Happy case: dispatch complete tiles
-            while is_complete(bufs[0]):
+            while bufs and is_complete(bufs[0]):
                 yield from yield_and_rotate(None)
             # Not at the end of the partition
             # and last tile touched
@@ -747,6 +764,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # We can carry right into the next partition if necessary
         # Therefore empty out before processing
         reset_carry(self.partition_carry)
+        print("partition carry", tmp_count)
         c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
 
         # Wrap up in case we are already in the next partition or epoch
@@ -766,6 +784,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # int, by value
         tmp_count = self.dataset_carry.packet_count[0]
         reset_carry(self.dataset_carry)
+        print("dataset carry", tmp_count)
         c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
 
         # Wrap up in case we are already in the next partition or dataset
@@ -781,15 +800,15 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # initialization for loop
         c_tiles = False
 
-        packet_size = 0x5758
-        sig_origin = (0, x_offset)
         # we might already be finished, see above
         while bufs:
             p = next(read_iter)
             packets, anc = p
+            print("loop process")
             c_tiles, c_partition, c_dataset = process_packets(packets, num_packets)
             # wrap up
             if c_partition or c_dataset:
+                print("loop wrapup")
                 yield from wrapup()
                 return
 
@@ -798,6 +817,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             else:
                 yield from rotate_if_necessary()
             # FIXME detect wrap-around of frame ID
+    print("end tiles")
 
     @property
     def nav_shape(self):
