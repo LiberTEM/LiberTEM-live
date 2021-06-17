@@ -86,15 +86,17 @@ def test_gettiles():
     packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
     tile_id = 0
     frame_id = thread.first_frame_id
-    end_dataset_after_idx = 24
-    for repeat in range(3):
+    per_partition = 17
+    num_partitions = 3
+    end_dataset_after_idx = per_partition * num_partitions
+    for repeat in range(num_partitions):
         start = frame_id - thread.first_frame_id
         print("start", start)
         tiles = MsgReaderThread.get_tiles(
             thread,
             packets,
             start_frame=start,
-            end_after_idx=start+8,
+            end_after_idx=start+per_partition,
             end_dataset_after_idx=end_dataset_after_idx
         )
 
