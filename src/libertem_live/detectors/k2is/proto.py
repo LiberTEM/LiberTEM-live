@@ -37,11 +37,29 @@ logger = logging.getLogger(__name__)
 
 
 def warmup():
-    warmup_buf_inp = bytes_aligned(0x5758*32)
-    for dtype in [np.uint16, np.float32, np.float64]:
-        # FIXME this is ineffective now
-        warmup_buf_out = zeros_aligned((32, 930, 16), dtype=dtype).reshape((-1,))
-        decode_bulk_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out, num_packets=32)
+    packet_1 = make_packet(0, 0, *block_xy(0))
+    packet_2 = make_packet(1, 0, *block_xy(0))
+    warmup_buf_inp = bytes_aligned(0x5758*2)
+    warmup_buf_inp[:] = packet_1 + packet_2
+    warmup_buf_inp = np.array(warmup_buf_inp, dtype=np.uint8)
+
+    header = make_PacketHeader()
+    for dtype in [np.uint16]:  # , np.float32, np.float64]:
+        bufs = [
+            make_tile((1, 1860, 256), 0, dtype=dtype)
+        ]
+        decoder_state = make_DecoderState(32)
+        decoder_state.first_frame_id[0] = 0
+        decoder_state.recent_frame_id[0] = 0
+        decoder_state.end_after_idx[0] = 1
+        decoder_state.end_dataset_after_idx[0] = 2
+        process_packets(
+            bufs_inout=numba.typed.List(bufs),
+            header_inout=header,
+            decoder_state=decoder_state,
+            packets=warmup_buf_inp,
+            num_packets=2
+        )
 
 
 class FakeEnvironment(Environment):
@@ -214,11 +232,11 @@ def carryover(carry_inout, packet):
 Tile = namedtuple('Tile', ['frame_offset', 'data', 'damage', 'unique_count', 'expected_count'])
 
 
-def make_tile(tileshape, frame_offset) -> Tile:
+def make_tile(tileshape, frame_offset, dtype=np.uint16) -> Tile:
     frame_count = tileshape[0]
     t = Tile(
         frame_offset=np.full(1, frame_offset, dtype=int),
-        data=zeros_aligned(tileshape, dtype=np.uint16),
+        data=zeros_aligned(tileshape, dtype=dtype),
         damage=np.zeros((frame_count, 32), dtype=bool),
         unique_count=np.zeros(1, dtype=int),
         expected_count=32*frame_count,
@@ -250,6 +268,32 @@ def block_xy(block_idx: int):
     '''
     y_mult, xx = divmod(block_idx, 16)
     return (240 - xx * 16, y_mult*930)
+
+
+def make_packet(frame, block_count, x, y):
+    PACKET_SIZE = 0x5758
+    header = np.zeros(1, dtype=DataBlock.header_dtype)[0]
+    header['sync'] = 0xFFFF0055
+    header['version'] = 1
+    header['flags'] = SHUTTER_ACTIVE_MASK
+    header['block_count'] = block_count
+    header['width'] = 256
+    header['height'] = 1860
+    header['frame_id'] = frame
+    header['pixel_x_start'] = x
+    header['pixel_y_start'] = y
+    header['pixel_x_end'] = x + 15
+    header['pixel_y_end'] = y + 929
+    header['block_size'] = PACKET_SIZE
+    payload = bytearray(PACKET_SIZE - header.nbytes)
+    # Encode the block count as uint12 payload in the first 1 1/2 bytes
+    tag = np.int16(block_count)
+    b1 = tag & 0xFF
+    b2 = (tag & 0x0F00) >> 8
+    payload[0] = b1
+    payload[1] = b2
+
+    return header.tobytes() + payload
 
 
 @numba.njit(cache=True)
@@ -672,12 +716,11 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.decoder_state.end_after_idx[0] = end_after_idx
         assert self.decoder_state.tile_carry.packet_count == 0
 
-        packet_size = 0x5758
         assert num_packets % 32 == 0
         num_frames = num_packets // 32
         tileshape = Shape((num_frames, 1860, 256), sig_dims=2)
 
-        bufs = numba.typed.List()
+        bufs = []  # numba.typed.List() unfortunately slow in regular Python
         buf_start = start_frame
         for count in range(3):
             if buf_start < end_after_idx:
@@ -756,7 +799,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             # and process whatever is left over.
             # This should not re-carry anything for that reason, but rather drop stragglers
             process_packets(
-                bufs_inout=bufs,
+                bufs_inout=numba.typed.List(bufs),
                 header_inout=header,
                 decoder_state=self.decoder_state,
                 packets=self.decoder_state.tile_carry.data,
@@ -787,7 +830,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         reset_carry(self.decoder_state.partition_carry)
         # print("partition carry", tmp_count)
         c_tiles, c_partition, c_dataset = process_packets(
-            bufs_inout=bufs,
+            bufs_inout=numba.typed.List(bufs),
             header_inout=header,
             decoder_state=self.decoder_state,
             packets=tmp_data,
@@ -813,7 +856,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         reset_carry(self.decoder_state.dataset_carry)
         # print("dataset carry", tmp_count)
         c_tiles, c_partition, c_dataset = process_packets(
-            bufs_inout=bufs,
+            bufs_inout=numba.typed.List(bufs),
             header_inout=header,
             decoder_state=self.decoder_state,
             packets=tmp_data,
@@ -840,7 +883,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             packets = np.array(packets, dtype=np.uint8)
             # print("loop process")
             c_tiles, c_partition, c_dataset = process_packets(
-                bufs_inout=bufs,
+                bufs_inout=numba.typed.List(bufs),
                 header_inout=header,
                 decoder_state=self.decoder_state,
                 packets=packets,
