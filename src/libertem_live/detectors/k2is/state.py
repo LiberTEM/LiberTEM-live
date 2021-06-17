@@ -1,7 +1,7 @@
 import enum
 import time
 from typing import (
-    Union, Optional, Tuple, List, Callable, DefaultDict, NoReturn,
+    Set, Union, Optional, Tuple, List, Callable, DefaultDict, NoReturn,
 )
 from typing_extensions import Literal
 from collections import defaultdict
@@ -78,6 +78,9 @@ class EventType(str, enum.Enum):
     # UDFs are no longer being run on the data stream:
     PROCESSING_STOPPED = 'PROCESSING_STOPPED'
 
+    # a sector is done processing:
+    PROCESSING_DONE = 'PROCESSING_DONE'
+
     # the server should shut down:
     STOP = 'STOP'
 
@@ -102,6 +105,12 @@ class SetNavShapeEvent(pydantic.BaseModel):
 
 class StartProcessingEvent(pydantic.BaseModel):
     typ: Literal[EventType.START_PROCESSING] = EventType.START_PROCESSING
+    continuous: bool
+
+
+class ProcessingDoneEvent(pydantic.BaseModel):
+    typ: Literal[EventType.PROCESSING_DONE] = EventType.PROCESSING_DONE
+    idx: int
 
 
 class StopProcessingEvent(pydantic.BaseModel):
@@ -141,6 +150,7 @@ Event = Union[
     SetNavShapeEvent,
     StartProcessingEvent,
     StopProcessingEvent,
+    ProcessingDoneEvent,
     StartupCompleteEvent,
     StartingEvent,
     StopEvent,
@@ -189,6 +199,7 @@ class Store(EffectSink):
     def dispatch(self, event: Event):
         new_state = self.reducer(self.state, event)
         new_state = new_state.update(serial=new_state.serial + 1)
+        logger.info(f"in dispatch, new_state={new_state}")
         self._call_listeners(new_state, event)
         self.state = new_state
 
@@ -379,8 +390,10 @@ class CamServerState(BaseState):
     lifecycle: LifecycleState
     cam_connection: CamConnectionState
     processing: ProcessingState
+    continuous: bool
     udfs: List[UDF]
     nav_shape: Tuple[int, ...]
+    sectors_done: Set[int]
 
     class Config:
         # needed to support Python types
@@ -402,6 +415,16 @@ def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
         return state
     elif event.typ is EventType.PROCESSING_STARTED:
         return state
+    elif event.typ is EventType.PROCESSING_DONE:
+        done = state.sectors_done
+        done.add(event.idx)
+        new_processing = state.processing
+        if len(done) == 8:
+            new_processing = ProcessingState.READY
+        return state.update(
+            sectors_done=done,
+            processing=new_processing,
+        )
     elif event.typ is EventType.STOP_PROCESSING:
         new_p_state = ProcessingState.IDLE
         if state.nav_shape != () and state.udfs != []:
@@ -414,6 +437,8 @@ def cam_server_reducer(state: CamServerState, event: Event) -> CamServerState:
         assert state.udfs != []
         return state.update(
             processing=ProcessingState.RUNNING,
+            continuous=event.continuous,
+            sectors_done=set(),
         )
 
     elif event.typ is EventType.CAM_CONNECTED:

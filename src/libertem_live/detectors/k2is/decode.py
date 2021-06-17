@@ -81,8 +81,10 @@ def decode_bulk_uint12_le(inp, out, num_packets, meta_out=None):
         frame_idx = frame_id - first_frame_id
 
         if frame_idx >= out_3d.shape[0]:
-            print(set(meta_out[..., 0]))
-            raise RuntimeError("frame_idx is out of bounds")
+            print("dropped blocks detected, continuing (dropping data!)")
+            # print(set(meta_out[..., 0]))
+            continue
+            # raise RuntimeError("frame_idx is out of bounds")
 
         out_z = out_3d[frame_idx].reshape((-1,))
 
