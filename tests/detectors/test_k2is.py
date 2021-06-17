@@ -1,6 +1,6 @@
 import numpy as np
 
-from libertem_live.detectors.k2is.proto import MsgReaderThread, block_idx, block_xy, make_carry
+from libertem_live.detectors.k2is.proto import MsgReaderThread, block_idx, block_xy, make_carry, make_DecoderState
 from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 
 
@@ -10,17 +10,15 @@ START = 2
 
 
 class MockThread:
-    buffered_tile = None
-    first_frame_id = START
     timeout = 1
     # first sector
     x_offset = 0
 
     def __init__(self):
+        self.decoder_state = make_DecoderState(128)
         self.packet_counter = 0
-        self.recent_frame_id = 0
-        self.partition_carry = make_carry(num_packets=256)
-        self.dataset_carry = make_carry(num_packets=256)
+        self.decoder_state.recent_frame_id[0] = -1
+        self.decoder_state.first_frame_id[0] = 2
 
     def is_stopped(self):
         return False
@@ -85,12 +83,12 @@ def test_gettiles():
     socket = MockSocket()
     packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
     tile_id = 0
-    frame_id = thread.first_frame_id
+    frame_id = thread.decoder_state.first_frame_id[0]
     per_partition = 17
     num_partitions = 3
     end_dataset_after_idx = per_partition * num_partitions
     for repeat in range(num_partitions):
-        start = frame_id - thread.first_frame_id
+        start = frame_id - thread.decoder_state.first_frame_id[0]
         print("start", start)
         tiles = MsgReaderThread.get_tiles(
             thread,
