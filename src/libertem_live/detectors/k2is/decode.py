@@ -137,7 +137,7 @@ def make_PacketHeader():
     )
 
 
-# @numba.njit
+@numba.njit(inline='always', cache=True)
 def decode_header_into(header_inout: PacketHeader, packet: bytes):
     byteswap_4_decode(inp=packet[24:28], out=header_inout.frame_id)
     byteswap_2_decode(inp=packet[28:30], out=header_inout.pixel_x_start)

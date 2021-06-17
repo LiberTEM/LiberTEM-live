@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 def warmup():
     warmup_buf_inp = bytes_aligned(0x5758*32)
     for dtype in [np.uint16, np.float32, np.float64]:
+        # FIXME this is ineffective now
         warmup_buf_out = zeros_aligned((32, 930, 16), dtype=dtype).reshape((-1,))
         decode_bulk_uint12_le(inp=warmup_buf_inp[40:], out=warmup_buf_out, num_packets=32)
 
@@ -197,6 +198,7 @@ def reset_carry(carry_inout: Carry):
     carry_inout.packet_count[0] = 0
 
 
+@numba.njit(cache=True)
 def carryover(carry_inout, packet):
     packet_size = 0x5758
     assert len(packet) == packet_size
@@ -228,7 +230,7 @@ def is_complete(t: Tile):
     return t.unique_count == t.expected_count
 
 
-@numba.njit
+@numba.njit(inline='always', cache=True)
 def block_idx(x, y):
     '''
     Transform the pixel_x_start, pixel_y_start of a block to
@@ -241,7 +243,7 @@ def block_idx(x, y):
     return 15 - x//16 + offset
 
 
-@numba.njit
+@numba.njit(inline='always', cache=True)
 def block_xy(block_idx: int):
     '''
     Derive pixel_x_start, pixel_y_start from block index
@@ -250,7 +252,7 @@ def block_xy(block_idx: int):
     return (240 - xx * 16, y_mult*930)
 
 
-@numba.njit
+@numba.njit(cache=True)
 def merge_packet(tile_inout: Tile, header: PacketHeader, packet: bytes, offset: int):
     inp_part_data = packet[40:]
     stride_y = tile_inout.data.shape[2]
@@ -325,6 +327,7 @@ TARGET_PARTITION_CARRY = -4
 TARGET_DATASET_CARRY = -5
 
 
+@numba.njit(inline='always', cache=True)
 def find_target(bufs, header, frame_offset, end_after_idx, end_dataset_after_idx):
     frame_idx = header.frame_id[0] - frame_offset
     # FIXME or >=?
@@ -356,6 +359,70 @@ def find_target(bufs, header, frame_offset, end_after_idx, end_dataset_after_idx
         return TARGET_FORERUNNER
 
 
+DecoderState = namedtuple(
+    'DecoderState',
+    [
+        'dataset_carry', 'partition_carry', 'tile_carry',
+        'first_frame_id',
+        'recent_frame_id',
+        'end_after_idx',
+        'end_dataset_after_idx'
+    ]
+)
+
+
+def make_DecoderState(num_packets):
+    carry_size = 2*num_packets
+    return DecoderState(
+        dataset_carry=make_carry(carry_size),
+        partition_carry=make_carry(carry_size),
+        tile_carry=make_carry(carry_size),
+        first_frame_id=np.full(1, -1, dtype=int),
+        recent_frame_id=np.full(1, -1, dtype=int),
+        end_after_idx=np.full(1, -1, dtype=int),
+        end_dataset_after_idx=np.full(1, -1, dtype=int),
+    )
+
+@numba.njit(cache=True)
+def process_packets(bufs_inout, header_inout, decoder_state: DecoderState, packets, num_packets):
+    packet_size = 0x5758
+    c_tiles = False
+    c_partition = False
+    c_dataset = False
+    for i in range(num_packets):
+        packet = packets[i*packet_size:(i+1)*packet_size]
+        decode_header_into(header_inout, packet)
+        target = find_target(
+            bufs=bufs_inout,
+            header=header_inout,
+            frame_offset=decoder_state.first_frame_id[0],
+            end_after_idx=decoder_state.end_after_idx[0],
+            end_dataset_after_idx=decoder_state.end_dataset_after_idx[0]
+        )
+        packet = packets[i*packet_size:(i+1)*packet_size]
+        if target >= 0:  # happy case
+            merge_packet(bufs_inout[target], header_inout, packet, offset=decoder_state.first_frame_id[0])
+        elif target == TARGET_STRAGGLER:
+            # skip stragglers for now
+            continue
+        elif target == TARGET_NEXT_TILE:
+            carryover(decoder_state.tile_carry, packet)
+            c_tiles = True
+        elif target == TARGET_PARTITION_CARRY:
+            carryover(decoder_state.partition_carry, packet)
+            c_partition = True
+        elif target == TARGET_DATASET_CARRY:
+            carryover(decoder_state.dataset_carry, packet)
+            c_dataset = True
+            pass
+        decoder_state.recent_frame_id[0] = max(
+            decoder_state.recent_frame_id[0],
+            header_inout.frame_id[0]
+        )  # most recent frame id
+    # print(c_tiles, c_partition, c_dataset)
+    return c_tiles, c_partition, c_dataset
+
+
 class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
         self, idx, port, affinity_set, sync_state,
@@ -373,16 +440,12 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.sync_state = sync_state
         self.sync_timeout = 1  # TODO: make this a parameter?
         self.replica = EventReplicaClient()
-        self.first_frame_id = None
-        self.recent_frame_id = None  # the last frame_id we have seen
+        self.decoder_state = make_DecoderState(128)
         self.sync_barrier = mp.Barrier(8)  # FIXME: hardcoded number of participants
         self.sector_state = SectorState.INIT
         self.packet_counter = 0
         self.pdb = pdb
         self.profile = profile
-        # FIXME we now rely on this being 2*128 throughout for the time being
-        self.partition_carry = make_carry(num_packets=256)
-        self.dataset_carry = make_carry(num_packets=256)
 
         super().__init__(*args, **kwargs)
 
@@ -520,7 +583,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             p = s.recvmsg_into([buf_part])
             h = np.frombuffer(buf_part, dtype=DataBlock.header_dtype, count=1, offset=0)
             # TODO: wraparound here? frame_id set to 0 here?
-            if int(h['frame_id']) >= self.first_frame_id:
+            if int(h['frame_id']) >= self.decoder_state.first_frame_id[0]:
                 idx = 1
                 break
 
@@ -605,12 +668,16 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
     def get_tiles(
             self, read_iter, start_frame, end_after_idx, end_dataset_after_idx, num_packets=128):
+        self.decoder_state.end_dataset_after_idx[0] = end_dataset_after_idx
+        self.decoder_state.end_after_idx[0] = end_after_idx
+        assert self.decoder_state.tile_carry.packet_count == 0
+
         packet_size = 0x5758
         assert num_packets % 32 == 0
         num_frames = num_packets // 32
         tileshape = Shape((num_frames, 1860, 256), sig_dims=2)
 
-        bufs = []
+        bufs = numba.typed.List()
         buf_start = start_frame
         for count in range(3):
             if buf_start < end_after_idx:
@@ -618,8 +685,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             buf_start += num_frames
 
         header = make_PacketHeader()
-
-        tile_carry = make_carry(num_packets=2*num_packets)
 
         x_offset = self.x_offset
         sig_origin = (0, x_offset)
@@ -672,53 +737,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 # print("recycle", new_start_idx, end_after_idx)
                 bufs.append(buf)
 
-        def process_packets(packets, num_packets):
-            c_tiles = False
-            c_partition = False
-            c_dataset = False
-            try:
-                for i in range(num_packets):
-                    packet = packets[i*packet_size:(i+1)*packet_size]
-                    decode_header_into(header, packet)
-                    target = find_target(
-                        bufs=bufs,
-                        header=header,
-                        frame_offset=self.first_frame_id,
-                        end_after_idx=end_after_idx,
-                        end_dataset_after_idx=end_dataset_after_idx
-                    )
-                    packet = packets[i*packet_size:(i+1)*packet_size]
-                    if target >= 0:  # happy case
-                        merge_packet(bufs[target], header, packet, offset=self.first_frame_id)
-                    elif target == TARGET_STRAGGLER:
-                        # skip stragglers for now
-                        continue
-                    elif target == TARGET_NEXT_TILE:
-                        carryover(tile_carry, packet)
-                        c_tiles = True
-                    elif target == TARGET_PARTITION_CARRY:
-                        carryover(self.partition_carry, packet)
-                        c_partition = True
-                    elif target == TARGET_DATASET_CARRY:
-                        carryover(self.dataset_carry, packet)
-                        c_dataset = True
-                        pass
-                    self.recent_frame_id = max(
-                        self.recent_frame_id,
-                        header.frame_id[0]
-                    )  # most recent frame id
-            except RuntimeError:
-                logger.info(
-                    "called decode bulk w/ len(p[0])=%d, bufs[0].data.shape=%s, num_packets=%d",
-                    len(p[0]), bufs[0].data.shape, num_packets,
-                )
-                logger.info(
-                    "headers=%r", header,
-                )
-                raise
-            # print(c_tiles, c_partition, c_dataset)
-            return c_tiles, c_partition, c_dataset
-
         def wrapup():
             # end_after_idx + 1 makes sure we are not rotating the buffer, but emptying it out
             yield from yield_and_rotate(end_after_idx + 1)
@@ -730,15 +748,21 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             # We should not come into carry in case we are already finished with the partition
             assert bufs
             # first rotate the buffers to make room for the carried packets
-            if self.recent_frame_id < bufs[-1].frame_offset + 2*num_frames:
+            if self.decoder_state.recent_frame_id[0] < bufs[-1].frame_offset + 2*num_frames:
                 yield from yield_and_rotate(None)
             else:
-                yield from yield_and_rotate(self.recent_frame_id - num_frames)
+                yield from yield_and_rotate(self.decoder_state.recent_frame_id[0] - num_frames)
             # We should have a buffer at the end that can fit the last carried package
             # and process whatever is left over.
             # This should not re-carry anything for that reason, but rather drop stragglers
-            process_packets(tile_carry.data, tile_carry.packet_count[0])
-            reset_carry(tile_carry)
+            process_packets(
+                bufs_inout=bufs,
+                header_inout=header,
+                decoder_state=self.decoder_state,
+                packets=self.decoder_state.tile_carry.data,
+                num_packets=self.decoder_state.tile_carry.packet_count[0]
+            )
+            reset_carry(self.decoder_state.tile_carry)
             # Make sure we have a fresh buffer at the end
             # to resume normal operation and not go into endless carry
             yield from rotate_if_necessary()
@@ -755,14 +779,20 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # First deal with partition carry.
         # We make a copy since we MIGHT carry right back
         # The dataset carry buffer SHOULD have extra space
-        tmp_data = self.partition_carry.data.copy()
+        tmp_data = self.decoder_state.partition_carry.data.copy()
         # int, by value
-        tmp_count = self.partition_carry.packet_count[0]
+        tmp_count = self.decoder_state.partition_carry.packet_count[0]
         # We can carry right into the next partition if necessary
         # Therefore empty out before processing
-        reset_carry(self.partition_carry)
+        reset_carry(self.decoder_state.partition_carry)
         # print("partition carry", tmp_count)
-        c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
+        c_tiles, c_partition, c_dataset = process_packets(
+            bufs_inout=bufs,
+            header_inout=header,
+            decoder_state=self.decoder_state,
+            packets=tmp_data,
+            num_packets=tmp_count
+        )
 
         # Wrap up in case we are already in the next partition or epoch
         if c_partition or c_dataset:
@@ -777,12 +807,18 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # Then deal with dataset carry.
         # We make a copy since we MIGHT carry right back
         # The dataset and partition carry buffer SHOULD have extra space enough
-        tmp_data = self.dataset_carry.data.copy()
+        tmp_data = self.decoder_state.dataset_carry.data.copy()
         # int, by value
-        tmp_count = self.dataset_carry.packet_count[0]
-        reset_carry(self.dataset_carry)
+        tmp_count = self.decoder_state.dataset_carry.packet_count[0]
+        reset_carry(self.decoder_state.dataset_carry)
         # print("dataset carry", tmp_count)
-        c_tiles, c_partition, c_dataset = process_packets(tmp_data, tmp_count)
+        c_tiles, c_partition, c_dataset = process_packets(
+            bufs_inout=bufs,
+            header_inout=header,
+            decoder_state=self.decoder_state,
+            packets=tmp_data,
+            num_packets=tmp_count
+        )
 
         # Wrap up in case we are already in the next partition or dataset
         if c_partition or c_dataset:
@@ -801,8 +837,15 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         while bufs:
             p = next(read_iter)
             packets, anc = p
+            packets = np.array(packets, dtype=np.uint8)
             # print("loop process")
-            c_tiles, c_partition, c_dataset = process_packets(packets, num_packets)
+            c_tiles, c_partition, c_dataset = process_packets(
+                bufs_inout=bufs,
+                header_inout=header,
+                decoder_state=self.decoder_state,
+                packets=packets,
+                num_packets=num_packets,
+            )
             # wrap up
             if c_partition or c_dataset:
                 # print("loop wrapup")
@@ -859,9 +902,9 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 self.sector_state = SectorState.PRIMED
 
         logger.info("MsgReaderThread: in PRIMED state, syncing")
-        self.first_frame_id = self.sync(read_iter_sync)
-        self.recent_frame_id = self.first_frame_id
-        logger.info(f"synced to {self.first_frame_id}")
+        self.decoder_state.first_frame_id[0] = self.sync(read_iter_sync)
+        self.decoder_state.recent_frame_id[0] = self.decoder_state.first_frame_id[0]
+        logger.info(f"synced to {self.decoder_state.first_frame_id[0]}")
 
         logger.info("MsgReaderThread: in PROCESSING state")
         self.sector_state = SectorState.PROCESSING
@@ -912,7 +955,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 # this should be fixed to keep `first_frame_id` and the
                 # "start of the current epoch" frame id separate.
                 epoch += 1
-                self.first_frame_id = self.recent_frame_id
+                self.decoder_state.first_frame_id[0] = self.decoder_state.recent_frame_id[0]
                 continue
 
             tiles = self.get_tiles(
