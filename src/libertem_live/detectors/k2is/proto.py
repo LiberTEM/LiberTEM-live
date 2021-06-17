@@ -5,6 +5,7 @@ import socket
 import threading
 import contextlib
 import logging
+import enum
 
 import numpy as np
 import zmq
@@ -21,6 +22,7 @@ from libertem.executor.base import Environment
 from ..common import ErrThreadMixin, send_serialized, recv_serialized
 from .state import (
     EventReplicaClient,
+    ProcessingDoneEvent,
     ProcessingState,
     CamConnectedEvent, CamDisconnectedEvent,
 )
@@ -140,6 +142,40 @@ class PlaceholderPartition(Partition):
         self._corrections = corrections
 
 
+class SectorState(enum.IntEnum):
+    # the UDP sockets are listening for multicast packets:
+    INIT = 1
+
+    # we received the first UDP packet, so we consider outselves "connected":
+    CONNECTED = 2
+
+    # we are ready once we know what UDFs we should run, and other parameters:
+    READY = 3
+
+    # the user has indicated that processing should start; we should start
+    # synchronization to a common `first_frame_id` with the shutter active flag set:
+    PRIMED = 4
+
+    # we are in the inner processing loop; in continuous mode, we stay in this
+    # state until processining is cancelled by the user. Otherwise, we transition
+    # to the DONE state once the pre-defined `nav_shape` is fully processed.
+    PROCESSING = 5
+
+    # we are not in continuous mode, and the full `nav_shape` is processed.
+    # we need to dispatch an event to the main state management indicating that
+    # this sector is done:
+    DONE = 6
+
+
+class EndOfStreamMarker:
+    def __init__(self, idx: int):
+        self.idx = idx
+
+
+class DisconnectedError(Exception):
+    pass
+
+
 class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
         self, idx, port, affinity_set, sync_state,
@@ -161,7 +197,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.recent_frame_id = None  # the last frame_id we have seen
         self.buffered_tile = None  # a bufferd DataTile between calls of `get_tiles`
         self.sync_barrier = mp.Barrier(8)  # FIXME: hardcoded number of participants
-        self.is_connected = False
+        self.sector_state = SectorState.INIT
         self.packet_counter = 0
         self.pdb = pdb
         self.profile = profile
@@ -206,13 +242,63 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 while True:
                     if self.is_stopped():
                         break
-                    self.main_loop(s)
+                    try:
+                        self.main_loop(s)
+                    except DisconnectedError:
+                        self.reset()
+                        self.replica.dispatch(CamDisconnectedEvent())
+                        self.replica.do_events()
+                        continue
         except Exception as e:
             return self.error(e)
         self.stop()
 
+    def reset(self):
+        """
+        Completely reset our state. This is called when we run into a timeout,
+        or other recoverable errors.
+        """
+        # FIXME: maybe extract the main loop into another class, which we
+        # completely re-create when handling recoverable errors!
+        self.sector_state = SectorState.INIT
+        self.buffered_tile = None
+        # reset synchronization, to make sure we re-sync when data starts to
+        # come in again
+        self.sync_state.reset()
+
     def update_first_frame_id(self, new_frame_id):
         self.first_frame_id = new_frame_id
+
+    def read_first_packet(self, s):
+        """
+        Read and discard first UDP packet we received - this is intended
+        to simplify the reading logic in the `read_loop*` methods, in that
+        they can assume that we are actively receiving data from the camera.
+
+        We can discard the packet, because it is unlikely to be the first
+        packet of the first frame anyways (and we will sync afterwards, discarding
+        ~32 more packets)
+
+        After this function has run, either the thread is stopping, or we have received
+        data on the UDP socket.
+
+        Parameters
+        ----------
+        s : socket.socket
+            The UDP multicast socket
+        """
+        buf = bytes_aligned(0x5758)
+        while True:
+            if self.is_stopped():
+                return
+            try:
+                p = s.recvmsg_into([buf])
+                assert p[0] == 0x5758
+                self.packet_counter += 1
+                self.sector_state = SectorState.CONNECTED
+                return
+            except socket.timeout:
+                continue
 
     def read_loop(self, s):
         # NOTE: non-IS data is truncated - we only read the first 0x5758 bytes of the message
@@ -225,24 +311,18 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 p = s.recvmsg_into([buf])
                 assert p[0] == 0x5758
                 self.packet_counter += 1
-                self.is_connected = True
             except socket.timeout:
-                # On timeout, disconnect and make sure cancellation works by
-                # processing events. Also reset synchronization, to make sure
-                # we re-sync when data starts to come in again
-                if self.state_is_connected():
-                    logger.warn("read_loop timeout while connected, resetting")
-                    self.replica.dispatch(CamDisconnectedEvent())
-                    self.is_connected = False
-                    self.sync_state.reset()
-                self.replica.do_events()
-                continue
+                # On timeout, disconnect. Handled in `_real_run`,
+                # transitioning to INIT state etc.
+                logger.warn("read_loop timeout while connected, resetting")
+                raise DisconnectedError()
 
             yield (buf, p[1])
 
     def read_loop_bulk(self, s, num_packets=128):
         """
-        Read `num_packets` at once
+        Read `num_packets` at once. Yields tuples `(buffer, ancdata)`, where `ancdata`
+        is UDP-specific anciliary data (and currently unused)
         """
         # NOTE: non-IS data is truncated - we only read the first 0x5758 bytes of the message
         packet_size = 0x5758
@@ -254,6 +334,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         # first, sync up to `self.first_frame_id`:
         buf_part = buf[idx*packet_size:(idx + 1) * packet_size]
         while True:
+            # p is (nbytes, ancdata, msg_flags, address)
             p = s.recvmsg_into([buf_part])
             h = np.frombuffer(buf_part, dtype=DataBlock.header_dtype, count=1, offset=0)
             # TODO: wraparound here? frame_id set to 0 here?
@@ -270,24 +351,13 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 assert p[0] == packet_size
                 idx += 1
                 self.packet_counter += 1
-                self.is_connected = True
                 if idx == num_packets:
                     yield (buf, p[1])
                     idx = 0
                     buf_arr[:] = 0
             except socket.timeout:
-                # On timeout, disconnect and make sure cancellation works by
-                # processing events. Also reset synchronization, to make sure
-                # we re-sync when data starts to come in again
-                if self.state_is_connected():
-                    logger.warn("read_loop timeout while connected, resetting")
-                    self.replica.dispatch(CamDisconnectedEvent())
-                    self.is_connected = False
-                    self.sync_state.reset()
-                self.replica.do_events()
-                idx = 0
-                buf_arr[:] = 0
-                continue
+                logger.warn("read_loop timeout while connected, resetting")
+                raise DisconnectedError()
 
     def sync(self, read_iter):
         """
@@ -309,7 +379,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         while h['flags'] & SHUTTER_ACTIVE_MASK != 1:
             p = next(read_iter)
             h = np.frombuffer(p[0], dtype=DataBlock.header_dtype, count=1, offset=0)
-            # TODO: maybe not a max() here?
+            # not a max() here, because the frame_id can wrap back to 0 when the
+            # acquisition starts and the SHUTTER_ACTIVE flag is set!
             # first_frame_id = max(first_frame_id, int(h['frame_id']))
             first_frame_id = int(h['frame_id'])
 
@@ -451,28 +522,44 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             return False
         return self.replica.store.state.processing is ProcessingState.RUNNING
 
-    def state_is_connected(self):
-        return self.is_connected
-
     def main_loop(self, s):
         self.replica.do_events()
 
-        logger.info("MsgReaderThread: waiting for first packet(s)")
+        logger.info("MsgReaderThread: waiting for CONNECTED state")
 
+        self.read_first_packet(s)
+
+        logger.info("MsgReaderThread: CONNECTED, waiting for PRIMED state")
+
+        if self.is_stopped():
+            self.sector_state = SectorState.INIT
+            return
+
+        # get a first read iterator (non-bulk) for synchronization:
         read_iter_sync = self.read_loop(s)
 
-        while not self.should_process():
+        while self.sector_state != SectorState.PRIMED:
+            # all "busy" loops need to check stopped flag:
+            if self.is_stopped():
+                self.sector_state = SectorState.INIT
+                return
+
             # we are connected but aren't running a UDF yet, so we need to drain
             # the socket until we are told to run:
-            if self.is_stopped():
-                break
             _ = next(read_iter_sync)
             self.replica.do_events()
 
-        logger.info("syncing")
+            # global state transitioned to RUNNING:
+            if self.replica.store.state.processing == ProcessingState.RUNNING:
+                self.sector_state = SectorState.PRIMED
+
+        logger.info("MsgReaderThread: in PRIMED state, syncing")
         self.first_frame_id = self.sync(read_iter_sync)
         self.recent_frame_id = self.first_frame_id
         logger.info(f"synced to {self.first_frame_id}")
+
+        logger.info("MsgReaderThread: in PROCESSING state")
+        self.sector_state = SectorState.PROCESSING
 
         # NOTE: we could make this dynamic, but that's for another day;
         # as currently the UDF needs to know how many frames there
@@ -494,16 +581,33 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             if self.is_stopped():
                 return  # process should shut down
 
+            if self.replica.store.state.processing != ProcessingState.RUNNING:
+                # processing should be cancelled, reset our state:
+                self.reset()
+                return
+
             if frames_in_partition <= 0:
-                # FIXME: if not in continuous mode, dispatch a stop event here
+                # if not in continuous mode, this thread is done with the dataset:
+                if not self.replica.store.state.continuous:
+                    # FIXME: control flow to "READY" state, instead of basically INIT:
+                    self.replica.dispatch(ProcessingDoneEvent(idx=self.idx))
+                    logger.info(f"sending EndOfStreamMarker for {self.idx}")
+                    self.result_socket.send(EndOfStreamMarker(idx=self.idx))
+                    self.sector_state = SectorState.DONE
+                    self.replica.do_events()
+                    self.sync_state.reset()
+                    # wait until other processes are done:
+                    while self.replica.store.state.processing != ProcessingState.READY:
+                        if self.is_stopped():
+                            return
+                        self.replica.do_events()
+                    return
                 frame_counter = 0
+                # FIXME: epoch handling here is a bit hacky,
+                # this should be fixed to keep `first_frame_id` and the
+                # "start of the current epoch" frame id separate.
                 epoch += 1
                 self.first_frame_id = self.recent_frame_id
-                continue
-
-            self.replica.do_events()
-            if not self.should_process():
-                read_iter = self.read_loop_bulk(s)
                 continue
 
             tiles = self.get_tiles(
@@ -662,7 +766,7 @@ class K2ListenerProcess(mp.Process):
             logger.info(f"MySubProcess {self.idx} started")
             while not (t.is_stopped() or self.is_stopped()):
                 t.maybe_raise()
-                time.sleep(1)
+                time.sleep(0.3)
             logger.info(f"MySubProcess {self.idx} stopped")
             t.maybe_raise()
         finally:

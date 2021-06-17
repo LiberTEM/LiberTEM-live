@@ -34,6 +34,8 @@ def main_loop(
         processing=ProcessingState.IDLE,
         udfs=[],
         nav_shape=(),
+        continuous=False,
+        sectors_done=set(),
     )
     store: Store = Store(
         reducer=cam_server_reducer,
