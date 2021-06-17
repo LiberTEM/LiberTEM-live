@@ -6,10 +6,12 @@ from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 
 PACKET_SIZE = 0x5758
 
+START = 2
+
 
 class MockThread:
     buffered_tile = None
-    first_frame_id = 2
+    first_frame_id = START
     timeout = 1
     # first sector
     x_offset = 0
@@ -82,27 +84,36 @@ def test_gettiles():
     thread = MockThread()
     socket = MockSocket()
     packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
-    tiles = MsgReaderThread.get_tiles(
-        thread,
-        packets,
-        start_frame=0,
-        end_after_idx=10,
-        end_dataset_after_idx=10
-    )
-    FRAMES_PER_TILE = 128 // 32
+    tile_id = 0
+    frame_id = thread.first_frame_id
+    end_dataset_after_idx = 24
+    for repeat in range(3):
+        start = frame_id - thread.first_frame_id
+        print("start", start)
+        tiles = MsgReaderThread.get_tiles(
+            thread,
+            packets,
+            start_frame=start,
+            end_after_idx=start+8,
+            end_dataset_after_idx=end_dataset_after_idx
+        )
 
-    for tile_idx, t in enumerate(tiles):
-        for frame in range(t.shape[0]):
-            # Check that the block_count that was baked into the payload by MockSocket
-            # ended up where it was supposed to
-            for y in (0, 930):
-                for x in range(0, 256, 16):
-                    tag = t[frame, y, x]
-                    offset = 0 if y == 0 else 16
-                    # unwind the sequence from MockSocket
-                    target = 15 - x//16 + offset + 32*frame + 32*FRAMES_PER_TILE*tile_idx + thread.first_frame_id*32
-                    print(frame, y, x, tag, target)
-                    assert tag == target
+        for t in tiles:
+            frames_in_tile = t.shape[0]
+            print("frames_in_tile:", frames_in_tile)
+            for frame in range(frames_in_tile):
+                # Check that the block_count that was baked into the payload by MockSocket
+                # ended up where it was supposed to
+                for y in (0, 930):
+                    for x in range(0, 256, 16):
+                        tag = t[frame, y, x]
+                        offset = 0 if y == 0 else 16
+                        # unwind the sequence from MockSocket
+                        target = 15 - x//16 + offset + 32*frame_id
+                        # print(tile_id, frame_id, y, x, tag, target)
+                        assert tag == target
+                frame_id += 1
+            tile_id += 1
 
 
 def test_sequence():
