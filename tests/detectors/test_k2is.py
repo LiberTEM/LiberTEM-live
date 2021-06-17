@@ -1,6 +1,9 @@
 import numpy as np
 
-from libertem_live.detectors.k2is.proto import MsgReaderThread, block_idx, block_xy, make_carry, make_DecoderState
+from libertem_live.detectors.k2is.proto import (
+    MsgReaderThread, block_idx, block_xy,
+    make_carry, make_DecoderState, make_packet, warmup
+)
 from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 
 
@@ -43,32 +46,12 @@ class MockSocket:
 
         x, y = self.offsets[packet]
 
-        header = np.zeros(1, dtype=DataBlock.header_dtype)[0]
-        header['sync'] = 0xFFFF0055
-        header['version'] = 1
-        header['flags'] = SHUTTER_ACTIVE_MASK
-        header['block_count'] = self.block_count
-        header['width'] = 256
-        header['height'] = 1860
-        header['frame_id'] = frame
-        header['pixel_x_start'] = x
-        header['pixel_y_start'] = y
-        header['pixel_x_end'] = x + 15
-        header['pixel_y_end'] = y + 929
-        header['block_size'] = PACKET_SIZE
-        payload = bytearray(PACKET_SIZE - header.nbytes)
-        # Encode the block count as uint12 payload in the first 1 1/2 bytes
-        tag = np.int16(self.block_count)
-        b1 = tag & 0xFF
-        b2 = (tag & 0x0F00) >> 8
-        payload[0] = b1
-        payload[1] = b2
-
+        data = make_packet(frame, self.block_count, x, y)
         nbytes = PACKET_SIZE
         ancdata = None
         msg_flags = None
         address = None
-        buffer[:] = header.tobytes() + payload
+        buffer[:] = data
         # Know where we are in the virtual dataset
         self.block_count += 1
 
@@ -114,6 +97,10 @@ def test_gettiles():
                         assert tag == target
                 frame_id += 1
             tile_id += 1
+
+
+def test_warmup():
+    warmup()
 
 
 def test_sequence():
