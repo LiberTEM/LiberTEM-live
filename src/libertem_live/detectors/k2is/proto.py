@@ -261,7 +261,6 @@ def block_idx(x, y):
     return 15 - x//16 + offset
 
 
-@numba.njit(inline='always', cache=True)
 def block_xy(block_idx: int):
     '''
     Derive pixel_x_start, pixel_y_start from block index
@@ -494,11 +493,13 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         super().__init__(*args, **kwargs)
 
     def run(self):
+        warmup()
         profiler = None
         if self.profile:
             from line_profiler import LineProfiler
             profiler = LineProfiler()
             profiler.add_function(self.read_loop)
+            profiler.add_function(self.read_loop_bulk)
             profiler.add_function(self.get_tiles)
             profiler.add_function(self.main_loop)
             profiler.add_function(UDFRunner.run_for_partition)
@@ -521,7 +522,6 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.result_socket = ResultSource()
         logger.info(f"thread {threading.get_native_id()}")
         os.sched_setaffinity(0, self.affinity_set)
-        warmup()
         try:
             # FIXME: benchmark number of threads
             env = Environment(threads_per_worker=1)
@@ -724,7 +724,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         buf_start = start_frame
         for count in range(3):
             if buf_start < end_after_idx:
-                bufs.append(make_tile(tileshape, buf_start))
+                new_tile = make_tile(tileshape, buf_start)
+                bufs.append(new_tile)
             buf_start += num_frames
 
         header = make_PacketHeader()
@@ -920,11 +921,11 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
         self.read_first_packet(s)
 
-        logger.info("MsgReaderThread: CONNECTED, waiting for PRIMED state")
-
         if self.is_stopped():
             self.sector_state = SectorState.INIT
             return
+
+        logger.info("MsgReaderThread: CONNECTED, waiting for PRIMED state")
 
         # get a first read iterator (non-bulk) for synchronization:
         read_iter_sync = self.read_loop(s)
