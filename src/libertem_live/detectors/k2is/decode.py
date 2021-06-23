@@ -131,14 +131,24 @@ PacketHeader = namedtuple('PacketHeader', ['frame_id', 'pixel_x_start', 'pixel_y
 
 def make_PacketHeader():
     return PacketHeader(
-        frame_id=np.zeros(1, dtype=np.uint32),
+        frame_id=np.zeros(1, dtype=np.int64),
         pixel_x_start=np.zeros(1, dtype=np.uint16),
         pixel_y_start=np.zeros(1, dtype=np.uint16),
     )
 
 
 @numba.njit(inline='always', cache=True)
-def decode_header_into(header_inout: PacketHeader, packet: bytes):
+def decode_header_into(header_inout: PacketHeader, packet: bytes, wrap_offset: int = 0):
     byteswap_4_decode(inp=packet[24:28], out=header_inout.frame_id)
     byteswap_2_decode(inp=packet[28:30], out=header_inout.pixel_x_start)
     byteswap_2_decode(inp=packet[30:32], out=header_inout.pixel_y_start)
+    header_inout.frame_id[0] += wrap_offset
+
+
+@numba.njit(cache=True)
+def copy_header(header: PacketHeader):
+    return PacketHeader(
+        frame_id=header.frame_id.copy(),
+        pixel_x_start=header.pixel_x_start.copy(),
+        pixel_y_start=header.pixel_y_start.copy(),
+    )

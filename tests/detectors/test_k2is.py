@@ -1,14 +1,12 @@
 import random
 
 import numpy as np
-from numpy.core.numeric import full
 import pytest
 
 from libertem_live.detectors.k2is.proto import (
     MsgReaderThread, block_idx, block_xy,
     make_DecoderState, make_packet, warmup
 )
-from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 
 
 PACKET_SIZE = 0x5758
@@ -25,6 +23,15 @@ def blockstream(start_frame=0):
             yield (frame, block, i)
             block += 1
         frame += 1
+
+
+def wrap(packages, index, step):
+    while True:
+        (frame, block, i) = next(packages)
+        if frame < index:
+            yield (frame, block, i)
+        else:
+            yield(frame - step, block, i)
 
 
 def scramble(packages, window=16):
@@ -147,7 +154,14 @@ class MockSocket:
 @pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32))
 @pytest.mark.parametrize('do_drop', (False, True))
 @pytest.mark.parametrize('do_dup', (False, True))
-def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset, do_scramble, do_drop, do_dup):
+@pytest.mark.parametrize('do_wrap', (False, True))
+def test_gettiles(
+        per_partition, num_partitions, carry_partition, carry_dataset,
+        do_scramble, do_drop, do_dup, do_wrap):
+    step_index = 40
+    step_amount = 40
+    if do_wrap and per_partition*num_partitions <= step_index:
+        pytest.skip("Skipping wrapping since too few frames")
     gen = blockstream()
     bin = []
     if do_scramble:
@@ -156,6 +170,9 @@ def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset,
         gen = random_drop(gen, bin)
     if do_dup:
         gen = random_dup(gen)
+    if do_wrap:
+        gen = wrap(gen, step_index, step_amount)
+
     thread = MockThread()
     socket = MockSocket(gen)
     packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
@@ -194,7 +211,7 @@ def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset,
         # This is skipped if we do random scramble, drop or dup since that disturbs the
         # relation between packet count and carry state, so we can't predict
         # it anymore
-        if not do_scramble and not do_drop and not do_dup:
+        if not do_scramble and not do_drop and not do_dup and not do_wrap:
             assert thread.decoder_state.partition_carry.packet_count == carry_partition[repeat]
             assert thread.decoder_state.dataset_carry.packet_count == carry_dataset[repeat]
         assert i == n_tiles - 1
