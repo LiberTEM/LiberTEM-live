@@ -60,23 +60,35 @@ def random_dup(packages, p=0.1):
             yield pack
 
 
-def validate_frame_slice(data, frame_id, damage=None):
+def random_drop(packages, bin, p=0.1):
+    for pack in packages:
+        if random.random() > p:
+            yield pack
+        else:
+            # print("drop", pack)
+            bin.append(pack)
+
+
+def validate_frame_slice(data, frame_id, bin=[]):
     '''
     Check that the block_count that was baked into the payload by make_packet()
-    ended up where it was supposed to.
+    ended up where it was supposed to. If it is in the bin, make sure it is
+    zeroed out correctly
     '''
-    if damage is None:
-        damage = np.ones(32, dtype=bool)
     for i in range(32):
         x, y = block_xy(i)
         tag = data[y, x]
         target = 32*frame_id + i
-        if damage[i]:
-            # 12 bit maximum
-            assert tag == target % 2**12
-        else:
-            # Confirm that the data was erased
+        key = (frame_id, frame_id*32 + i, i)
+        if key in bin:
             assert np.all(data[y:y+930, x:x+16] == 0)
+        else:
+            try:
+                # 12 bit maximum
+                assert tag == target % 2**12
+            except AssertionError:
+                print(key, bin)
+                raise
 
 
 class MockThread:
@@ -133,11 +145,15 @@ class MockSocket:
     ]
 )
 @pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32))
+@pytest.mark.parametrize('do_drop', (False, True))
 @pytest.mark.parametrize('do_dup', (False, True))
-def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset, do_scramble, do_dup):
+def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset, do_scramble, do_drop, do_dup):
     gen = blockstream()
+    bin = []
     if do_scramble:
         gen = scramble(gen, window=do_scramble)
+    if do_drop:
+        gen = random_drop(gen, bin)
     if do_dup:
         gen = random_dup(gen)
     thread = MockThread()
@@ -171,14 +187,14 @@ def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset,
             print("frames in tile:", f_i_t)
             for frame in range(f_i_t):
                 print("frame ID, frame: ", frame_id, frame)
-                validate_frame_slice(t[frame], frame_id)
+                validate_frame_slice(t[frame], frame_id, bin=bin)
                 frame_id += 1
         # Test the state of partition and dataset carry after
         # all tiles in the partition tile generator are exhausted.
-        # This is skipped if we do random scramble or dup since that disturbs the
+        # This is skipped if we do random scramble, drop or dup since that disturbs the
         # relation between packet count and carry state, so we can't predict
         # it anymore
-        if not do_scramble and not do_dup:
+        if not do_scramble and not do_drop and not do_dup:
             assert thread.decoder_state.partition_carry.packet_count == carry_partition[repeat]
             assert thread.decoder_state.dataset_carry.packet_count == carry_dataset[repeat]
         assert i == n_tiles - 1
@@ -203,7 +219,7 @@ def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset,
             print("frames in tile:", f_i_t)
             for frame in range(f_i_t):
                 print("frame ID, frame: ", frame_id, frame)
-                validate_frame_slice(t[frame], frame_id)
+                validate_frame_slice(t[frame], frame_id, bin=bin)
                 frame_id += 1
 
 

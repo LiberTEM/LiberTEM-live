@@ -346,7 +346,7 @@ def erase_missing(tile_inout: Tile):
             for i in range(tile_inout.damage.shape[1]):
                 if not tile_inout.damage[frame_idx, i]:
                     x, y = block_xy(i)
-                    tile_inout.data[frame_idx, x:x+16, y:y+930] = 0
+                    tile_inout.data[frame_idx, y:y+930, x:x+16] = 0
 
 
 def recycle(tile_inout: Tile, frame_offset, frame_count=None):
@@ -397,7 +397,7 @@ def find_target(bufs, header, frame_offset, end_after_idx, end_dataset_after_idx
             return TARGET_STRAGGLER
     # Block would be within next consecutive tile
     if frame_idx < bufs[-1].frame_offset + 2*buf.data.shape[0]:
-        print("next tile")
+        # print("next tile")
         return TARGET_NEXT_TILE
     else:
         # print("forerunner")
@@ -428,6 +428,14 @@ def make_DecoderState(num_packets):
         recent_frame_id=np.full(1, -1, dtype=int),
         end_after_idx=np.full(1, -1, dtype=int),
         end_dataset_after_idx=np.full(1, -1, dtype=int),
+    )
+
+
+def carry_count(decoder_state: DecoderState):
+    return (
+        decoder_state.dataset_carry.packet_count[0] +
+        decoder_state.partition_carry.packet_count[0] +
+        decoder_state.tile_carry.packet_count[0]
     )
 
 
@@ -790,8 +798,9 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         def wrapup():
             # First wrap up any completed buffers
             yield from rotate_if_necessary()
-            # if there is unfinished work, process one more load of packets from the network 
-            if bufs:
+            # if there is unfinished work, process one more load of packets from the network
+            # if we have space to carry it completely
+            if bufs and carry_count(self.decoder_state) < num_packets:
                 # print(bufs)
                 packets, anc = next(read_iter)
                 packets = np.array(packets, dtype=np.uint8)
