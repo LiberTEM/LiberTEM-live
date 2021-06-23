@@ -232,20 +232,21 @@ def carryover(carry_inout, packet):
 Tile = namedtuple('Tile', ['frame_offset', 'data', 'damage', 'unique_count', 'expected_count'])
 
 
-def make_tile(tileshape, frame_offset, dtype=np.uint16) -> Tile:
-    frame_count = tileshape[0]
+def make_tile(tileshape, frame_offset, frame_count=None, dtype=np.uint16) -> Tile:
+    if frame_count is None:
+        frame_count = tileshape[0]
     t = Tile(
         frame_offset=np.full(1, frame_offset, dtype=int),
         data=zeros_aligned(tileshape, dtype=dtype),
-        damage=np.zeros((frame_count, 32), dtype=bool),
+        damage=np.zeros((tileshape[0], 32), dtype=bool),
         unique_count=np.zeros(1, dtype=int),
-        expected_count=32*frame_count,
+        expected_count=np.full(1, 32*frame_count, dtype=int),
     )
     return t
 
 
 def is_complete(t: Tile):
-    return t.unique_count == t.expected_count
+    return t.unique_count[0] == t.expected_count[0]
 
 
 @numba.njit(inline='always', cache=True)
@@ -348,7 +349,7 @@ def erase_missing(tile_inout: Tile):
                     tile_inout.data[frame_idx, x:x+16, y:y+930] = 0
 
 
-def recycle(tile_inout: Tile, frame_offset):
+def recycle(tile_inout: Tile, frame_offset, frame_count=None):
     '''
     Reset the tile to a new frame offset and unset unique_count and damage
 
@@ -356,6 +357,9 @@ def recycle(tile_inout: Tile, frame_offset):
     Instead, :func:`erase_missing` can selectively overwrite undamaged blocks in
     case of missing packages. This will hopefuilly be rare.
     '''
+    if frame_count is None:
+        frame_count = tile_inout.data.shape[0]
+    tile_inout.expected_count[0] = 32*frame_count
     tile_inout.frame_offset[0] = frame_offset
     tile_inout.damage[:] = False
     tile_inout.unique_count[0] = 0
@@ -389,11 +393,11 @@ def find_target(bufs, header, frame_offset, end_after_idx, end_dataset_after_idx
             return i
         # before first tile or between tiles
         if frame_idx < buf.frame_offset[0]:
-            # print("straggler")
+            # print("straggler", frame_idx, i, buf.frame_offset[0])
             return TARGET_STRAGGLER
     # Block would be within next consecutive tile
     if frame_idx < bufs[-1].frame_offset + 2*buf.data.shape[0]:
-        # print("next tile")
+        print("next tile")
         return TARGET_NEXT_TILE
     else:
         # print("forerunner")
@@ -426,6 +430,7 @@ def make_DecoderState(num_packets):
         end_dataset_after_idx=np.full(1, -1, dtype=int),
     )
 
+
 @numba.njit(cache=True)
 def process_packets(bufs_inout, header_inout, decoder_state: DecoderState, packets, num_packets):
     packet_size = 0x5758
@@ -457,7 +462,6 @@ def process_packets(bufs_inout, header_inout, decoder_state: DecoderState, packe
         elif target == TARGET_DATASET_CARRY:
             carryover(decoder_state.dataset_carry, packet)
             c_dataset = True
-            pass
         decoder_state.recent_frame_id[0] = max(
             decoder_state.recent_frame_id[0],
             header_inout.frame_id[0]
@@ -724,7 +728,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         buf_start = start_frame
         for count in range(3):
             if buf_start < end_after_idx:
-                new_tile = make_tile(tileshape, buf_start)
+                frame_count = min(num_frames, end_after_idx - buf_start)
+                new_tile = make_tile(tileshape, buf_start, frame_count=frame_count)
                 bufs.append(new_tile)
             buf_start += num_frames
 
@@ -777,11 +782,27 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 )
                 yield dt
             if new_start_idx < end_after_idx:
-                recycle(buf, new_start_idx)
+                frame_count = min(num_frames, end_after_idx - new_start_idx)
+                recycle(buf, new_start_idx, frame_count=frame_count)
                 # print("recycle", new_start_idx, end_after_idx)
                 bufs.append(buf)
 
         def wrapup():
+            # First wrap up any completed buffers
+            yield from rotate_if_necessary()
+            # if there is unfinished work, process one more load of packets from the network 
+            if bufs:
+                # print(bufs)
+                packets, anc = next(read_iter)
+                packets = np.array(packets, dtype=np.uint8)
+                # print("wrapup process")
+                c_tiles, c_partition, c_dataset = process_packets(
+                    bufs_inout=numba.typed.List(bufs),
+                    header_inout=header,
+                    decoder_state=self.decoder_state,
+                    packets=packets,
+                    num_packets=num_packets,
+                )
             # end_after_idx + 1 makes sure we are not rotating the buffer, but emptying it out
             yield from yield_and_rotate(end_after_idx + 1)
             yield from yield_and_rotate(end_after_idx + 1)
@@ -793,12 +814,16 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             assert bufs
             # first rotate the buffers to make room for the carried packets
             if self.decoder_state.recent_frame_id[0] < bufs[-1].frame_offset + 2*num_frames:
+                # Append the next buffer adjacent to the previous one in case
+                # the most recent encountered frame fits in.
                 yield from yield_and_rotate(None)
             else:
+                # Otherwise make a jump to fit the last encountered frame.
                 yield from yield_and_rotate(self.decoder_state.recent_frame_id[0] - num_frames)
-            # We should have a buffer at the end that can fit the last carried package
+            # We should now have a buffer at the end that can fit the last carried package
             # and process whatever is left over.
             # This should not re-carry anything for that reason, but rather drop stragglers
+            assert bufs
             process_packets(
                 bufs_inout=numba.typed.List(bufs),
                 header_inout=header,
@@ -826,10 +851,12 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         tmp_data = self.decoder_state.partition_carry.data.copy()
         # int, by value
         tmp_count = self.decoder_state.partition_carry.packet_count[0]
+        # print("partition carry count", tmp_count)
         # We can carry right into the next partition if necessary
         # Therefore empty out before processing
         reset_carry(self.decoder_state.partition_carry)
         # print("partition carry", tmp_count)
+        assert bufs
         c_tiles, c_partition, c_dataset = process_packets(
             bufs_inout=numba.typed.List(bufs),
             header_inout=header,
@@ -840,34 +867,53 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
         # Wrap up in case we are already in the next partition or epoch
         if c_partition or c_dataset:
+            # print("terminate!!!")
             yield from wrapup()
             return
+        else:
+            pass
+            # print("cont", len(bufs))
 
         if c_tiles:
+            # print("c_tiles")
             yield from deal_with_tile_carry()
         else:
+            # print("rotate if necessary")
             yield from rotate_if_necessary()
 
         # Then deal with dataset carry.
-        # We make a copy since we MIGHT carry right back
-        # The dataset and partition carry buffer SHOULD have extra space enough
-        tmp_data = self.decoder_state.dataset_carry.data.copy()
-        # int, by value
-        tmp_count = self.decoder_state.dataset_carry.packet_count[0]
-        reset_carry(self.decoder_state.dataset_carry)
-        # print("dataset carry", tmp_count)
-        c_tiles, c_partition, c_dataset = process_packets(
-            bufs_inout=numba.typed.List(bufs),
-            header_inout=header,
-            decoder_state=self.decoder_state,
-            packets=tmp_data,
-            num_packets=tmp_count
-        )
+        # Skip processing dataset carry if we are already done with the partition
+        # from partition carry. We might be in a situation
+        # where partition carry perfectly filled up the partition, there is no more carry,
+        # from process_packets (no wrapup),
+        # and rotate_if_necessary already yielded all buffers,
+        # i.e. no more work to do. Numby doesn't like typed empty lists,
+        # so we have to skip explicitly
+        if bufs:
+            # print("Work to do")
+            # We make a copy since we MIGHT carry right back
+            # The dataset and partition carry buffer SHOULD have extra space enough
+            tmp_data = self.decoder_state.dataset_carry.data.copy()
+            # int, by value
+            tmp_count = self.decoder_state.dataset_carry.packet_count[0]
+            reset_carry(self.decoder_state.dataset_carry)
+            # print("dataset carry", tmp_count)
+            c_tiles, c_partition, c_dataset = process_packets(
+                bufs_inout=numba.typed.List(bufs),
+                header_inout=header,
+                decoder_state=self.decoder_state,
+                packets=tmp_data,
+                num_packets=tmp_count
+            )
 
-        # Wrap up in case we are already in the next partition or dataset
-        if c_partition or c_dataset:
-            yield from wrapup()
-            return
+            # Wrap up in case we are already in the next partition or dataset
+            if c_partition or c_dataset:
+                yield from wrapup()
+                return
+        else:
+            c_tiles = False
+            # print("I am done")
+            pass
 
         if c_tiles:
             yield from deal_with_tile_carry()
@@ -879,10 +925,10 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
 
         # we might already be finished, see above
         while bufs:
-            p = next(read_iter)
-            packets, anc = p
+            packets, anc = next(read_iter)
             packets = np.array(packets, dtype=np.uint8)
             # print("loop process")
+            assert bufs
             c_tiles, c_partition, c_dataset = process_packets(
                 bufs_inout=numba.typed.List(bufs),
                 header_inout=header,

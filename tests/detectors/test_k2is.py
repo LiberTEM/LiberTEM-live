@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 from numpy.core.numeric import full
 import pytest
@@ -23,6 +25,39 @@ def blockstream(start_frame=0):
             yield (frame, block, i)
             block += 1
         frame += 1
+
+
+def scramble(packages, window=16):
+    when = 0
+    buffer = {}
+    for i in range(window//2):
+        try:
+            buffer[when] = next(packages)
+            when += 1
+        except StopIteration:
+            break
+    while buffer:
+        keys = list(buffer.keys())
+        min_key = min(keys)
+        # make sure we only scramble by window size:
+        # yield items that are too old
+        if when - min_key > window:
+            key = min_key
+        else:
+            key = random.choice(keys)
+        yield buffer.pop(key)
+        try:
+            buffer[when] = next(packages)
+            when += 1
+        except StopIteration:
+            continue
+
+
+def random_dup(packages, p=0.1):
+    for pack in packages:
+        yield pack
+        if random.random() <= p:
+            yield pack
 
 
 def validate_frame_slice(data, frame_id, damage=None):
@@ -97,9 +132,16 @@ class MockSocket:
         (5, 1, [0*32], [3*32]),
     ]
 )
-def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset):
+@pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32))
+@pytest.mark.parametrize('do_dup', (False, True))
+def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset, do_scramble, do_dup):
+    gen = blockstream()
+    if do_scramble:
+        gen = scramble(gen, window=do_scramble)
+    if do_dup:
+        gen = random_dup(gen)
     thread = MockThread()
-    socket = MockSocket(blockstream())
+    socket = MockSocket(gen)
     packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
     frame_id = thread.decoder_state.first_frame_id[0]
     end_dataset_after_idx = per_partition * num_partitions
@@ -131,10 +173,14 @@ def test_gettiles(per_partition, num_partitions, carry_partition, carry_dataset)
                 print("frame ID, frame: ", frame_id, frame)
                 validate_frame_slice(t[frame], frame_id)
                 frame_id += 1
-        # Check the state and number of tiles after
-        # all tiles in the partition tile generator are exhausted
-        assert thread.decoder_state.partition_carry.packet_count == carry_partition[repeat]
-        assert thread.decoder_state.dataset_carry.packet_count == carry_dataset[repeat]
+        # Test the state of partition and dataset carry after
+        # all tiles in the partition tile generator are exhausted.
+        # This is skipped if we do random scramble or dup since that disturbs the
+        # relation between packet count and carry state, so we can't predict
+        # it anymore
+        if not do_scramble and not do_dup:
+            assert thread.decoder_state.partition_carry.packet_count == carry_partition[repeat]
+            assert thread.decoder_state.dataset_carry.packet_count == carry_dataset[repeat]
         assert i == n_tiles - 1
 
     # Do two other datasets with one partition of 1 frames right after the first
