@@ -498,7 +498,8 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
 
 
 class ControlSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, host='0.0.0.0', port=6341):
+    def __init__(self, trigger_event, host='0.0.0.0', port=6341):
+        self._trigger_event = trigger_event
         self._params = {}
         super().__init__(host=host, port=port, name=self.__class__.__name__)
 
@@ -548,7 +549,8 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                     "0",  # 4
                 )
             elif method == 'CMD':
-                self._params[param] = value
+                if param == 'SOFTTRIGGER':
+                    self._trigger_event.set()
                 response_parts = (
                     "noideafirst",  # 0
                     "noideasecond",  # 1
@@ -654,11 +656,6 @@ def main(path, nav_shape, continuous,
 
     sim = cls(path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs)
 
-    control_t = ControlSocketServer(host=host, port=control_port)
-    # Make sure the thread dies with the main program
-    control_t.daemon = True
-    control_t.start()
-
     server_t = DataSocketServer(
         sim=sim, host=host, port=data_port, wait_trigger=wait_trigger, garbage=garbage
     )
@@ -666,10 +663,19 @@ def main(path, nav_shape, continuous,
     server_t.daemon = True
     server_t.start()
 
+    control_t = ControlSocketServer(
+        host=host,
+        port=control_port,
+        trigger_event=server_t.trigger_event,
+    )
+    # Make sure the thread dies with the main program
+    control_t.daemon = True
+    control_t.start()
+
     trigger_t = TriggerSocketServer(
         host=host, port=trigger_port,
         trigger_event=server_t.trigger_event,
-        finish_event=server_t.finish_event
+        finish_event=server_t.finish_event,
     )
     # Make sure the thread dies with the main program
     trigger_t.daemon = True
