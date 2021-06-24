@@ -107,6 +107,99 @@ def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
         # for j in range(end_offset - start_offset):
         #     out[i, j] = in_for_frame[j]
 
+@numba.jit(inline='always', cache=True)
+def decode_r1_swap(inp, out, idx):
+    """
+    RAW 1bit format: each bit is actually saved as a single bit. 64 bits
+    need to be unpacked together.
+    """
+    for stripe in range(inp.shape[0] // 8):
+        for byte in range(8):
+            inp_byte = inp[(stripe + 1) * 8 - (byte + 1)]
+            for bitpos in range(8):
+                out[idx, 64 * stripe + 8 * byte + bitpos] = (inp_byte >> bitpos) & 1
+
+
+@numba.jit(nogil=True, cache=True, parallel=True)
+def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
+    out = out.reshape((num_frames, -1))
+    frame_size_bytes = 256 * 256 // 8
+    for i in numba.prange(num_frames):
+        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+        end_offset = start_offset + frame_size_bytes
+        in_for_frame = input_bytes[start_offset:end_offset]
+        decode_r1_swap(in_for_frame, out, i)
+
+
+@numba.njit(inline='always', cache=True)
+def decode_r6_swap(inp, out, idx):
+    """
+    RAW 6bit format: the pixels need to be re-ordered in groups of 8. `inp`
+    should have dtype uint8.
+    """
+    for i in range(out.shape[1]):
+        col = i % 8
+        pos = i // 8
+        out_pos = (pos + 1) * 8 - col - 1
+        out[idx, out_pos] = inp[i]
+
+
+@numba.jit(nogil=True, cache=True, parallel=True)
+def decode_multi_r6(input_bytes, out, header_size_bytes, num_frames):
+    out = out.reshape((num_frames, -1))
+    frame_size_bytes = 256 * 256
+    for i in numba.prange(num_frames):
+        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+        end_offset = start_offset + frame_size_bytes
+        in_for_frame = input_bytes[start_offset:end_offset]
+        decode_r6_swap(in_for_frame, out, i)
+
+
+@numba.njit(inline='always', cache=True)
+def decode_r12_swap(inp, out, idx):
+    """
+    RAW 12bit format: the pixels need to be re-ordered in groups of 4. `inp`
+    should be an uint8 view on big endian 12bit data (">u2")
+    """
+    for i in range(out.shape[1]):
+        col = i % 4
+        pos = i // 4
+        out_pos = (pos + 1) * 4 - col - 1
+        out[idx, out_pos] = (inp[i * 2] << 8) + (inp[i * 2 + 1] << 0)
+
+
+@numba.jit(nogil=True, cache=True, parallel=True)
+def decode_multi_r12(input_bytes, out, header_size_bytes, num_frames):
+    out = out.reshape((num_frames, -1))
+    frame_size_bytes = 2 * 256 * 256
+    for i in numba.prange(num_frames):
+        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+        end_offset = start_offset + frame_size_bytes
+        in_for_frame = input_bytes[start_offset:end_offset]
+        decode_r12_swap(in_for_frame, out, i)
+
+
+@numba.njit(inline='always', cache=True)
+def decode_r24_swap(inp, out, idx):
+    """
+    RAW 24bit format: a single 24bit consists of two frames that are encoded
+    like the RAW 12bit format, the first contains the most significant bits.
+
+    So after a frame header, there are (512, 256) >u2 values, which then
+    need to be shuffled like in `decode_r12_swap`.
+
+    This decoder function only works together with mib_r24_get_read_ranges
+    which generates twice as many read ranges than normally.
+    """
+    for i in range(out.shape[1]):
+        col = i % 4
+        pos = i // 4
+        out_pos = (pos + 1) * 4 - col - 1
+        out_val = np.uint32((inp[i * 2] << 8) + (inp[i * 2 + 1] << 0))
+        if idx % 2 == 0:  # from first frame: most significant bits
+            out_val = out_val << 12
+        out[idx // 2, out_pos] += out_val
+
 
 class MerlinDataSocket:
     def __init__(self, host='127.0.0.1', port=6342, timeout=1.0):
@@ -174,7 +267,7 @@ class MerlinDataSocket:
                     length - total_bytes_read
                 )
             except socket.timeout:
-                continue
+                return total_bytes_read
             if bytes_read == 0:  # EOF
                 return total_bytes_read
             total_bytes_read += bytes_read
@@ -214,6 +307,8 @@ class MerlinDataSocket:
         """
         self._acquisition_header = self._read_acquisition_header(cancel_timeout=cancel_timeout)
         self._first_frame_header = self._peek_frame_header()
+        self._frame_counter = self._first_frame_header['sequence_first_image'] - 1
+        logger.info(f"got headers; frame offset = {self._frame_counter}")
         return self._acquisition_header, self._first_frame_header
 
     def get_input_buffer(self, num_frames):
@@ -260,6 +355,8 @@ class MerlinDataSocket:
             self._frame_counter += frames_read
             # save frame_counter while we hold the lock:
             frame_counter = self._frame_counter
+            if bytes_read == 0:
+                return False  # timeout or EOF
         finally:
             self._read_lock.release()
         self.decode(input_buffer[:bytes_read], out_flat[:frames_read], header_size, frames_read)
@@ -267,12 +364,26 @@ class MerlinDataSocket:
 
     def decode(self, input_buffer, out_flat, header_size, num_frames):
         fh = self._first_frame_header
-        assert fh['mib_kind'] == 'u'
         itemsize = fh['dtype'].itemsize
-        if itemsize == 1:
-            fn = decode_multi_u1
-        elif itemsize == 2:
-            fn = decode_multi_u2
+        bits_pp = fh['bits_per_pixel']
+        if fh['mib_kind'] == 'u':
+            # binary:
+            if itemsize == 1:
+                fn = decode_multi_u1
+            elif itemsize == 2:
+                fn = decode_multi_u2
+            else:
+                raise Exception("itemsize %d currently not supported" % itemsize)
+        else:
+            # raw binary:
+            if bits_pp == 1:
+                fn = decode_multi_r1
+            elif bits_pp == 6:
+                fn = decode_multi_r6
+            elif bits_pp == 12:
+                fn = decode_multi_r12
+            else:
+                raise Exception("can't handle %d bits per pixel yet" % bits_pp)
         input_arr = np.frombuffer(input_buffer, dtype=np.uint8)
         fn(input_arr, out_flat[:num_frames], header_size, num_frames)
 
@@ -295,7 +406,8 @@ class MerlinDataSocket:
         while len(buf) < peek_length:
             # need to repeat, as the first peek can fail to give the full length message:
             buf = self._socket.recv(peek_length, socket.MSG_PEEK)
-        return _parse_frame_header(buf[15:])
+        frame_header = _parse_frame_header(buf[15:])
+        return frame_header
 
     def _parse_acq_header(self, header):
         result = {}
@@ -355,6 +467,7 @@ class ResultWrap:
         self._consumed.set()
 
 
+# FIXME: use ErrThreadMixin and maybe_raise in the pool
 class ReaderThread(threading.Thread):
     def __init__(self, backend, out_queue, chunk_size, default_timeout=0.2, read_dtype=np.float32,
                  read_upto_frame=None, *args, **kwargs):
