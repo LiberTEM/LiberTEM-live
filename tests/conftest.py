@@ -1,1 +1,2 @@
-import utils  # make sure utils.py can be used in other tests
+# make sure utils.py can be used in other tests
+import utils  # NOQA:F401
