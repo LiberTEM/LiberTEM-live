@@ -107,6 +107,7 @@ def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
         # for j in range(end_offset - start_offset):
         #     out[i, j] = in_for_frame[j]
 
+
 @numba.jit(inline='always', cache=True)
 def decode_r1_swap(inp, out, idx):
     """
