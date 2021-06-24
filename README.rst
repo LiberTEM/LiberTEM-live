@@ -53,7 +53,8 @@ installing LiberTEM.
 Detectors
 ---------
 
-* Quantum Detectors Merlin
+* `Quantum Detectors Merlin
+  <https://libertem.github.io/LiberTEM-live/reference.html#quantum-detectors-merlin>`_
 
 Support for the Gatan K2 IS is currently under development.
 

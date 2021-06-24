@@ -17,7 +17,17 @@ Detectors
 Quantum Detectors Merlin
 ........................
 
-The simulator for the Quantum Detectors Merlin camera accepts the following
+Supported are currently 1 bit, 6 bit and 12 bit :code:`COUNTERDEPTH` for both the "binary"
+(:code:`FILEFORMAT 0`) and the "raw binary" format (:code:`FILEFORMAT 2`).
+
+For testing, an acquisition with soft trigger (:code:`TRIGGERSTART 5`) is
+recommended since internal trigger (:code:`TRIGGERSTART 0`) may cause issues
+with finding the beginning of the data stream. For a real STEM acquisition a
+hardware trigger setup that matches the given instrument is required. See the
+MerlinEM User Manual from Quantum Detectors for details!
+
+A simple simulator for testing live acquisition without the actual hardware is
+included in LiberTEM-Live. It replays an MIB dataset and accepts the following
 parameters:
 
 .. code-block:: shell
