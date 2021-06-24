@@ -1,7 +1,6 @@
 import functools
 import os
 import time
-from typing_extensions import runtime
 import concurrent.futures
 import socket
 import threading
@@ -141,7 +140,14 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port, drain=False)
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=trigger,
+        scan_size=(32, 32),
+        host=host,
+        port=port,
+        drain=False
+    )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -158,7 +164,14 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_cached
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port, drain=False)
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=trigger,
+        scan_size=(32, 32),
+        host=host,
+        port=port,
+        drain=False
+    )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -175,7 +188,14 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_memfd
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=host, port=port, drain=False)
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=trigger,
+        scan_size=(32, 32),
+        host=host,
+        port=port,
+        drain=False
+    )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -198,6 +218,7 @@ def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin
         print("Trigger connection:", trigger_sim)
         tr.connect()
         tr.trigger()
+
         def do_scan():
             '''
             Emulated blocking scan function using the Merlin simulator
@@ -208,7 +229,13 @@ def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin
         trig_res[0] = fut
         tr.close()
 
-    aq = ltl_ctx.prepare_acquisition('merlin', trigger=trigger, scan_size=(32, 32), host=sim_host, port=sim_port)
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=trigger,
+        scan_size=(32, 32),
+        host=sim_host,
+        port=sim_port
+    )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
@@ -303,4 +330,3 @@ def test_control(merlin_control_sim, tmp_path):
         assert c.get("NUMFRAMESTOACQUIRE") == b'23'
         c.send_command_file(path)
         assert c.get("COUNTERDEPTH") == b'12'
-

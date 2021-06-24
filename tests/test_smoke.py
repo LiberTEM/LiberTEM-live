@@ -1,3 +1,4 @@
+# flake8: NOQA:F401
 import libertem_live.api
 import libertem_live.detectors.base.acquisition
 import libertem_live.detectors.memory.acquisition
