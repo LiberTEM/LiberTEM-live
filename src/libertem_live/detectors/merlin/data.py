@@ -324,8 +324,9 @@ class MerlinDataSocket:
 
     def read_multi_frames(self, out, input_buffer, num_frames=32, read_upto_frame=None, timeout=-1):
         """
-        Returns `False` on timeout, `True` in case we are done and don't need to read any more frames
-        (according to `read_upto_frame`), or a tuple `(buffer, frame_idx_start, frame_idx_end)`
+        Returns `False` on timeout, `True` in case we are done and don't need to
+        read any more frames (according to `read_upto_frame`), or a tuple
+        `(buffer, frame_idx_start, frame_idx_end)`
 
         On EOF or timeout, can read less than `num_frames`. In that case, `buffer` is sliced
         to only contain decoded data. `out` will not be fully overwritten in this case
