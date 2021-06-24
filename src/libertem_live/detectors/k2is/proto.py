@@ -417,9 +417,6 @@ def make_DecoderState(num_packets):
         dataset_carry=make_carry(carry_size),
         partition_carry=make_carry(carry_size),
         tile_carry=make_carry(carry_size),
-        # Wrap detection is particularly critical
-        # Make sure we sample enough packets to get the
-        # jump right!
         wrap_carry=make_carry(carry_size),
         tmp_carry=make_carry(carry_size),
         frame_wrap=np.zeros(1, dtype=np.int64),
@@ -435,6 +432,12 @@ def carry_count(decoder_state: DecoderState):
         decoder_state.dataset_carry.packet_count[0]
         + decoder_state.partition_carry.packet_count[0]
         + decoder_state.tile_carry.packet_count[0]
+        # Wrap detection goes extra: These packets
+        # should be processed as soon as enough samples
+        # for jump detection are available. As soon as this buffer
+        # starts filling up, it is important to only bail AFTER
+        # these are processed if there is still space for dataset or partition
+        # carry, since they may very well belong to the current partition.
         # + decoder_state.wrap_carry.packet_count[0]
     )
 
@@ -473,7 +476,9 @@ def find_target(bufs, header, decoder_state: DecoderState):
                 # print("straggler", frame_idx, i, buf.frame_offset[0])
                 return TARGET_STRAGGLER
     # Block would be within next consecutive tile
-    if frame_idx < bufs[-1].frame_offset + 2*buf.data.shape[0]:
+    # At this time it is already sure that the packet will be
+    # in this partition
+    if frame_idx < bufs[-1].frame_offset + 2*bufs[-1].data.shape[0]:
         # print("next tile")
         return TARGET_NEXT_TILE
     else:
@@ -503,7 +508,7 @@ def dispatch_packet(bufs_inout, header, decoder_state: DecoderState, packet):
         pass
     elif target == TARGET_WRAPAROUND_CARRY:
         carryover(decoder_state.wrap_carry, packet, header)
-    elif target == TARGET_NEXT_TILE:
+    elif target == TARGET_NEXT_TILE or target == TARGET_FORERUNNER:
         carryover(decoder_state.tile_carry, packet, header)
         c_tiles = True
     elif target == TARGET_PARTITION_CARRY:

@@ -1,3 +1,7 @@
+import os
+
+os.environ['NUMBA_FULL_TRACEBACKS'] = '1'
+
 import random
 
 import numpy as np
@@ -76,6 +80,16 @@ def random_drop(packages, bin, p=0.1):
             bin.append(pack)
 
 
+def block_drop(packages, offset, count, bin):
+    counter = 0
+    for pack in packages:
+        if counter < offset or counter >= (offset + count):
+            yield pack
+        else:
+            bin.append(pack)
+        counter += 1
+
+
 def validate_frame_slice(data, frame_id, bin=[]):
     '''
     Check that the block_count that was baked into the payload by make_packet()
@@ -151,7 +165,7 @@ class MockSocket:
         (5, 1, [0*32], [3*32]),
     ]
 )
-@pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32//2, MAX_PER_TILE*32))
+@pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32//2))
 @pytest.mark.parametrize('do_drop', (False, True))
 @pytest.mark.parametrize('do_dup', (False, True))
 @pytest.mark.parametrize('do_wrap', (False, True))
@@ -159,7 +173,7 @@ def test_gettiles(
         per_partition, num_partitions, carry_partition, carry_dataset,
         do_scramble, do_drop, do_dup, do_wrap):
     step_index = 97
-    step_amount = 88
+    step_amount = 89
     if do_wrap and per_partition*num_partitions <= step_index:
         pytest.skip("Skipping wrapping since too few frames")
     if do_wrap and do_scramble > MAX_PER_TILE*32//2:
@@ -236,6 +250,66 @@ def test_gettiles(
             assert t.shape[0] == 1
             f_i_t = t.shape[0]
             print("frames in tile:", f_i_t)
+            for frame in range(f_i_t):
+                print("frame ID, frame: ", frame_id, frame)
+                validate_frame_slice(t[frame], frame_id, bin=bin)
+                frame_id += 1
+
+
+def test_gettiles_blockdrop():
+    bin = []
+    gen = block_drop(blockstream(), 69, 153, bin)
+    # gen = blockstream()
+    thread = MockThread()
+    socket = MockSocket(gen)
+    packets = MsgReaderThread.read_loop_bulk(thread, socket, num_packets=128)
+    per_partition = 63
+    num_partitions = 3
+    end_dataset_after_idx = per_partition * num_partitions
+    for repeat in range(num_partitions):
+        start = repeat * per_partition
+        print("start", start)
+        tiles = MsgReaderThread.get_tiles(
+            thread,
+            packets,
+            start_frame=start,
+            end_after_idx=start+per_partition,
+            end_dataset_after_idx=end_dataset_after_idx
+        )
+
+        # Since the buffer of a tile is reused,
+        # one should consume and check the tiles as they come in
+        # instead of making a list of them
+
+        for t in tiles:
+            f_i_t = t.shape[0]
+            print("frames in tile:", f_i_t)
+            (frame_id, _, _) = t.tile_slice.origin
+            frame_id += thread.decoder_state.first_frame_id[0]
+            for frame in range(f_i_t):
+                print("frame ID, frame: ", frame_id, frame)
+                validate_frame_slice(t[frame], frame_id, bin=bin)
+                frame_id += 1
+    # Do two other datasets with one partition of 1 frames right after the first
+    # to confirm that dataset carry works, including cascading carry
+
+    for i in range(2):
+        start = end_dataset_after_idx + i
+        print("start following dataset", start)
+        tiles = MsgReaderThread.get_tiles(
+            thread,
+            packets,
+            start_frame=start,
+            end_after_idx=start + 1,
+            end_dataset_after_idx=start + 1
+        )
+
+        for t in tiles:
+            assert t.shape[0] == 1
+            f_i_t = t.shape[0]
+            print("frames in tile:", f_i_t)
+            (frame_id, _, _) = t.tile_slice.origin
+            frame_id += thread.decoder_state.first_frame_id[0]
             for frame in range(f_i_t):
                 print("frame ID, frame: ", frame_id, frame)
                 validate_frame_slice(t[frame], frame_id, bin=bin)
