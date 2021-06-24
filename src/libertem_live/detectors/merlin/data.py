@@ -324,9 +324,10 @@ class MerlinDataSocket:
 
     def read_multi_frames(self, out, input_buffer, num_frames=32, read_upto_frame=None, timeout=-1):
         """
-        returns either `False` on timeout, or a tuple `(buffer, frame_idx_start, frame_idx_end)`
+        Returns `False` on timeout, `True` in case we are done and don't need to read any more frames
+        (according to `read_upto_frame`), or a tuple `(buffer, frame_idx_start, frame_idx_end)`
 
-        On EOF, can read less than `num_frames`. In that case, `buffer` is sliced
+        On EOF or timeout, can read less than `num_frames`. In that case, `buffer` is sliced
         to only contain decoded data. `out` will not be fully overwritten in this case
         and can contain garbage at the end.
 
@@ -345,6 +346,8 @@ class MerlinDataSocket:
             if read_upto_frame is not None:
                 num_frames = min(num_frames, read_upto_frame - self._frame_counter)
                 input_buffer = input_buffer[:num_frames * bytes_per_frame]
+                if num_frames == 0:
+                    return True  # we are done.
             bytes_read = self.read_into(input_buffer)
             frames_read = bytes_read // bytes_per_frame
             if bytes_read % bytes_per_frame != 0:
@@ -357,7 +360,8 @@ class MerlinDataSocket:
             # save frame_counter while we hold the lock:
             frame_counter = self._frame_counter
             if bytes_read == 0:
-                return False  # timeout or EOF
+                # timeout or EOF without any data read:
+                return False
         finally:
             self._read_lock.release()
         self.decode(input_buffer[:bytes_read], out_flat[:frames_read], header_size, frames_read)
@@ -512,6 +516,8 @@ class ReaderThread(threading.Thread):
                 )
                 if res is False:
                     continue  # timeout, give main thread the chance to stop us
+                if res is True:
+                    break  # we are done
                 res_buffer, res_start, res_stop = res
 
                 # EOF, no frames left on the socket:
@@ -635,6 +641,8 @@ class MerlinDataSource:
                 input_buffer=input_buffer
             )
             if not res:
+                break
+            if res is True:
                 break
             buf, frame_idx_start, frame_idx_end = res
             if frame_idx_end - frame_idx_start == 0:
