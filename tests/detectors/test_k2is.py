@@ -151,17 +151,19 @@ class MockSocket:
         (5, 1, [0*32], [3*32]),
     ]
 )
-@pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32))
+@pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32//2, MAX_PER_TILE*32))
 @pytest.mark.parametrize('do_drop', (False, True))
 @pytest.mark.parametrize('do_dup', (False, True))
 @pytest.mark.parametrize('do_wrap', (False, True))
 def test_gettiles(
         per_partition, num_partitions, carry_partition, carry_dataset,
         do_scramble, do_drop, do_dup, do_wrap):
-    step_index = 40
-    step_amount = 40
+    step_index = 97
+    step_amount = 88
     if do_wrap and per_partition*num_partitions <= step_index:
         pytest.skip("Skipping wrapping since too few frames")
+    if do_wrap and do_scramble > MAX_PER_TILE*32//2:
+        pytest.skip("Skipping wrapping since too much scrambling to detect jump reliably")
     gen = blockstream()
     bin = []
     if do_scramble:

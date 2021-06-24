@@ -16,7 +16,7 @@ from libertem.io.dataset.k2is import DataBlock, SHUTTER_ACTIVE_MASK
 from libertem.common.buffers import bytes_aligned, zeros_aligned
 from libertem_live.utils.net import mcast_socket
 from libertem_live.detectors.k2is.decode import (
-    PacketHeader, decode_header_into, decode_uint12_le, make_PacketHeader, copy_header
+    PacketHeader, decode_header_into, decode_uint12_le, make_PacketHeader, copy_header_to
 )
 from libertem.io.dataset.base.tiling import TilingScheme, DataTile
 from libertem.common import Shape, Slice
@@ -208,7 +208,7 @@ def make_carry(num_packets=256):
     packet_size = 0x5758
     return Carry(
         data=np.empty(packet_size*num_packets, dtype=np.uint8),
-        headers=numba.typed.List([make_PacketHeader()] * num_packets),
+        headers=numba.typed.List([make_PacketHeader() for i in range(num_packets)]),
         packet_count=np.zeros(1, dtype=np.int64)
     )
 
@@ -222,17 +222,19 @@ def reset_carry(carry_inout: Carry):
 def get_carry(carry: Carry, index: int):
     packet_size = 0x5758
     assert index >= 0
-    assert index < carry.packet_count
+    assert index < carry.packet_count[0]
     return (carry.data[index*packet_size:(index+1)*packet_size], carry.headers[index])
 
 
 @numba.njit(cache=True)
-def copy_carry(carry: Carry):
-    return Carry(
-        data=carry.data.copy(),
-        headers=carry.headers.copy(),
-        packet_count=carry.packet_count.copy(),
-    )
+def copy_carry_to(src_carry: Carry, dest_carry: Carry):
+    packet_size = 0x5758
+    stop = src_carry.packet_count[0] * packet_size
+    assert len(dest_carry.data) >= stop
+    dest_carry.data[:stop] = src_carry.data[:stop]
+    for i in range(src_carry.packet_count[0]):
+        copy_header_to(src_carry.headers[i], dest_carry.headers[i])
+    dest_carry.packet_count[0] = src_carry.packet_count[0]
 
 
 @numba.njit(cache=True)
@@ -244,7 +246,7 @@ def carryover(carry_inout, packet, header: PacketHeader):
     stop = start + packet_size
     assert stop <= carry_inout.data.shape[0]
     carry_inout.data[start:stop] = packet
-    carry_inout.headers[index] = copy_header(header)
+    copy_header_to(header, carry_inout.headers[index])
     carry_inout.packet_count[0] += 1
 
 
@@ -399,7 +401,7 @@ TARGET_WRAPAROUND_CARRY = -6
 DecoderState = namedtuple(
     'DecoderState',
     [
-        'dataset_carry', 'partition_carry', 'tile_carry', 'wrap_carry',
+        'dataset_carry', 'partition_carry', 'tile_carry', 'wrap_carry', 'tmp_carry',
         'frame_wrap',
         'first_frame_id',
         'recent_frame_id',
@@ -415,7 +417,11 @@ def make_DecoderState(num_packets):
         dataset_carry=make_carry(carry_size),
         partition_carry=make_carry(carry_size),
         tile_carry=make_carry(carry_size),
+        # Wrap detection is particularly critical
+        # Make sure we sample enough packets to get the
+        # jump right!
         wrap_carry=make_carry(carry_size),
+        tmp_carry=make_carry(carry_size),
         frame_wrap=np.zeros(1, dtype=np.int64),
         first_frame_id=np.full(1, -1, dtype=np.int64),
         recent_frame_id=np.full(1, -1, dtype=np.int64),
@@ -429,7 +435,13 @@ def carry_count(decoder_state: DecoderState):
         decoder_state.dataset_carry.packet_count[0]
         + decoder_state.partition_carry.packet_count[0]
         + decoder_state.tile_carry.packet_count[0]
+        # + decoder_state.wrap_carry.packet_count[0]
     )
+
+
+# Number of frames jumped backwards to consider
+# this a wrap-around
+WRAP_JUMP = 32
 
 
 @numba.njit(inline='always', cache=True)
@@ -455,7 +467,7 @@ def find_target(bufs, header, decoder_state: DecoderState):
             return i
         # before first tile or between tiles
         if frame_idx < buf.frame_offset[0]:
-            if buf.frame_offset[0] - frame_idx > 20 and i == 0:
+            if buf.frame_offset[0] - frame_idx > WRAP_JUMP and i == 0:
                 return TARGET_WRAPAROUND_CARRY
             else:
                 # print("straggler", frame_idx, i, buf.frame_offset[0])
@@ -515,11 +527,11 @@ def dispatch_carry(bufs_inout, carry_inout: Carry, decoder_state: DecoderState):
     c_dataset = False
     if carry_inout.packet_count:
         # We take a copy because we might dispatch right into the same buffer
-        tmp_copy = copy_carry(carry_inout)
+        copy_carry_to(carry_inout, decoder_state.tmp_carry)
         count = carry_inout.packet_count[0]
         reset_carry(carry_inout)
         for i in range(count):
-            packet, header = get_carry(tmp_copy, i)
+            packet, header = get_carry(decoder_state.tmp_carry, i)
             c_tiles_tmp, c_partition_tmp, c_dataset_tmp = dispatch_packet(
                 bufs_inout, header, decoder_state, packet
             )

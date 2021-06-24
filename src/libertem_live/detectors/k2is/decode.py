@@ -146,9 +146,7 @@ def decode_header_into(header_inout: PacketHeader, packet: bytes, wrap_offset: i
 
 
 @numba.njit(cache=True)
-def copy_header(header: PacketHeader):
-    return PacketHeader(
-        frame_id=header.frame_id.copy(),
-        pixel_x_start=header.pixel_x_start.copy(),
-        pixel_y_start=header.pixel_y_start.copy(),
-    )
+def copy_header_to(src_header: PacketHeader, dest_header: PacketHeader):
+    dest_header.frame_id[0] = src_header.frame_id[0]
+    dest_header.pixel_x_start[0] = src_header.pixel_x_start[0]
+    dest_header.pixel_y_start[0] = src_header.pixel_y_start[0]
