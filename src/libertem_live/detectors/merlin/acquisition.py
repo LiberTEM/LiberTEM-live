@@ -29,7 +29,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     port : int
         Data port of the Merlin data server, default 6342
     drain : bool
-        Drain the socket before triggering.
+        Drain the socket before triggering. Disable this when using internal
+        start trigger!
     frames_per_partition : int
         Number of frames to process before performing a merge operation. Decreasing this number
         increases the update rate, but can decrease performance.
@@ -91,7 +92,9 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def acquire(self):
         with self.source:
             if self._drain:
-                self.source.socket.drain()
+                drained_bytes = self.source.socket.drain()
+                if drained_bytes > 0:
+                    logger.info(f"drained {drained_bytes} bytes of garbage")
             self.trigger()
             self.source.socket.read_headers(cancel_timeout=self._timeout)
             yield
@@ -193,6 +196,9 @@ class MerlinLivePartition(Partition):
                 #     to_read, self._start_idx, self._end_idx,
                 # )
                 with pool.get_result() as res_wrapped:
+                    if res_wrapped is None:
+                        # ReaderThread was stopped
+                        return
                     frames_in_tile = res_wrapped.stop - res_wrapped.start
                     tile_shape = Shape(
                         (frames_in_tile,) + tuple(tiling_scheme[0].shape),
