@@ -480,7 +480,9 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
                         # the trigger event is set, break out of the loop and
                         # handle the connection below:
                         break
-                    (readable, writable, exceptional) = select.select([connection], [connection], [connection], 0.1)
+                    (readable, writable, exceptional) = select.select(
+                        [connection], [connection], [connection], 0.1
+                    )
                     if readable:
                         # The connection is unidirectional, we don't receive any data
                         # normally, but only send
