@@ -31,7 +31,7 @@ included in LiberTEM-Live. It replays an MIB dataset and accepts the following
 parameters:
 
 .. code-block:: shell
-    
+
     (libertem) $ libertem-live-mib-sim --help
     Usage: libertem-live-mib-sim [OPTIONS] PATH
 

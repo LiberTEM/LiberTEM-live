@@ -31,7 +31,7 @@ This command runs an emulation server on the default ports 6341 for control and
 6342 for data which replays the provided MIB dataset:
 
 .. code-block:: shell
-    
+
     (libertem) $ libertem-live-mib-sim "Ptycho01/20200518 165148/default.hdr"
 
 See :ref:`merlin detector` for all available command line arguments. For
@@ -73,7 +73,7 @@ the user.
         print("Triggering!")
         height, width = acquisition.shape.nav
         # microscope.trigger_scan()
- 
+
 Prepare an acquisition
 ----------------------
 
@@ -104,7 +104,7 @@ strictly limited to reading data from the camera, expecting data in the shape
 and kind that was specified. Controlling the settings of the acquisition system
 is the responsibility of the user. Usually, the acquisition object should be
 created directly before running an acquisition with parameters that match the
-current configuration of the acquisition system. 
+current configuration of the acquisition system.
 
 .. testcode::
 
