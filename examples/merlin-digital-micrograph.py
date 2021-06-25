@@ -2,6 +2,15 @@
 # Quantum Detectors Merlin camera within Gatan Digital Micrograph
 # using their Python scripting.
 
+# If you want to use this with the simulated data source, run a simple Merlin
+# simulator in the background that replays an MIB dataset:
+
+# libertem-live-mib-sim ~/Data/default.hdr --cached=MEM --wait-trigger
+
+# The --wait-trigger option is important for this notebook to function correctly
+# since that allows to drain the data socket before an acquisition like it is
+# necessary for a real-world Merlin detector.
+
 import sys
 import os
 import multiprocessing
@@ -11,7 +20,6 @@ import time
 
 from libertem_live import api
 from libertem_live.udf.monitor import SignalMonitorUDF
-from libertem_live.detectors.merlin.sim import TriggerClient
 from libertem_live.detectors.merlin.control import MerlinControl
 
 from libertem.viz.gms import GMSLive2DPlot
@@ -25,9 +33,6 @@ from libertem.udf.sumsigudf import SumSigUDF
 MERLIN_DATA_SOCKET = ('127.0.0.1', 6342)
 MERLIN_CONTROL_SOCKET = ('127.0.0.1', 6341)
 SCAN_SIZE = (128, 128)
-
-# Used for the Merlin detector simulator to emulate hardware triggering
-SIM_TRIGGER_SOCKET = ('127.0.0.1', 6343)
 
 # Change to a writable folder. GMS may run in C:\Windows\system32
 # depending on the starting method.
@@ -46,15 +51,15 @@ def merlin_setup(c: MerlinControl, dwell_time=1e-3, depth=12, save_path=None):
     c.set('CONTINUOUSRW', 1)
     c.set('ACQUISITIONTIME', dwell_time * 1e3)  # Time in miliseconds
     c.set('COUNTERDEPTH', depth)
-    c.set('TRIGGERSTART', 3)
-    c.set('TRIGGERSTOP', 0)
+    c.set('TRIGGERSTART', 5)
     c.set('RUNHEADLESS', 1)
+    c.set('FILEFORMAT', 2)  # 0 binary, 2 raw binary
 
     if save_path is not None:
+        c.set('IMAGESPERFILE', 256)
         c.set('FILEENABLE', 1)
         # raw format with timestamping is buggy, we need to do it ourselves
         c.set('USETIMESTAMPING', 0)
-        c.set('FILEFORMAT', 2)  # raw format, less overhead?
         c.set('FILEDIRECTORY', save_path)
     else:
         c.set('FILEENABLE', 0)
@@ -79,7 +84,10 @@ def set_nav(c: MerlinControl, aq):
     height, width = aq.shape.nav
     print("Setting resolution...")
     c.set('NUMFRAMESTOACQUIRE', height * width)
-    c.set('NUMFRAMESPERTRIGGER', width)  # One trigger per scan line
+    # Only one trigger for the whole scan with SOFTTRIGGER
+    # This has to be adapted to the real trigger setup.
+    # Set to `width` for line trigger and to `1` for pixel trigger.
+    c.set('NUMFRAMESPERTRIGGER', height * width)
 
     # microscope.configure_scan(shape=aq.shape.nav)
 
@@ -107,19 +115,19 @@ def main():
         time.sleep(1)
         height, width = aq.shape.nav
 
+        # Real-world example: Function call to trigger the scan engine
         # do_scan = lambda: ceos.call.acquireScan(width=width, height=height+1, imageName="test")
+
+        # Testing: Use soft trigger
         def do_scan():
             '''
-            Emulated blocking scan function using the Merlin simulator
+            Emulated blocking scan function using the Merlin simulator.
+
+            This function doesn't actually block, but it could!
             '''
             print("do_scan()")
-            tr = TriggerClient(*SIM_TRIGGER_SOCKET)
-            try:
-                tr.connect()
-                tr.trigger()
-                return tr.wait()
-            finally:
-                tr.close()
+            with c:
+                c.cmd('SOFTTRIGGER')
 
         fut = pool.submit(do_scan)
         acquisition_state.set_trigger_result(fut)
