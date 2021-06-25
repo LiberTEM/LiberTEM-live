@@ -90,7 +90,10 @@ def merlin_detector_memfd(merlin_detector_memfd_thread):
 
 @pytest.fixture(scope='module')
 def merlin_control_sim_thread(merlin_detector_sim_garbage_thread):
-    control = functools.partial(ControlSocketServer, trigger_event=merlin_detector_sim_garbage_thread.trigger_event)
+    control = functools.partial(
+        ControlSocketServer,
+        trigger_event=merlin_detector_sim_garbage_thread.trigger_event
+    )
     yield from serve(control)
 
 
@@ -269,7 +272,6 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
         fut = pool.submit(do_scan)
         trig_res[0] = fut
 
-
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=trigger,
@@ -285,7 +287,6 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
     assert np.allclose(res['intensity'], ref['intensity'])
-
 
 
 @pytest.mark.parametrize(
