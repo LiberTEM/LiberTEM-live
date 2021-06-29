@@ -102,9 +102,13 @@ For that reason, the functionality of a
 :class:`~libertem_live.detector.base.acquisition.AcquisitionMixin` object is
 strictly limited to reading data from the camera, expecting data in the shape
 and kind that was specified. Controlling the settings of the acquisition system
-is the responsibility of the user. Usually, the acquisition object should be
-created directly before running an acquisition with parameters that match the
-current configuration of the acquisition system.
+is the responsibility of the user. The example notebook uses a convenience
+function that accepts an acquisition object as a parameter and adjusts the
+settings of the acquisition system to match the scan shape of the acquisition.
+This function is called directly before running an acquisition, together with
+other setup functions.
+
+This example just creates a memory acquisition:
 
 .. testcode::
 
