@@ -39,9 +39,15 @@ parameters:
     --nav-shape <INTEGER INTEGER>...
     --continuous
     --cached [NONE|MEM|MEMFD]
-    --host TEXT
+    --host TEXT                     Address to listen on (data, control, and
+                                    trigger sockets)
     --data-port INTEGER
     --control-port INTEGER
+    --wait-trigger                  Wait for a SOFTTRIGGER command on the
+                                    control port, or a trigger signal on the
+                                    trigger socket
+    --garbage                       Send garbage before trigger. Implies --wait-
+                                    trigger
     --max-runs INTEGER
     --help                          Show this message and exit.
 
