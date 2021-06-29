@@ -7,6 +7,18 @@ from libertem.api import Context as LiberTEM_Context
 
 
 class LiveContext(LiberTEM_Context):
+    '''
+    A :class:`LiveContext` behaves like a :class:`~libertem.api.Context` in most
+    circumstances. Notable differences are that it currently starts an
+    :class:`~libertem.executor.inline.InlineJobExecutor` instead of a
+    :class:`~libertem.executor.dask.DaskJobExecutor` if no executor is passed in
+    the constructor, and that it can prepare and run acquisitions on top of
+    loading offline datasets.
+
+    The docstrings for most functions are inherited from the base class. Most
+    methods, in particular :meth:`run_udf` and :meth:`run_udf_iter`, now accept
+    both an acquisition object and a dataset as the :code:`dataset` parameter.
+    '''
     def _create_local_executor(self):
         '''
         Live acquisition currently requires a suitable executor, for
