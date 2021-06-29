@@ -36,10 +36,6 @@ supported detectors in LiberTEM-live.
 Installation
 ------------
 
-.. note::
-  The installation instructions are already written for the upcoming first
-  release. LiberTEM-live can be installed from a Git clone before the release.
-
 The short version to install into an existing LiberTEM environment:
 
 .. code-block:: shell
