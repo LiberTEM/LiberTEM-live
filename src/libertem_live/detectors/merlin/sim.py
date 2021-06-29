@@ -628,11 +628,18 @@ class TriggerClient():
 @click.option('--cached', default='NONE', type=click.Choice(
     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
 )
-@click.option('--host', type=str, default='0.0.0.0')
+@click.option(
+    '--host', type=str, default='0.0.0.0',
+    help="Address to listen on (data, control, and trigger sockets)",
+)
 @click.option('--data-port', type=int, default=6342)
 @click.option('--control-port', type=int, default=6341)
 @click.option('--trigger-port', type=int, default=6343)
-@click.option('--wait-trigger', default=False, is_flag=True)
+@click.option(
+    '--wait-trigger', default=False, is_flag=True,
+    help="Wait for a SOFTTRIGGER command on the control port, "
+         "or a trigger signal on the trigger socket",
+)
 @click.option(
     '--garbage', default=False, is_flag=True,
     help="Send garbage before trigger. Implies --wait-trigger"
