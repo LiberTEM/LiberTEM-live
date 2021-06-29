@@ -1,4 +1,4 @@
-|gitter|_ |azure|_ |github|_
+|gitter|_ |azure|_ |github|_ |precommit|_ |zenodo|_
 
 .. |gitter| image:: https://badges.gitter.im/Join%20Chat.svg
 .. _gitter: https://gitter.im/LiberTEM/Lobby
@@ -8,6 +8,12 @@
 
 .. |github| image:: https://img.shields.io/badge/GitHub-GPL--3.0-informational
 .. _github: https://github.com/LiberTEM/LiberTEM-live/
+
+.. |precommit| image:: https://results.pre-commit.ci/badge/github/LiberTEM/LiberTEM-live/master.svg
+.. _precommit: https://results.pre-commit.ci/latest/github/LiberTEM/LiberTEM-live/master
+
+.. |zenodo| image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4916315.svg
+.. _zenodo: https://doi.org/10.5281/zenodo.4916315
 
 LiberTEM-live is an extension module for `LiberTEM
 <https://libertem.github.io/LiberTEM/>`_ :cite:`Clausen2018` that allows live
