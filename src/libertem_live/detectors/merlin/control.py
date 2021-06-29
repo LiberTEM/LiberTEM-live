@@ -5,6 +5,20 @@ logger = logging.getLogger(__name__)
 
 
 class MerlinControl:
+    '''
+    This class can be used to control a merlin medipix detector.
+
+    Parameters
+    ----------
+    host : str
+        The hostname to connect to
+
+    port : int
+        The port to connect to
+
+    timeout : float
+        The timeout, in seconds, after which a response is expected
+    '''
     def __init__(self, host='127.0.0.1', port=6341, timeout=1.0):
         self._host = host
         self._port = port
@@ -17,6 +31,10 @@ class MerlinControl:
         self._protected = False
 
     def connect(self):
+        """
+        Connect to the merlin control socket. Usually, you would instead use this
+        class as a context manager.
+        """
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.connect((self._host, self._port))
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -76,16 +94,26 @@ class MerlinControl:
         return msg
 
     def set(self, param, value):
+        """
+        Send a SET command, and return the response
+        """
         return self._parse_response(
             self._send(self._create_cmd('SET', param, value))
         )
 
     def get(self, param):
+        """
+        Send a GET command, and return the response
+        """
         return self._parse_response(
             self._send(self._create_cmd('GET', param))
         )
 
     def send_command_file(self, filename):
+        """
+        Send the contents of :code:`filename`, which should
+        contain complete merlin command lines.
+        """
         with open(filename, "r") as fh:
             for line in fh:
                 line = line.strip()
@@ -96,8 +124,15 @@ class MerlinControl:
                 )
 
     def cmd(self, cmd):
+        """
+        Send a CMD command, and return the response
+        """
         return self._parse_response(self._send(self._create_cmd('CMD', cmd)))
 
     def close(self):
+        """
+        Close the socket connection. Usually, instead of calling this function,
+        you should use this class as a context manager.
+        """
         self._socket.close()
         self._socket = None
