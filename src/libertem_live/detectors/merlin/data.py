@@ -84,7 +84,8 @@ def decode_multi_u2(input_bytes, out, header_size_bytes, num_frames):
     Decode multiple >u2 frames
     """
     out = out.reshape((num_frames, -1))
-    frame_size_bytes = 256 * 256 * 2
+    sig_size = out.shape[-1]
+    frame_size_bytes = sig_size * 2
     for i in numba.prange(num_frames):
         start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
@@ -98,7 +99,8 @@ def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
     Decode multiple u1 frames
     """
     out = out.reshape((num_frames, -1))
-    frame_size_bytes = 256 * 256
+    sig_size = out.shape[-1]
+    frame_size_bytes = sig_size
     for i in numba.prange(num_frames):
         start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
@@ -124,7 +126,8 @@ def decode_r1_swap(inp, out, idx):
 @numba.jit(nogil=True, cache=True, parallel=True)
 def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
-    frame_size_bytes = 256 * 256 // 8
+    sig_size = out.shape[-1]
+    frame_size_bytes = sig_size // 8
     for i in numba.prange(num_frames):
         start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
@@ -148,7 +151,8 @@ def decode_r6_swap(inp, out, idx):
 @numba.jit(nogil=True, cache=True, parallel=True)
 def decode_multi_r6(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
-    frame_size_bytes = 256 * 256
+    sig_size = out.shape[-1]
+    frame_size_bytes = sig_size
     for i in numba.prange(num_frames):
         start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
@@ -172,7 +176,8 @@ def decode_r12_swap(inp, out, idx):
 @numba.jit(nogil=True, cache=True, parallel=True)
 def decode_multi_r12(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
-    frame_size_bytes = 2 * 256 * 256
+    sig_size = out.shape[-1]
+    frame_size_bytes = 2 * sig_size
     for i in numba.prange(num_frames):
         start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
@@ -319,8 +324,8 @@ class MerlinDataSocket:
         input_bytes = bytearray(read_size)
         return input_bytes
 
-    def get_out_buffer(self, num_frames, dtype=np.float32):
-        return np.zeros((num_frames, 256, 256), dtype=dtype)
+    def get_out_buffer(self, num_frames, sig_shape, dtype=np.float32):
+        return np.zeros((num_frames, *sig_shape), dtype=dtype)
 
     def read_multi_frames(self, out, input_buffer, num_frames=32, read_upto_frame=None, timeout=-1):
         """
@@ -475,8 +480,8 @@ class ResultWrap:
 
 # FIXME: use ErrThreadMixin and maybe_raise in the pool
 class ReaderThread(threading.Thread):
-    def __init__(self, backend, out_queue, chunk_size, default_timeout=0.2, read_dtype=np.float32,
-                 read_upto_frame=None, *args, **kwargs):
+    def __init__(self, backend, out_queue, chunk_size, sig_shape, default_timeout=0.2,
+                 read_dtype=np.float32, read_upto_frame=None, *args, **kwargs):
         super().__init__(name='ReaderThread', *args, **kwargs)
         self._stop_event = threading.Event()
         self._eof_event = threading.Event()
@@ -486,6 +491,7 @@ class ReaderThread(threading.Thread):
         self._default_timeout = default_timeout
         self._read_dtype = read_dtype
         self._read_upto_frame = read_upto_frame
+        self._sig_shape = sig_shape
 
     def stop(self):
         self._stop_event.set()
@@ -502,7 +508,9 @@ class ReaderThread(threading.Thread):
 
     def run(self):
         try:
-            out = self._backend.get_out_buffer(self._chunk_size, dtype=self._read_dtype)
+            out = self._backend.get_out_buffer(
+                self._chunk_size, sig_shape=self._sig_shape, dtype=self._read_dtype
+            )
             input_buffer = self._backend.get_input_buffer(num_frames=self._chunk_size)
             should_exit = False
             while not should_exit:
@@ -547,13 +555,14 @@ class ReaderThread(threading.Thread):
 
 
 class ReaderPoolImpl:
-    def __init__(self, backend, pool_size, chunk_size, read_upto_frame):
+    def __init__(self, backend, pool_size, chunk_size, read_upto_frame, sig_shape):
         self._pool_size = pool_size
         self._backend = backend
         self._chunk_size = chunk_size
         self._out_queue = queue.Queue()  # TODO: possibly limit size?
         self._threads = None
         self._read_upto_frame = read_upto_frame
+        self._sig_shape = sig_shape
 
     def __enter__(self):
         self._threads = []
@@ -563,6 +572,7 @@ class ReaderPoolImpl:
                 chunk_size=self._chunk_size,
                 out_queue=self._out_queue,
                 read_upto_frame=self._read_upto_frame,
+                sig_shape=self._sig_shape
             )
             t.start()
             self._threads.append(t)
@@ -602,7 +612,7 @@ class ReaderPool:
         self._backend = backend
         self._pool_size = pool_size
 
-    def get_impl(self, chunk_size=10, read_upto_frame=None):
+    def get_impl(self, sig_shape, chunk_size=10, read_upto_frame=None):
         """
         Returns a new `ReaderPoolImpl`, which will read up to
         the frame index given in `read_upto_frame`, or all frames
@@ -613,11 +623,13 @@ class ReaderPool:
             pool_size=self._pool_size,
             chunk_size=chunk_size,
             read_upto_frame=read_upto_frame,
+            sig_shape=sig_shape,
         )
 
 
 class MerlinDataSource:
-    def __init__(self, host, port, pool_size=2):
+    def __init__(self, host, port, pool_size=2, sig_shape=(256, 256)):
+        self._sig_shape = sig_shape
         self.socket = MerlinDataSocket(host=host, port=port)
         self.pool = ReaderPool(backend=self.socket, pool_size=pool_size)
 
@@ -632,7 +644,7 @@ class MerlinDataSource:
         hdr = self.socket.get_acquisition_header()
         logger.info(hdr)
 
-        out = self.socket.get_out_buffer(chunk_size, dtype=read_dtype)
+        out = self.socket.get_out_buffer(chunk_size, sig_shape=self._sig_shape, dtype=read_dtype)
         input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
 
         while True:
@@ -663,9 +675,11 @@ class MerlinDataSource:
         self.socket.read_headers()
         hdr = self.socket.get_acquisition_header()
         logger.info(hdr)
+
         pool = self.pool.get_impl(
             read_upto_frame=num_frames,
             chunk_size=chunk_size,
+            sig_shape=self._sig_shape,
         )
         with pool:
             while True:
