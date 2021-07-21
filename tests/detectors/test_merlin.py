@@ -297,7 +297,7 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
 )
 def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline):
     print("Merlin sim:", merlin_detector_sim)
-    source = MerlinDataSource(*merlin_detector_sim)
+    source = MerlinDataSource(*merlin_detector_sim, sig_shape=tuple(merlin_ds.shape.sig))
 
     res = np.zeros(merlin_ds.shape.sig)
 
