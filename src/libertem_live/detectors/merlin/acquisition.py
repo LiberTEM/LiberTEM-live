@@ -130,8 +130,9 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         num_partitions = int(num_frames // self._frames_per_partition)
 
         header = self.source.socket.get_acquisition_header()
+        frame_header = self.source.socket.get_first_frame_header()
 
-        self.source.validate_get_sig_shape(header, self._sig_shape)
+        self.source.validate_get_sig_shape(frame_header, self._sig_shape)
 
         slices = BasePartition.make_slices(self.shape, num_partitions)
         for part_slice, start, stop in slices:

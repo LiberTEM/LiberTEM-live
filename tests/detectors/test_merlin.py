@@ -161,6 +161,41 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     assert np.allclose(res['intensity'], ref['intensity'])
 
 
+@pytest.mark.parametrize(
+    # Test matching and mismatching shape
+    'sig_shape', ((256, 256), (512, 512))
+)
+def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
+    triggered = triggered = np.array((False,))
+
+    def trigger(acquisition):
+        triggered[:] = True
+        assert acquisition.shape.nav == merlin_ds.shape.nav
+
+    host, port = merlin_detector_sim
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=trigger,
+        nav_shape=(32, 32),
+        sig_shape=sig_shape,
+        host=host,
+        port=port,
+        drain=False
+    )
+
+    try:
+        udf = SumUDF()
+
+        res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+        ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+        assert np.allclose(res['intensity'], ref['intensity'])
+        assert sig_shape == tuple(merlin_ds.shape.sig)
+    except ValueError as e:
+        assert sig_shape != tuple(merlin_ds.shape.sig)
+        assert 'received "image_size" header' in e.args[0]
+
+
 def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
     triggered = triggered = np.array((False,))
 
@@ -293,25 +328,32 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
 
 
 @pytest.mark.parametrize(
-    'inline', (True, False)
+    'inline', (True, False),
 )
-def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline):
+@pytest.mark.parametrize(
+    # auto, correct, wrong
+    'sig_shape', (None, (256, 256), (512, 512)),
+)
+def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline, sig_shape):
     print("Merlin sim:", merlin_detector_sim)
-    source = MerlinDataSource(*merlin_detector_sim, sig_shape=tuple(merlin_ds.shape.sig))
+    source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape)
 
     res = np.zeros(merlin_ds.shape.sig)
-
-    with source:
-        if inline:
-            for chunk in source.inline_stream():
-                res += chunk.sum(axis=0)
-        else:
-            for chunk in source.stream(num_frames=32*32):
-                res += chunk.buf.sum(axis=0)
-
-    udf = SumUDF()
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
-    assert np.allclose(res, ref['intensity'])
+    try:
+        with source:
+            if inline:
+                for chunk in source.inline_stream():
+                    res += chunk.sum(axis=0)
+            else:
+                for chunk in source.stream(num_frames=32*32):
+                    res += chunk.buf.sum(axis=0)
+        udf = SumUDF()
+        ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+        assert np.allclose(res, ref['intensity'])
+        assert (sig_shape is None) or (sig_shape == tuple(merlin_ds.shape.sig))
+    except ValueError as e:
+        assert sig_shape != tuple(merlin_ds.shape.sig)
+        assert 'received "image_size" header' in e.args[0]
 
 
 class BadServer(ServerThreadMixin, threading.Thread):
