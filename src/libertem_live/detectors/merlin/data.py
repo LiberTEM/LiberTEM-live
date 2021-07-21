@@ -304,6 +304,9 @@ class MerlinDataSocket:
     def get_acquisition_header(self):
         return self._acquisition_header
 
+    def get_first_frame_header(self):
+        return self._first_frame_header
+
     def read_headers(self, cancel_timeout=None):
         """
         Read acquisition header, and peek first frame header
@@ -644,7 +647,10 @@ class MerlinDataSource:
         hdr = self.socket.get_acquisition_header()
         logger.info(hdr)
 
-        sig_shape = self.validate_get_sig_shape(hdr, self._sig_shape)
+        frame_hdr = self.socket.get_first_frame_header()
+        logger.info(frame_hdr)
+
+        sig_shape = self.validate_get_sig_shape(frame_hdr, self._sig_shape)
 
         out = self.socket.get_out_buffer(chunk_size, sig_shape=sig_shape, dtype=read_dtype)
         input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
@@ -678,7 +684,10 @@ class MerlinDataSource:
         hdr = self.socket.get_acquisition_header()
         logger.info(hdr)
 
-        sig_shape = self.validate_get_sig_shape(hdr, self._sig_shape)
+        frame_hdr = self.socket.get_first_frame_header()
+        logger.info(frame_hdr)
+
+        sig_shape = self.validate_get_sig_shape(frame_hdr, self._sig_shape)
 
         pool = self.pool.get_impl(
             read_upto_frame=num_frames,
@@ -692,39 +701,19 @@ class MerlinDataSource:
                         break
                     yield res_wrapped
 
-    def validate_get_sig_shape(self, hdr, sig_shape=None):
-        assembly_size = hdr.get('Assembly Size (NX1, 2X2)')
-        if assembly_size:
-            assembly_size = assembly_size.strip(" G")
-            if assembly_size == '1x1':
-                if sig_shape is None or sig_shape == (256, 256):
-                    return (256, 256)
-                else:
-                    raise ValueError(
-                        f'Mismatch between settings and received acquisition headers: '
-                        f'assembly size is {assembly_size}, expected sig shape is '
-                        f'therefore (256, 256), while sig shape is set to {sig_shape}.'
-                    )
-            elif assembly_size == '2x2':
-                if sig_shape is None or sig_shape == (512, 512):
-                    return (512, 512)
-                else:
-                    raise ValueError(
-                        f'Mismatch between settings and received acquisition headers: '
-                        f'assembly size is {assembly_size}, expected sig shape is '
-                        f'therefore (512, 512), while sig shape is set to {sig_shape}.'
-                    )
-            else:
-                # FIXME not clear which axis is which for asymmetric assemblies
-                # Implement proper support as soon as we have test data.
-                raise NotImplementedError((
-                    f'Assembly size {assembly_size} not implemented yet. '
-                ))
-        else:
-            if sig_shape is None:
-                raise ValueError(
-                    'Header "Assembly Size (NX1, 2X2)" not present and sig shape '
+    def validate_get_sig_shape(self, frame_hdr, sig_shape=None):
+        image_size = frame_hdr.get('image_size')
+        if image_size is None and sig_shape is None:
+            raise ValueError(
+                    'Frame header "image_size" not present and sig shape '
                     'not given, cannot determine sig shape'
                 )
-            else:
-                return sig_shape
+        elif sig_shape is None:
+            return image_size
+        else:
+            if image_size != sig_shape:
+                raise ValueError(
+                    f'Mismatch between sig_shape {sig_shape} setting and '
+                    f'received "image_size" header {image_size}.'
+                )
+            return sig_shape
