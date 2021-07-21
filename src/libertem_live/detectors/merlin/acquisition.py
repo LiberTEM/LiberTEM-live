@@ -23,7 +23,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     trigger : function()
         See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
         and :ref:`trigger` for details!
-    scan_size : tuple(int)
+    nav_shape : tuple(int)
     host : str
         Hostname of the Merlin data server, default '127.0.0.1'
     port : int
@@ -40,7 +40,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def __init__(
         self,
         trigger,
-        scan_size,
+        nav_shape,
         host='127.0.0.1',
         port=6342,
         drain=True,
@@ -53,7 +53,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         super().__init__(trigger=trigger)
         self._source = MerlinDataSource(host, port, pool_size)
         self._drain = drain
-        self._scan_size = scan_size
+        self._nav_shape = nav_shape
         self._frames_per_partition = frames_per_partition
         self._timeout = timeout
 
@@ -62,7 +62,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         # so we know all relevant parameters beforehand
         dtype = np.uint8  # FIXME: don't know the dtype yet
         self._meta = DataSetMeta(
-            shape=Shape(self._scan_size + (256, 256), sig_dims=2),
+            shape=Shape(self._nav_shape + (256, 256), sig_dims=2),
             raw_dtype=dtype,
             dtype=dtype,
         )
@@ -114,7 +114,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     #     else:  # 24 bit?
     #         dtype = np.uint32
     #     self._meta = DataSetMeta(
-    #         shape=Shape(self._scan_size + (256, 256), sig_dims=2),
+    #         shape=Shape(self._nav_shape + (256, 256), sig_dims=2),
     #         raw_dtype=dtype,
     #         dtype=dtype,
     #     )
@@ -123,7 +123,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def get_partitions(self):
         # FIXME: only works for inline executor or similar, as we pass a
         # TCP connection to each partition, which cannot be serialized
-        num_frames = np.prod(self._scan_size, dtype=np.uint64)
+        num_frames = np.prod(self._nav_shape, dtype=np.uint64)
         num_partitions = int(num_frames // self._frames_per_partition)
 
         header = self.source.socket.get_acquisition_header()
