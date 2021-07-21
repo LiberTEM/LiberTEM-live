@@ -131,6 +131,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 
         header = self.source.socket.get_acquisition_header()
 
+        self.source.validate_get_sig_shape(header, self._sig_shape)
+
         slices = BasePartition.make_slices(self.shape, num_partitions)
         for part_slice, start, stop in slices:
             yield MerlinLivePartition(
