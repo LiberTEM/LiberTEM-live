@@ -24,6 +24,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
         and :ref:`trigger` for details!
     nav_shape : tuple(int)
+    sig_shape : tuple(int)
     host : str
         Hostname of the Merlin data server, default '127.0.0.1'
     port : int
@@ -41,6 +42,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         self,
         trigger,
         nav_shape,
+        sig_shape=(256, 256),
         host='127.0.0.1',
         port=6342,
         drain=True,
@@ -51,9 +53,10 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         # This will also call the DataSet constructor, additional arguments
         # could be passed -- currently not necessary
         super().__init__(trigger=trigger)
-        self._source = MerlinDataSource(host, port, pool_size)
+        self._source = MerlinDataSource(host, port, pool_size, sig_shape=sig_shape)
         self._drain = drain
         self._nav_shape = nav_shape
+        self._sig_shape = sig_shape
         self._frames_per_partition = frames_per_partition
         self._timeout = timeout
 
@@ -62,7 +65,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         # so we know all relevant parameters beforehand
         dtype = np.uint8  # FIXME: don't know the dtype yet
         self._meta = DataSetMeta(
-            shape=Shape(self._nav_shape + (256, 256), sig_dims=2),
+            shape=Shape(self._nav_shape + self._sig_shape, sig_dims=2),
             raw_dtype=dtype,
             dtype=dtype,
         )
@@ -170,15 +173,16 @@ class MerlinLivePartition(Partition):
 
     def adjust_tileshape(self, tileshape, roi):
         depth = min(24, self._end_idx - self._start_idx)
-        return (depth, 256, 256)
+        return (depth, *self.meta.shape.sig)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
         # return 12*256*256*8
-        return 24*256*256*8
+        # FIXME magic numbers?
+        return 24*np.prod(self.meta.shape.sig)*8
 
     def get_base_shape(self, roi):
-        return (1, 1, 256)
+        return (1, 1, self.meta.shape.sig[-1])
 
     def _get_tiles_fullframe(self, tiling_scheme, dest_dtype="float32", roi=None):
         # assert len(tiling_scheme) == 1
@@ -187,6 +191,7 @@ class MerlinLivePartition(Partition):
             read_upto_frame=self._end_idx,
             # chunk_size=11,
             chunk_size=tiling_scheme.depth,
+            sig_shape=tuple(self.meta.shape.sig)
         )
         to_read = self._end_idx - self._start_idx
         with pool:

@@ -8,6 +8,7 @@ repos:
   - id: end-of-file-fixer
   - id: check-yaml
   - id: check-added-large-files
+    exclude: '^$|prototypes/|examples/'
 - repo: https://github.com/pycqa/flake8
   rev: 3.9.2
   hooks:
