@@ -695,7 +695,7 @@ class MerlinDataSource:
     def validate_get_sig_shape(self, hdr, sig_shape=None):
         assembly_size = hdr.get('Assembly Size (NX1, 2X2)')
         if assembly_size:
-            assembly_size = assembly_size.strip()
+            assembly_size = assembly_size.strip(" G")
             if assembly_size == '1x1':
                 if sig_shape is None or sig_shape == (256, 256):
                     return (256, 256)
