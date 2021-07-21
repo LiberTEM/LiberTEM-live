@@ -148,7 +148,7 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=trigger,
-        scan_size=(32, 32),
+        nav_shape=(32, 32),
         host=host,
         port=port,
         drain=False
@@ -172,7 +172,7 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=trigger,
-        scan_size=(32, 32),
+        nav_shape=(32, 32),
         host=host,
         port=port,
         drain=False
@@ -198,7 +198,7 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=trigger,
-        scan_size=(32, 32),
+        nav_shape=(32, 32),
         host=host,
         port=port,
         drain=False
@@ -239,7 +239,7 @@ def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=trigger,
-        scan_size=(32, 32),
+        nav_shape=(32, 32),
         host=sim_host,
         port=sim_port
     )
@@ -278,7 +278,7 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=trigger,
-        scan_size=(32, 32),
+        nav_shape=(32, 32),
         host=sim_host,
         port=sim_port
     )
