@@ -152,3 +152,9 @@ simulator:
 .. toctree::
 
     merlin
+
+This example shows how to access the detector frame stream without using LiberTEM:
+
+    .. toctree::
+
+        lowlevel
