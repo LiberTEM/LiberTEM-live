@@ -32,7 +32,7 @@ from libertem.udf.sumsigudf import SumSigUDF
 # Adjust to match experiment
 MERLIN_DATA_SOCKET = ('127.0.0.1', 6342)
 MERLIN_CONTROL_SOCKET = ('127.0.0.1', 6341)
-SCAN_SIZE = (128, 128)
+NAV_SHAPE = (128, 128)
 
 # Change to a writable folder. GMS may run in C:\Windows\system32
 # depending on the starting method.
@@ -136,7 +136,7 @@ def main():
         aq = ctx.prepare_acquisition(
             'merlin',
             trigger=trigger,
-            scan_size=SCAN_SIZE,
+            nav_shape=NAV_SHAPE,
             host=MERLIN_DATA_SOCKET[0],
             port=MERLIN_DATA_SOCKET[1],
             frames_per_partition=800,
