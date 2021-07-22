@@ -126,12 +126,15 @@ def decode_bulk_uint12_le(inp, out, num_packets, meta_out=None):
 
 
 # Fake object orientation, compatible with Numba
-PacketHeader = namedtuple('PacketHeader', ['frame_id', 'pixel_x_start', 'pixel_y_start'])
+PacketHeader = namedtuple(
+    'PacketHeader', ['frame_id', 'raw_frame_id', 'pixel_x_start', 'pixel_y_start']
+)
 
 
 def make_PacketHeader():
     return PacketHeader(
         frame_id=np.zeros(1, dtype=np.int64),
+        raw_frame_id=np.zeros(1, dtype=np.int64),
         pixel_x_start=np.zeros(1, dtype=np.uint16),
         pixel_y_start=np.zeros(1, dtype=np.uint16),
     )
@@ -142,11 +145,13 @@ def decode_header_into(header_inout: PacketHeader, packet: bytes, wrap_offset: i
     byteswap_4_decode(inp=packet[24:28], out=header_inout.frame_id)
     byteswap_2_decode(inp=packet[28:30], out=header_inout.pixel_x_start)
     byteswap_2_decode(inp=packet[30:32], out=header_inout.pixel_y_start)
+    header_inout.raw_frame_id[0] = header_inout.frame_id[0]
     header_inout.frame_id[0] += wrap_offset
 
 
 @numba.njit(cache=True)
 def copy_header_to(src_header: PacketHeader, dest_header: PacketHeader):
     dest_header.frame_id[0] = src_header.frame_id[0]
+    dest_header.raw_frame_id[0] = src_header.raw_frame_id[0]
     dest_header.pixel_x_start[0] = src_header.pixel_x_start[0]
     dest_header.pixel_y_start[0] = src_header.pixel_y_start[0]

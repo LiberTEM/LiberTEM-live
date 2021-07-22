@@ -90,25 +90,32 @@ def block_drop(packages, offset, count, bin):
         counter += 1
 
 
-def validate_frame_slice(data, frame_id, bin=[]):
+def validate_frame_slice(data, frame_id, bin=[], stragglers=[]):
     '''
     Check that the block_count that was baked into the payload by make_packet()
     ended up where it was supposed to. If it is in the bin, make sure it is
     zeroed out correctly
     '''
+    def make_key(frame_id, i):
+        return (frame_id, frame_id*32 + i, i)
+
+    straggle_keys = []
+    for h in stragglers:
+        i = block_idx(h.pixel_x_start[0], h.pixel_y_start[0])
+        straggle_keys.append(make_key(h.raw_frame_id[0], i))
     for i in range(32):
         x, y = block_xy(i)
         tag = data[y, x]
         target = 32*frame_id + i
-        key = (frame_id, frame_id*32 + i, i)
-        if key in bin:
+        key = make_key(frame_id, i)
+        if key in bin or key in straggle_keys:
             assert np.all(data[y:y+930, x:x+16] == 0)
         else:
             try:
                 # 12 bit maximum
                 assert tag == target % 2**12
             except AssertionError:
-                print(key, bin)
+                print(key, bin, straggle_keys)
                 raise
 
 
@@ -122,6 +129,8 @@ class MockThread:
         self.packet_counter = 0
         self.decoder_state.recent_frame_id[0] = -1
         self.decoder_state.first_frame_id[0] = 2
+        self.record_stragglers = True
+        self.stragglers = []
 
     def is_stopped(self):
         return False
@@ -165,13 +174,20 @@ class MockSocket:
         (5, 1, [0*32], [3*32]),
     ]
 )
-@pytest.mark.parametrize('do_scramble', (0, MAX_PER_TILE*32//2))
-@pytest.mark.parametrize('do_drop', (False, True))
-@pytest.mark.parametrize('do_dup', (False, True))
-@pytest.mark.parametrize('do_wrap', (False, True))
+@pytest.mark.parametrize(
+    ('do_scramble', 'do_drop', 'do_dup', 'do_wrap'), [
+        (0, True, True, True),
+        (MAX_PER_TILE*32//8, True, True, True),
+        # Too much scrambling can upset wrap detection
+        (MAX_PER_TILE*32//2, True, True, False),
+        # This will cause many stragglers
+        (MAX_PER_TILE*32*2, False, False, False),
+    ]
+)
 def test_gettiles(
         per_partition, num_partitions, carry_partition, carry_dataset,
         do_scramble, do_drop, do_dup, do_wrap):
+    to_validate = []
     step_index = 97
     step_amount = 89
     if do_wrap and per_partition*num_partitions <= step_index:
@@ -184,10 +200,10 @@ def test_gettiles(
         gen = scramble(gen, window=do_scramble)
     if do_drop:
         gen = random_drop(gen, bin)
-    if do_dup:
-        gen = random_dup(gen)
     if do_wrap:
         gen = wrap(gen, step_index, step_amount)
+    if do_dup:
+        gen = random_dup(gen)
 
     thread = MockThread()
     socket = MockSocket(gen)
@@ -211,8 +227,9 @@ def test_gettiles(
         )
 
         # Since the buffer of a tile is reused,
-        # one should consume and check the tiles as they come in
-        # instead of making a list of them
+        # one has to take a copy for later validation
+        # Th evalidation has to happen at the end since stragglers
+        # and dropped packets can only be distinguished there.
 
         for i, t in enumerate(tiles):
             assert t.shape[0] == frames_in_tile[i]
@@ -220,7 +237,7 @@ def test_gettiles(
             print("frames in tile:", f_i_t)
             for frame in range(f_i_t):
                 print("frame ID, frame: ", frame_id, frame)
-                validate_frame_slice(t[frame], frame_id, bin=bin)
+                to_validate.append(dict(data=t[frame].copy(), frame_id=frame_id))
                 frame_id += 1
         # Test the state of partition and dataset carry after
         # all tiles in the partition tile generator are exhausted.
@@ -252,8 +269,28 @@ def test_gettiles(
             print("frames in tile:", f_i_t)
             for frame in range(f_i_t):
                 print("frame ID, frame: ", frame_id, frame)
-                validate_frame_slice(t[frame], frame_id, bin=bin)
+                to_validate.append(dict(data=t[frame].copy(), frame_id=frame_id))
                 frame_id += 1
+
+    # Stragglers can only be caused by scrambling
+    if not do_scramble:
+        assert not thread.stragglers
+
+    # Consume more frames to drain all stragglers from the source
+    start = end_dataset_after_idx + 2
+    n_frames = max(32, do_scramble//32*2)
+    tiles = MsgReaderThread.get_tiles(
+        thread,
+        packets,
+        start_frame=start,
+        end_after_idx=start + n_frames,
+        end_dataset_after_idx=start + n_frames,
+    )
+    for i, t in enumerate(tiles):
+        pass
+
+    for item in to_validate:
+        validate_frame_slice(bin=bin, stragglers=thread.stragglers, **item)
 
 
 def test_gettiles_blockdrop():

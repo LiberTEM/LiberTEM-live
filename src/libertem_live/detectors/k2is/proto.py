@@ -402,6 +402,7 @@ DecoderState = namedtuple(
     'DecoderState',
     [
         'dataset_carry', 'partition_carry', 'tile_carry', 'wrap_carry', 'tmp_carry',
+        'straggle_list',
         'frame_wrap',
         'first_frame_id',
         'recent_frame_id',
@@ -419,6 +420,7 @@ def make_DecoderState(num_packets):
         tile_carry=make_carry(carry_size),
         wrap_carry=make_carry(carry_size),
         tmp_carry=make_carry(carry_size),
+        straggle_list=make_carry(carry_size),
         frame_wrap=np.zeros(1, dtype=np.int64),
         first_frame_id=np.full(1, -1, dtype=np.int64),
         recent_frame_id=np.full(1, -1, dtype=np.int64),
@@ -471,6 +473,7 @@ def find_target(bufs, header, decoder_state: DecoderState):
         # before first tile or between tiles
         if frame_idx < buf.frame_offset[0]:
             if buf.frame_offset[0] - frame_idx > WRAP_JUMP and i == 0:
+                # print("wrapping", frame_idx, i, buf.frame_offset[0])
                 return TARGET_WRAPAROUND_CARRY
             else:
                 # print("straggler", frame_idx, i, buf.frame_offset[0])
@@ -489,7 +492,7 @@ def find_target(bufs, header, decoder_state: DecoderState):
 
 
 @numba.njit(cache=True)
-def dispatch_packet(bufs_inout, header, decoder_state: DecoderState, packet):
+def dispatch_packet(bufs_inout, header: PacketHeader, decoder_state: DecoderState, packet):
     c_tiles = False
     c_partition = False
     c_dataset = False
@@ -504,8 +507,7 @@ def dispatch_packet(bufs_inout, header, decoder_state: DecoderState, packet):
             offset=decoder_state.first_frame_id[0]
         )
     elif target == TARGET_STRAGGLER:
-        # skip stragglers for now
-        pass
+        carryover(decoder_state.straggle_list, packet, header)
     elif target == TARGET_WRAPAROUND_CARRY:
         carryover(decoder_state.wrap_carry, packet, header)
     elif target == TARGET_NEXT_TILE or target == TARGET_FORERUNNER:
@@ -588,7 +590,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(
         self, idx, port, affinity_set, sync_state,
         local_addr='0.0.0.0', iface='enp193s0f0', timeout=5, pdb=False,
-        profile=False,
+        profile=False, record_stragglers=False,
         *args, **kwargs
     ):
         # TODO: separate this class... way too much state!
@@ -607,6 +609,8 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
         self.packet_counter = 0
         self.pdb = pdb
         self.profile = profile
+        self.stragglers = []
+        self.record_stragglers = record_stragglers
 
         super().__init__(*args, **kwargs)
 
@@ -847,6 +851,10 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 bufs.append(new_tile)
             buf_start += num_frames
 
+        # Requested an empty partition
+        if not bufs:
+            return
+
         header = make_PacketHeader()
 
         x_offset = self.x_offset
@@ -918,6 +926,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                     packets=packets,
                     num_packets=num_packets,
                 )
+                straggle()
                 # yield from do_wrap()
             # end_after_idx + 1 makes sure we are not rotating the buffer, but emptying it out
             yield from yield_and_rotate(end_after_idx + 1)
@@ -945,6 +954,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 carry_inout=self.decoder_state.tile_carry,
                 decoder_state=self.decoder_state
             )
+            straggle()
             # Make sure we have a fresh buffer at the end
             # to resume normal operation and not go into endless carry
             yield from rotate_if_necessary()
@@ -958,6 +968,15 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             if len(bufs) == 3 and bufs[-1].unique_count[0]:
                 yield from yield_and_rotate(None)
 
+        def straggle():
+            if self.record_stragglers:
+                for i in range(self.decoder_state.straggle_list.packet_count[0]):
+                    _, strag_header = get_carry(self.decoder_state.straggle_list, i)
+                    new_header = make_PacketHeader()
+                    copy_header_to(strag_header, new_header)
+                    self.stragglers.append(new_header)
+            reset_carry(self.decoder_state.straggle_list)
+
         # First deal with partition carry.
         assert bufs
         c_tiles, c_partition, c_dataset = dispatch_carry(
@@ -965,6 +984,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
             carry_inout=self.decoder_state.partition_carry,
             decoder_state=self.decoder_state,
         )
+        straggle()
 
         # Wrap up in case we are already in the next partition or epoch
         if c_partition or c_dataset:
@@ -996,6 +1016,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 carry_inout=self.decoder_state.dataset_carry,
                 decoder_state=self.decoder_state,
             )
+            straggle()
             # print("Work to do")
 
             # Wrap up in case we are already in the next partition or dataset
@@ -1028,6 +1049,7 @@ class MsgReaderThread(ErrThreadMixin, threading.Thread):
                 packets=packets,
                 num_packets=num_packets,
             )
+            straggle()
             # wrap up
             if c_partition or c_dataset:
                 # print("loop wrapup")
