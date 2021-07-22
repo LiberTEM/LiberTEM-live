@@ -51,6 +51,9 @@ parameters:
     --max-runs INTEGER
     --help                          Show this message and exit.
 
+A suitable MIB dataset for testing can be downloaded at
+https://zenodo.org/record/5113449.
+
 .. automodule:: libertem_live.detectors.merlin
     :members:
     :undoc-members:
