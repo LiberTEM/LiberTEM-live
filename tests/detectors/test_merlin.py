@@ -187,35 +187,6 @@ def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
     assert np.allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
-async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
-    triggered = triggered = np.array((False,))
-
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False
-    )
-    udf = SumUDF()
-
-    res = await ltl_ctx.run_udf(dataset=aq, udf=udf, sync=False)
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
-
-    assert np.allclose(res['intensity'], ref['intensity'])
-
-    async for res in ltl_ctx.run_udf_iter(dataset=aq, udf=udf, sync=False):
-        pass
-
-    assert np.allclose(res.buffers[0]['intensity'], ref['intensity'])
-
-
 @pytest.mark.parametrize(
     # Test matching and mismatching shape
     'sig_shape', ((256, 256), (512, 512))
