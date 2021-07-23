@@ -76,4 +76,4 @@ class LiveContext(LiberTEM_Context):
 
     def run_udf_iter(self, dataset, udf, *args, **kwargs):
         with self._do_acquisition(dataset, udf):
-            return super().run_udf_iter(dataset=dataset, udf=udf, *args, **kwargs)
+            yield from super().run_udf_iter(dataset=dataset, udf=udf, *args, **kwargs)
