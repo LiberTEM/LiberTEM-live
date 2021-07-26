@@ -70,10 +70,16 @@ class LiveContext(LiberTEM_Context):
             raise ValueError(f"Unknown detector type '{detector_type}', supported is 'merlin'")
         return cls(*args, trigger=trigger, **kwargs).initialize(self.executor)
 
-    def run_udf(self, dataset, udf, *args, **kwargs):
-        with self._do_acquisition(dataset, udf):
-            return super().run_udf(dataset=dataset, udf=udf, *args, **kwargs)
+    def _run_sync(self, dataset, udf, iterate=False, *args, **kwargs):
+        def _run_sync_iterate():
+            with self._do_acquisition(dataset, udf):
+                res = super(LiveContext, self)._run_sync(
+                    dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs
+                )
+                yield from res
 
-    def run_udf_iter(self, dataset, udf, *args, **kwargs):
-        with self._do_acquisition(dataset, udf):
-            yield from super().run_udf_iter(dataset=dataset, udf=udf, *args, **kwargs)
+        if iterate:
+            return _run_sync_iterate()
+        else:
+            with self._do_acquisition(dataset, udf):
+                return super()._run_sync(dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs)
