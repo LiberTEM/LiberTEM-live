@@ -11,6 +11,7 @@ import numpy as np
 from libertem.io.dataset.base.decode import byteswap_2_decode
 
 from libertem_live.detectors.base.acquisition import AcquisitionTimeout
+from libertem_live.detectors.common import ErrThreadMixin
 
 logger = logging.getLogger(__name__)
 
@@ -481,8 +482,7 @@ class ResultWrap:
         self._consumed.set()
 
 
-# FIXME: use ErrThreadMixin and maybe_raise in the pool
-class ReaderThread(threading.Thread):
+class ReaderThread(ErrThreadMixin, threading.Thread):
     def __init__(self, backend, out_queue, chunk_size, sig_shape, default_timeout=0.2,
                  read_dtype=np.float32, read_upto_frame=None, *args, **kwargs):
         super().__init__(name='ReaderThread', *args, **kwargs)
@@ -495,12 +495,6 @@ class ReaderThread(threading.Thread):
         self._read_dtype = read_dtype
         self._read_upto_frame = read_upto_frame
         self._sig_shape = sig_shape
-
-    def stop(self):
-        self._stop_event.set()
-
-    def is_stopped(self):
-        return self._stop_event.is_set()
 
     def __enter__(self):
         self.start()
@@ -553,6 +547,9 @@ class ReaderThread(threading.Thread):
                     if self.is_stopped():  # break out of outer loop
                         should_exit = True
                         break
+        except Exception as e:
+            self.error(e)
+            raise
         finally:
             self.stop()  # make sure the stopped flag is set in any case
 
@@ -583,12 +580,17 @@ class ReaderPoolImpl:
 
     def __exit__(self, *args, **kwargs):
         logger.debug("ReaderPoolImpl.__exit__: stopping threads")
-        for t in self._threads:  # TODO: handle errors on stopping/joining? re-throw exceptions?
+        for t in self._threads:
             t.stop()
             logger.debug("ReaderPoolImpl: stop signal set")
             t.join()
+            t.maybe_raise()
             logger.debug("ReaderPoolImpl: thread joined")
         logger.debug("ReaderPoolImpl.__exit__: threads stopped")
+
+    def _maybe_raise(self):
+        for t in self._threads:
+            t.maybe_raise()
 
     @contextlib.contextmanager
     def get_result(self):
@@ -602,6 +604,7 @@ class ReaderPoolImpl:
                 if self.should_stop():
                     yield None
                     return
+                self._maybe_raise()
 
     def should_stop(self):
         return any(
