@@ -1,4 +1,4 @@
-[Bugfix] Support reading Merlin results as an iterator
-======================================================
+[Bugfix] Support reading Merlin results async and as an iterator
+================================================================
 
-* Make sure the data socket stays connected while we consume from the result generator (:pr:`29`).
+* Make sure the data socket stays connected while we consume from the result generator resp. await the result (:pr:`30`).
