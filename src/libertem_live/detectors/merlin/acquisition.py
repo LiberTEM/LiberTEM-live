@@ -205,7 +205,7 @@ class MerlinLivePartition(Partition):
                 # )
                 with pool.get_result() as res_wrapped:
                     if res_wrapped is None:
-                        # ReaderThread was stopped
+                        # all `ReaderThread`s are stopped and the queue is empty:
                         return
                     frames_in_tile = res_wrapped.stop - res_wrapped.start
                     tile_shape = Shape(

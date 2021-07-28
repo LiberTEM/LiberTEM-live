@@ -9,8 +9,10 @@ from contextlib import contextmanager
 
 import pytest
 import numpy as np
+from numpy.testing import assert_allclose
 
 from libertem.udf.sum import SumUDF
+from libertem.udf.sumsigudf import SumSigUDF
 
 from libertem_live.detectors.merlin import MerlinDataSource, MerlinControl
 from libertem_live.detectors.merlin.sim import (
@@ -151,14 +153,15 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
         nav_shape=(32, 32),
         host=host,
         port=port,
-        drain=False
+        drain=False,
+        pool_size=16,
     )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res['intensity'], ref['intensity'])
+    assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
@@ -175,7 +178,8 @@ def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
         nav_shape=(32, 32),
         host=host,
         port=port,
-        drain=False
+        drain=False,
+        pool_size=16,
     )
     udf = SumUDF()
 
@@ -184,7 +188,7 @@ def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
 
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res.buffers[0]['intensity'], ref['intensity'])
+    assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
 @pytest.mark.asyncio
@@ -202,19 +206,20 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
         nav_shape=(32, 32),
         host=host,
         port=port,
-        drain=False
+        drain=False,
+        pool_size=16,
     )
     udf = SumUDF()
 
     res = await ltl_ctx.run_udf(dataset=aq, udf=udf, sync=False)
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res['intensity'], ref['intensity'])
+    assert_allclose(res['intensity'], ref['intensity'])
 
     async for res in ltl_ctx.run_udf_iter(dataset=aq, udf=udf, sync=False):
         pass
 
-    assert np.allclose(res.buffers[0]['intensity'], ref['intensity'])
+    assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
 @pytest.mark.parametrize(
@@ -236,7 +241,8 @@ def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
         sig_shape=sig_shape,
         host=host,
         port=port,
-        drain=False
+        drain=False,
+        pool_size=16,
     )
 
     try:
@@ -245,7 +251,7 @@ def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
         res = ltl_ctx.run_udf(dataset=aq, udf=udf)
         ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-        assert np.allclose(res['intensity'], ref['intensity'])
+        assert_allclose(res['intensity'], ref['intensity'])
         assert sig_shape == tuple(merlin_ds.shape.sig)
     except ValueError as e:
         assert sig_shape != tuple(merlin_ds.shape.sig)
@@ -266,14 +272,15 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
         nav_shape=(32, 32),
         host=host,
         port=port,
-        drain=False
+        drain=False,
+        pool_size=16,
     )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res['intensity'], ref['intensity'])
+    assert_allclose(res['intensity'], ref['intensity'])
 
 
 @pytest.mark.skipif(platform.system() != 'Linux',
@@ -292,14 +299,15 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
         nav_shape=(32, 32),
         host=host,
         port=port,
-        drain=False
+        drain=False,
+        pool_size=16,
     )
     udf = SumUDF()
 
     res = ltl_ctx.run_udf(dataset=aq, udf=udf)
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res['intensity'], ref['intensity'])
+    assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin_ds):
@@ -332,7 +340,8 @@ def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin
         trigger=trigger,
         nav_shape=(32, 32),
         host=sim_host,
-        port=sim_port
+        port=sim_port,
+        pool_size=16,
     )
     udf = SumUDF()
 
@@ -341,7 +350,7 @@ def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin
 
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res['intensity'], ref['intensity'])
+    assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim, merlin_ds):
@@ -371,7 +380,8 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
         trigger=trigger,
         nav_shape=(32, 32),
         host=sim_host,
-        port=sim_port
+        port=sim_port,
+        pool_size=16,
     )
     udf = SumUDF()
 
@@ -380,7 +390,7 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
 
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert np.allclose(res['intensity'], ref['intensity'])
+    assert_allclose(res['intensity'], ref['intensity'])
 
 
 @pytest.mark.parametrize(
@@ -392,7 +402,7 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
 )
 def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline, sig_shape):
     print("Merlin sim:", merlin_detector_sim)
-    source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape)
+    source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape, pool_size=16)
 
     res = np.zeros(merlin_ds.shape.sig)
     try:
@@ -405,11 +415,23 @@ def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline, sig_shape):
                     res += chunk.buf.sum(axis=0)
         udf = SumUDF()
         ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
-        assert np.allclose(res, ref['intensity'])
+        assert_allclose(res, ref['intensity'])
         assert (sig_shape is None) or (sig_shape == tuple(merlin_ds.shape.sig))
     except ValueError as e:
         assert sig_shape != tuple(merlin_ds.shape.sig)
         assert 'received "image_size" header' in e.args[0]
+
+
+def test_datasource_nav(ltl_ctx, merlin_detector_sim, merlin_ds):
+    source = MerlinDataSource(*merlin_detector_sim, pool_size=16)
+
+    res = np.zeros(merlin_ds.shape.nav).reshape((-1,))
+    with source:
+        for chunk in source.stream(num_frames=merlin_ds.shape.nav.size):
+            res[chunk.start:chunk.stop] = chunk.buf.sum(axis=(-1, -2))
+    udf = SumSigUDF()
+    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    assert_allclose(res.reshape(merlin_ds.shape.nav), ref['intensity'])
 
 
 class BadServer(ServerThreadMixin, threading.Thread):
