@@ -594,20 +594,38 @@ class ReaderPoolImpl:
 
     @contextlib.contextmanager
     def get_result(self):
+        """
+        Returns the next result from the result queue, and releases
+        the buffer for re-use afterwards. If all reader threads are stopped,
+        and the result queue is empty, `None` is returned.
+        """
         while True:
+            self._maybe_raise()
             try:
                 res = self._out_queue.get(timeout=0.2)
                 yield res
                 res.release()
                 return
             except queue.Empty:
-                if self.should_stop():
+                # It can happen that after the exception, a thread adds an item
+                # to the queue and exits. Then, `all_stopped` is `True` but there
+                # an item in the queue again.
+                # So we need to check for empty condition again:
+                if self.is_done():
                     yield None
                     return
-                self._maybe_raise()
 
-    def should_stop(self):
+    def is_done(self):
+        return self.all_stopped() and self._out_queue.empty()
+
+    def any_is_stopped(self):
         return any(
+            t.is_stopped()
+            for t in self._threads
+        )
+
+    def all_stopped(self):
+        return all(
             t.is_stopped()
             for t in self._threads
         )
@@ -700,7 +718,7 @@ class MerlinDataSource:
         with pool:
             while True:
                 with pool.get_result() as res_wrapped:
-                    if pool.should_stop():
+                    if res_wrapped is None:
                         break
                     yield res_wrapped
 
