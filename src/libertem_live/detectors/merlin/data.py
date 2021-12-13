@@ -124,6 +124,32 @@ def decode_r1_swap(inp, out, idx):
                 out[idx, 64 * stripe + 8 * byte + bitpos] = (inp_byte >> bitpos) & 1
 
 
+@numba.jit(inline='always')
+def decode_r1_swap_row(inp, out):
+    """
+    Decode a single 1bit encoded row
+    """
+    for stripe in range(inp.shape[0] // 8):
+        for byte in range(8):
+            inp_byte = inp[(stripe + 1) * 8 - (byte + 1)]
+            for bitpos in range(8):
+                outpos = 64 * stripe + 8 * byte + bitpos
+                out[outpos] = (inp_byte >> bitpos) & 1
+
+
+@numba.jit(inline='always')
+def decode_r1_swap_row_rev(inp, out):
+    """
+    Same as `decode_r1_swap_row`, but stores results in reverse in the output buffer
+    """
+    for stripe in range(inp.shape[0] // 8):
+        for byte in range(8):
+            inp_byte = inp[(stripe + 1) * 8 - (byte + 1)]
+            for bitpos in range(8):
+                outpos = 64 * stripe + 8 * byte + bitpos
+                out[out.shape[0] - outpos - 1] = (inp_byte >> bitpos) & 1
+
+
 @numba.jit(nogil=True, cache=True, parallel=True)
 def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
@@ -134,6 +160,60 @@ def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
         decode_r1_swap(in_for_frame, out, i)
+
+
+@numba.njit(inline='always')
+def _strided_start_stop(offset_global, offset_local, stride, row_idx, row_length):
+    start = offset_global + offset_local + row_idx * stride
+    stop = start + row_length
+    return start, stop
+
+
+@numba.njit(nogil=True, parallel=True)
+def decode_quad_r1(input_bytes, out, header_size_bytes, num_frames):
+    bpp = 1  # bits per pixel
+    x_size_half_px = 256  # assumption - might need to be a parameter later
+    x_size_half = x_size_half_px * bpp // 8
+    rows = 256
+
+    out = out.reshape((num_frames, -1))
+    sig_size = out.shape[-1]
+    frame_size_bytes = sig_size // 8
+    stride = 4 * x_size_half
+
+    for i in numba.prange(num_frames):
+        offset = header_size_bytes * (i + 1) + i * frame_size_bytes
+        out_for_frame = out[i].reshape((512, 512))
+
+        # read the strided data, per input quadrant, one row at a time:
+        # quadrant 1:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 3 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[row, :x_size_half_px]
+            decode_r1_swap_row(in_for_row, out_for_row)
+
+        # quadrant 2:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 2 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[row, x_size_half_px:]
+            decode_r1_swap_row(in_for_row, out_for_row)
+
+        # these two quadrants need flipping in x and y direction
+        # quadrant 3:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 1 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[2 * rows - row - 1, :x_size_half_px]
+            decode_r1_swap_row_rev(in_for_row, out_for_row)
+
+        # quadrant 4:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 0 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[2 * rows - row - 1, x_size_half_px:]
+            decode_r1_swap_row_rev(in_for_row, out_for_row)
 
 
 @numba.njit(inline='always', cache=True)
@@ -159,6 +239,77 @@ def decode_multi_r6(input_bytes, out, header_size_bytes, num_frames):
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
         decode_r6_swap(in_for_frame, out, i)
+
+
+@numba.njit(inline='always')
+def decode_r6_swap_row(inp, out):
+    """
+    Per-row version of `decode_r6-swap`
+    """
+    for i in range(out.shape[0]):
+        col = i % 8
+        pos = i // 8
+        out_pos = (pos + 1) * 8 - col - 1
+        out[out_pos] = inp[i]
+
+
+@numba.njit(inline='always')
+def decode_r6_swap_row_rev(inp, out):
+    """
+    Reverse version of `decode_r6_swap_row`
+    """
+    for i in range(out.shape[0]):
+        col = i % 8
+        pos = i // 8
+        out_pos = (pos + 1) * 8 - col - 1
+        out[out.shape[0] - out_pos - 1] = inp[i]
+
+
+@numba.njit(nogil=True, parallel=True)
+def decode_quad_r6(input_bytes, out, header_size_bytes, num_frames):
+    bpp = 8  # bits per pixel - with padding!
+    x_size_half_px = 256  # assumption - might need to be a parameter later
+    x_size_half = x_size_half_px * bpp // 8
+    rows = 256
+
+    out = out.reshape((num_frames, -1))
+    sig_size = out.shape[-1]
+    frame_size_bytes = sig_size // 8
+    stride = 4 * x_size_half
+
+    for frame in numba.prange(num_frames):
+        offset = header_size_bytes * (frame + 1) + frame * frame_size_bytes
+        out_for_frame = out[frame].reshape((512, 512))
+
+        # read the strided data, per input quadrant, one row at a time:
+        # quadrant 1:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 3 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[row, :x_size_half_px]
+            decode_r6_swap_row(in_for_row, out_for_row)
+
+        # quadrant 2:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 2 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[row, x_size_half_px:]
+            decode_r6_swap_row(in_for_row, out_for_row)
+
+        # these two quadrants need flipping in x and y direction
+        # quadrant 3:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 1 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[2 * rows - row - 1, :x_size_half_px]
+            decode_r6_swap_row_rev(in_for_row, out_for_row)
+
+        # quadrant 4:
+        for row in range(rows):
+            start, stop = _strided_start_stop(offset, 0 * x_size_half, stride, row, x_size_half)
+            in_for_row = input_bytes[start:stop]
+            out_for_row = out_for_frame[2 * rows - row - 1, x_size_half_px:]
+            decode_r6_swap_row_rev(in_for_row, out_for_row)
 
 
 @numba.njit(inline='always', cache=True)
@@ -398,7 +549,7 @@ class MerlinDataSocket:
             elif bits_pp == 12:
                 fn = decode_multi_r12
             else:
-                raise Exception("can't handle %d bits per pixel yet" % bits_pp)
+                raise Exception("can't handle raw binary %d bits per pixel yet" % bits_pp)
         input_arr = np.frombuffer(input_buffer, dtype=np.uint8)
         fn(input_arr, out_flat[:num_frames], header_size, num_frames)
 
