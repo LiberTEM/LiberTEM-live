@@ -67,6 +67,13 @@ def _parse_frame_header(raw_data):
     else:
         raise ValueError("unknown kind: %s" % mib_kind)
 
+    num_chips = int(parts[3])
+    if num_chips == 4 and mib_kind == "r":
+        image_size_eff = (512, 512)
+        assert np.prod(image_size_eff) == np.prod(image_size)
+    else:
+        image_size_eff = image_size
+
     return {
         'header_size_bytes': header_size_bytes,
         'dtype': get_np_dtype(parts[6], bits_per_pixel_raw),
@@ -74,8 +81,10 @@ def _parse_frame_header(raw_data):
         'mib_kind': mib_kind,
         'bits_per_pixel': bits_per_pixel_raw,
         'image_size': image_size,
+        'image_size_eff': image_size_eff,
         'image_size_bytes': image_size_bytes,
         'sequence_first_image': int(parts[1]),
+        'num_chips': num_chips,
     }
 
 
@@ -155,11 +164,11 @@ def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
     sig_size = out.shape[-1]
     frame_size_bytes = sig_size // 8
-    for i in numba.prange(num_frames):
-        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+    for frame in numba.prange(num_frames):
+        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
-        decode_r1_swap(in_for_frame, out, i)
+        decode_r1_swap(in_for_frame, out, frame)
 
 
 @numba.njit(inline='always')
@@ -169,7 +178,7 @@ def _strided_start_stop(offset_global, offset_local, stride, row_idx, row_length
     return start, stop
 
 
-@numba.njit(nogil=True, parallel=True)
+@numba.njit(nogil=True, parallel=True, cache=True)
 def decode_quad_r1(input_bytes, out, header_size_bytes, num_frames):
     bpp = 1  # bits per pixel
     x_size_half_px = 256  # assumption - might need to be a parameter later
@@ -234,11 +243,11 @@ def decode_multi_r6(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
     sig_size = out.shape[-1]
     frame_size_bytes = sig_size
-    for i in numba.prange(num_frames):
-        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+    for frame in numba.prange(num_frames):
+        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
-        decode_r6_swap(in_for_frame, out, i)
+        decode_r6_swap(in_for_frame, out, frame)
 
 
 @numba.njit(inline='always')
@@ -265,7 +274,7 @@ def decode_r6_swap_row_rev(inp, out):
         out[out.shape[0] - out_pos - 1] = inp[i]
 
 
-@numba.njit(nogil=True, parallel=True)
+@numba.njit(nogil=True, cache=True, parallel=True)
 def decode_quad_r6(input_bytes, out, header_size_bytes, num_frames):
     bpp = 8  # bits per pixel - with padding!
     x_size_half_px = 256  # assumption - might need to be a parameter later
@@ -274,7 +283,7 @@ def decode_quad_r6(input_bytes, out, header_size_bytes, num_frames):
 
     out = out.reshape((num_frames, -1))
     sig_size = out.shape[-1]
-    frame_size_bytes = sig_size // 8
+    frame_size_bytes = sig_size * bpp // 8
     stride = 4 * x_size_half
 
     for frame in numba.prange(num_frames):
@@ -539,17 +548,28 @@ class MerlinDataSocket:
             elif itemsize == 2:
                 fn = decode_multi_u2
             else:
-                raise Exception("itemsize %d currently not supported" % itemsize)
+                raise RuntimeError("itemsize %d currently not supported" % itemsize)
         else:
             # raw binary:
-            if bits_pp == 1:
-                fn = decode_multi_r1
-            elif bits_pp == 6:
-                fn = decode_multi_r6
-            elif bits_pp == 12:
-                fn = decode_multi_r12
+            if fh['num_chips'] == 4:
+                if bits_pp == 1:
+                    fn = decode_quad_r1
+                elif bits_pp == 6:
+                    fn = decode_quad_r6
+                else:
+                    raise RuntimeError("can't handle quad raw binary %d bits per pixel yet" % bits_pp)
+
+            elif fh['num_chips'] == 1:
+                if bits_pp == 1:
+                    fn = decode_multi_r1
+                elif bits_pp == 6:
+                    fn = decode_multi_r6
+                elif bits_pp == 12:
+                    fn = decode_multi_r12
+                else:
+                    raise RuntimeError("can't handle raw binary %d bits per pixel yet" % bits_pp)
             else:
-                raise Exception("can't handle raw binary %d bits per pixel yet" % bits_pp)
+                raise RuntimeError(f"Can't handle num_chips={fh['num_chips']}")
         input_arr = np.frombuffer(input_buffer, dtype=np.uint8)
         fn(input_arr, out_flat[:num_frames], header_size, num_frames)
 
@@ -874,7 +894,7 @@ class MerlinDataSource:
                     yield res_wrapped
 
     def validate_get_sig_shape(self, frame_hdr, sig_shape=None):
-        image_size = frame_hdr.get('image_size')
+        image_size = frame_hdr.get('image_size_eff')
         if image_size is None and sig_shape is None:
             raise ValueError(
                     'Frame header "image_size" not present and sig shape '
