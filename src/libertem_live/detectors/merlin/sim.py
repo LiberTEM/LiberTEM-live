@@ -15,7 +15,7 @@ import click
 import numpy as np
 from tqdm import tqdm
 
-from libertem.io.dataset.base import TilingScheme
+from libertem.io.dataset.base import TilingScheme, MMapBackend
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
@@ -235,7 +235,7 @@ class DataSocketSimulator:
         Parameters
         ----------
 
-        fh : LocalFile
+        fh : MMapFile
 
         frame_idx : int
             File-relative frame index
@@ -243,21 +243,7 @@ class DataSocketSimulator:
         full_frame_size : int
             Size of header plus frame in bytes
         """
-        if fh._file is None:
-            fh.open()
-        f = fh._file
-        fileno = f.fileno()
-        if fileno not in self._mmaps:
-            self._mmaps[fileno] = raw_mmap = mmap.mmap(
-                fileno=f.fileno(),
-                length=0,
-                offset=0,
-                access=mmap.ACCESS_READ,
-            )
-        else:
-            raw_mmap = self._mmaps[fileno]
-
-        return bytearray(raw_mmap[
+        return bytearray(fh.mmap[
             full_frame_size * frame_idx: full_frame_size * (frame_idx + 1)
         ])
 
@@ -300,20 +286,25 @@ class DataSocketSimulator:
 
         mpx_header = get_mpx_header(full_frame_size)
 
-        for idx in range(slices.shape[0]):
-            if self.is_stopped():
-                raise StopException("Server stopped")
-            origin = slices[idx, 0]
-            # shape = slices[idx, 1]
-            # origin, shape = slices[idx]
-            tile_ranges = ranges[idx][0]
-            file_idx = tile_ranges[0]
-            fh = fileset[file_idx]
-            global_idx = origin[0]
-            local_idx = global_idx - fh.start_idx
-            frame_w_header = self._read_frame_w_header(fh, local_idx, full_frame_size)
-            yield mpx_header
-            yield frame_w_header
+        backend = MMapBackend().get_impl()
+
+        with backend.open_files(fileset) as open_files:
+            for idx in range(slices.shape[0]):
+                if self.is_stopped():
+                    raise StopException("Server stopped")
+                origin = slices[idx, 0]
+                # shape = slices[idx, 1]
+                # origin, shape = slices[idx]
+                tile_ranges = ranges[idx][0]
+                file_idx = tile_ranges[0]
+                fh = fileset[file_idx]
+                global_idx = origin[0]
+                local_idx = global_idx - fh.start_idx
+                frame_w_header = self._read_frame_w_header(
+                    open_files[file_idx], local_idx, full_frame_size
+                )
+                yield mpx_header
+                yield frame_w_header
 
     def _get_continuous(self):
         if self._rois:
@@ -399,11 +390,13 @@ class MemfdSocketSim(DataSocketSimulator):
         for chunk in super()._get_single_scan(roi):
             if self.is_stopped():
                 raise StopException("Server stopped")
-            os.write(self._cache_fd, chunk)
+            written = 0
+            while written < len(chunk):
+                written += os.write(self._cache_fd, chunk[written:])
             total_size += len(chunk)
         os.lseek(self._cache_fd, 0, 0)
         self._size = total_size
-        print("cache populated, total size = %d MiB" % (total_size / 1024 / 1024))
+        print("cache populated, total size = %d MiB (%d bytes)" % (total_size / 1024 / 1024, total_size))
 
     def _send_full_file(self, conn):
         os.lseek(self._cache_fd, 0, 0)
