@@ -1,5 +1,6 @@
 import os
 import sys
+import mmap
 import time
 import socket
 import itertools
@@ -234,7 +235,7 @@ class DataSocketSimulator:
         Parameters
         ----------
 
-        fh : MMapFile
+        fh : MMapFile or LocalFile
 
         frame_idx : int
             File-relative frame index
@@ -242,7 +243,26 @@ class DataSocketSimulator:
         full_frame_size : int
             Size of header plus frame in bytes
         """
-        return bytearray(fh.mmap[
+        # backwards-compat. for LiberTEM v0.8
+        if hasattr(fh, "_path"):
+            path = fh._path
+        elif hasattr(fh, "path"):
+            path = fh.path
+        else:
+            raise RuntimeError(f"unknown file object {fh}")
+        f = open(path, "rb")
+        fileno = f.fileno()
+        if fileno not in self._mmaps:
+            self._mmaps[fileno] = raw_mmap = mmap.mmap(
+                fileno=f.fileno(),
+                length=0,
+                offset=0,
+                access=mmap.ACCESS_READ,
+            )
+        else:
+            raw_mmap = self._mmaps[fileno]
+
+        return bytearray(raw_mmap[
             full_frame_size * frame_idx: full_frame_size * (frame_idx + 1)
         ])
 
