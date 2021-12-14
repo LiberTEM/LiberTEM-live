@@ -15,7 +15,7 @@ import click
 import numpy as np
 from tqdm import tqdm
 
-from libertem.io.dataset.base import TilingScheme, MMapBackend
+from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
@@ -305,25 +305,22 @@ class DataSocketSimulator:
 
         mpx_header = get_mpx_header(full_frame_size)
 
-        backend = MMapBackend().get_impl()
-
-        with backend.open_files(fileset) as open_files:
-            for idx in range(slices.shape[0]):
-                if self.is_stopped():
-                    raise StopException("Server stopped")
-                origin = slices[idx, 0]
-                # shape = slices[idx, 1]
-                # origin, shape = slices[idx]
-                tile_ranges = ranges[idx][0]
-                file_idx = tile_ranges[0]
-                fh = fileset[file_idx]
-                global_idx = origin[0]
-                local_idx = global_idx - fh.start_idx
-                frame_w_header = self._read_frame_w_header(
-                    open_files[file_idx], local_idx, full_frame_size
-                )
-                yield mpx_header
-                yield frame_w_header
+        for idx in range(slices.shape[0]):
+            if self.is_stopped():
+                raise StopException("Server stopped")
+            origin = slices[idx, 0]
+            # shape = slices[idx, 1]
+            # origin, shape = slices[idx]
+            tile_ranges = ranges[idx][0]
+            file_idx = tile_ranges[0]
+            fh = fileset[file_idx]
+            global_idx = origin[0]
+            local_idx = global_idx - fh.start_idx
+            frame_w_header = self._read_frame_w_header(
+                fh, local_idx, full_frame_size
+            )
+            yield mpx_header
+            yield frame_w_header
 
     def _get_continuous(self):
         if self._rois:
