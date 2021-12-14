@@ -96,11 +96,11 @@ def decode_multi_u2(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
     sig_size = out.shape[-1]
     frame_size_bytes = sig_size * 2
-    for i in numba.prange(num_frames):
-        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+    for frame in numba.prange(num_frames):
+        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
-        byteswap_2_decode(in_for_frame, out[i])
+        byteswap_2_decode(in_for_frame, out[frame])
 
 
 @numba.njit(nogil=True, cache=True, parallel=True)
@@ -111,11 +111,11 @@ def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
     sig_size = out.shape[-1]
     frame_size_bytes = sig_size
-    for i in numba.prange(num_frames):
-        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+    for frame in numba.prange(num_frames):
+        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
-        out[i] = in_for_frame
+        out[frame] = in_for_frame
         # for j in range(end_offset - start_offset):
         #     out[i, j] = in_for_frame[j]
 
@@ -339,11 +339,11 @@ def decode_multi_r12(input_bytes, out, header_size_bytes, num_frames):
     out = out.reshape((num_frames, -1))
     sig_size = out.shape[-1]
     frame_size_bytes = 2 * sig_size
-    for i in numba.prange(num_frames):
-        start_offset = header_size_bytes*(i+1)+i*frame_size_bytes
+    for frame in numba.prange(num_frames):
+        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
         end_offset = start_offset + frame_size_bytes
         in_for_frame = input_bytes[start_offset:end_offset]
-        decode_r12_swap(in_for_frame, out, i)
+        decode_r12_swap(in_for_frame, out, frame)
 
 
 @numba.njit(inline='always', cache=True)
