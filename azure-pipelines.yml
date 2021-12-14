@@ -41,8 +41,9 @@ stages:
 
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'python | "$(Agent.OS)" | "$(python.version)" | setup.py | test_requirements.txt'
           restoreKeys: |
+            python | "$(Agent.OS)" | "$(python.version)"
             python | "$(Agent.OS)"
             python
           path: $(PIP_CACHE_DIR)
@@ -62,12 +63,6 @@ stages:
         inputs:
           testResultsFiles: 'junit.xml'
           testRunTitle: 'Publish test results for Python $(python.version)'
-
-      - task: PublishCodeCoverageResults@1
-        inputs:
-          codeCoverageTool: Cobertura
-          summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-          reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
 
     - job: numba_coverage
       pool:
@@ -76,14 +71,15 @@ stages:
         TOXENV: 'numba_coverage'
       steps:
       - task: UsePythonVersion@0
-        displayName: 'Use Python $(python.version)'
+        displayName: 'Use Python 3.9'
         inputs:
           versionSpec: '3.9'
 
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'python | "$(Agent.OS)" | "3.9" | setup.py | test_requirements.txt'
           restoreKeys: |
+            python | "$(Agent.OS)" | "3.9"
             python | "$(Agent.OS)"
             python
           path: $(PIP_CACHE_DIR)
@@ -102,13 +98,7 @@ stages:
         condition: succeededOrFailed()
         inputs:
           testResultsFiles: 'junit.xml'
-          testRunTitle: 'Publish test results for Python $(python.version)'
-
-      - task: PublishCodeCoverageResults@1
-        inputs:
-          codeCoverageTool: Cobertura
-          summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-          reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
+          testRunTitle: 'Publish test results for numba coverage on Python 3.9'
 
     - job: lint
       pool:
@@ -124,20 +114,28 @@ stages:
         displayName: 'Use Python 3.9'
         inputs:
           versionSpec: '3.9'
+
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'lint | "$(Agent.OS)"'
           restoreKeys: |
-            python | "$(Agent.OS)"
-            python
+            lint | "$(Agent.OS)"
+            lint
           path: $(PIP_CACHE_DIR)
         displayName: 'cache pip packages'
+
+      - task: Cache@2
+        inputs:
+          key: 'tox_lint | "$(Agent.OS)" | docs_requirements.txt | test_requirements.txt | setup.py | "$(TOXENV)"'
+          path: $(tox_dir)
+        displayName: 'cache tox environment'
+
       - bash: sudo apt install -y pandoc
         displayName: install required debian packages
       - bash: pip install -U tox
         displayName: 'install requirements'
       - bash: tox
-        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
+        displayName: 'Run tox lint $(TOXENV) $(Agent.OS)'
 
     - job: windows_tests
       pool:
@@ -166,8 +164,9 @@ stages:
 
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'python | "$(Agent.OS)" | "$(python.version)" | setup.py | test_requirements.txt'
           restoreKeys: |
+            python | "$(Agent.OS)" | "$(python.version)"
             python | "$(Agent.OS)"
             python
           path: $(PIP_CACHE_DIR)
@@ -188,29 +187,27 @@ stages:
           testResultsFiles: 'junit.xml'
           testRunTitle: 'Publish test results for Python $(python.version)'
 
-      - task: PublishCodeCoverageResults@1
-        inputs:
-          codeCoverageTool: Cobertura
-          summaryFileLocation: '$(System.DefaultWorkingDirectory)/**/coverage.xml'
-          reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
-
     - job: macos_tests
-      pool:
-        vmImage: 'macOS-latest'
       strategy:
         matrix:
           Python36:
             python.version: '3.6'
             TOXENV: 'py36'
+            imageName: 'macos-10.15'
           Python37:
             python.version: '3.7'
             TOXENV: 'py37'
+            imageName: 'macos-latest'
           Python38:
             python.version: '3.8'
             TOXENV: 'py38'
+            imageName: 'macos-latest'
           Python39:
             python.version: '3.9'
             TOXENV: 'py39'
+            imageName: 'macos-latest'
+      pool:
+        vmImage: '$(imageName)'
       variables:
         TOXENV: '$(TOXENV)'
       steps:
@@ -221,8 +218,9 @@ stages:
 
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'python | "$(Agent.OS)" | "$(python.version)" | setup.py | test_requirements.txt'
           restoreKeys: |
+            python | "$(Agent.OS)" | "$(python.version)"
             python | "$(Agent.OS)"
             python
           path: $(PIP_CACHE_DIR)
@@ -293,10 +291,10 @@ stages:
 
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'deploy_docs | "$(Agent.OS)" | setup.py | docs_requirements.txt'
           restoreKeys: |
-            python | "$(Agent.OS)"
-            python
+            deploy_docs | "$(Agent.OS)"
+            deploy_docs
           path: $(PIP_CACHE_DIR)
         displayName: 'cache pip packages'
 
@@ -331,10 +329,10 @@ stages:
           versionSpec: '3.9'
       - task: Cache@2
         inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
+          key: 'deploy | "$(Agent.OS)" | scripts/requirements.txt'
           restoreKeys: |
-            python | "$(Agent.OS)"
-            python
+            deploy | "$(Agent.OS)"
+            deploy
           path: $(PIP_CACHE_DIR)
         displayName: 'cache pip packages'
       - bash: pip install -U tox && pip install -r scripts/requirements.txt
