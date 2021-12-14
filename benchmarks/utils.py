@@ -1,4 +1,3 @@
-
 from libertem.common import Shape
 from libertem.io.dataset.base import TilingScheme
 

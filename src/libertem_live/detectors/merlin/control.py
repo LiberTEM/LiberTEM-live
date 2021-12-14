@@ -58,7 +58,7 @@ class MerlinControl:
                 done = True
             except socket.timeout:
                 pass
-        logger.debug('Response: {resp}'.format(resp=resp))
+        logger.debug(f'Response: {resp}')
         return resp
 
     def _parse_response(self, resp):
@@ -76,13 +76,13 @@ class MerlinControl:
     def _create_cmd(self, typ, cmd, value=None):
         string = ''
         if value is not None:
-            string = '{ty},{cmd},{val}'.format(ty=typ, cmd=cmd, val=value)
+            string = f'{typ},{cmd},{value}'
         else:
-            string = '{ty},{cmd},0'.format(ty=typ, cmd=cmd)
+            string = f'{typ},{cmd},0'
 
         msg = self._create_cmd_raw(string)
 
-        logger.debug('Command: {cmd}'.format(cmd=msg))
+        logger.debug(f'Command: {msg}')
         return msg
 
     def _create_cmd_raw(self, raw_cmd):
@@ -114,7 +114,7 @@ class MerlinControl:
         Send the contents of :code:`filename`, which should
         contain complete merlin command lines.
         """
-        with open(filename, "r") as fh:
+        with open(filename) as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
