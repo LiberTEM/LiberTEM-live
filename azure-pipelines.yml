@@ -10,6 +10,8 @@ variables:
     value: $(Pipeline.Workspace)/.pip
   - name: npm_config_cache
     value: $(Pipeline.Workspace)/.npm
+  - name: tox_dir
+    value: $(Build.Repository.LocalPath)/.tox
 
 stages:
   - stage: test
