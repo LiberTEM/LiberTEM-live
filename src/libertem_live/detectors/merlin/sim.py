@@ -1,6 +1,5 @@
 import os
 import sys
-import mmap
 import time
 import socket
 import itertools
@@ -184,7 +183,7 @@ class DataSocketSimulator:
     def open(self):
         ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
         ds.initialize(MITExecutor())
-        print("dataset shape: %s" % (ds.shape,))
+        print(f"dataset shape: {ds.shape}")
         self._ds = ds
         self._warmup()
 
@@ -396,7 +395,11 @@ class MemfdSocketSim(DataSocketSimulator):
             total_size += len(chunk)
         os.lseek(self._cache_fd, 0, 0)
         self._size = total_size
-        print("cache populated, total size = %d MiB (%d bytes)" % (total_size / 1024 / 1024, total_size))
+        print(
+            "cache populated, total size = %d MiB (%d bytes)" % (
+                total_size / 1024 / 1024, total_size
+            )
+        )
 
     def _send_full_file(self, conn):
         os.lseek(self._cache_fd, 0, 0)
@@ -437,7 +440,7 @@ class MemfdSocketSim(DataSocketSimulator):
             self._send_full_file(conn)
             t1 = time.time()
             throughput = self._size / (t1 - t0) / 1024 / 1024
-            print("single scan took %.05fs (%.2fMiB/s)" % (t1 - t0, throughput))
+            print(f"single scan took {t1 - t0:.05f}s ({throughput:.2f}MiB/s)")
         conn.close()
 
 

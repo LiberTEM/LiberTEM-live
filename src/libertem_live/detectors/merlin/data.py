@@ -557,7 +557,9 @@ class MerlinDataSocket:
                 elif bits_pp == 6:
                     fn = decode_quad_r6
                 else:
-                    raise RuntimeError("can't handle quad raw binary %d bits per pixel yet" % bits_pp)
+                    raise RuntimeError(
+                        "can't handle quad raw binary %d bits per pixel yet" % bits_pp
+                    )
 
             elif fh['num_chips'] == 1:
                 if bits_pp == 1:
