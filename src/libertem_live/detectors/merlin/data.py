@@ -5,13 +5,21 @@ import contextlib
 import queue
 import time
 
-import numba
 import numpy as np
-
-from libertem.io.dataset.base.decode import byteswap_2_decode
 
 from libertem_live.detectors.base.acquisition import AcquisitionTimeout
 from libertem_live.detectors.common import ErrThreadMixin
+from .decoders import (
+    decode_multi_u1,
+    decode_multi_u2,
+    decode_multi_r1,
+    decode_multi_r6,
+    decode_multi_r12,
+    decode_quad_r1,
+    decode_quad_r6,
+    decode_quad_r12,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -86,286 +94,6 @@ def _parse_frame_header(raw_data):
         'sequence_first_image': int(parts[1]),
         'num_chips': num_chips,
     }
-
-
-@numba.njit(nogil=True, cache=True, parallel=True)
-def decode_multi_u2(input_bytes, out, header_size_bytes, num_frames):
-    """
-    Decode multiple >u2 frames
-    """
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = sig_size * 2
-    for frame in numba.prange(num_frames):
-        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
-        end_offset = start_offset + frame_size_bytes
-        in_for_frame = input_bytes[start_offset:end_offset]
-        byteswap_2_decode(in_for_frame, out[frame])
-
-
-@numba.njit(nogil=True, cache=True, parallel=True)
-def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
-    """
-    Decode multiple u1 frames
-    """
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = sig_size
-    for frame in numba.prange(num_frames):
-        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
-        end_offset = start_offset + frame_size_bytes
-        in_for_frame = input_bytes[start_offset:end_offset]
-        out[frame] = in_for_frame
-        # for j in range(end_offset - start_offset):
-        #     out[i, j] = in_for_frame[j]
-
-
-@numba.jit(inline='always', cache=True)
-def decode_r1_swap(inp, out, idx):
-    """
-    RAW 1bit format: each bit is actually saved as a single bit. 64 bits
-    need to be unpacked together.
-    """
-    for stripe in range(inp.shape[0] // 8):
-        for byte in range(8):
-            inp_byte = inp[(stripe + 1) * 8 - (byte + 1)]
-            for bitpos in range(8):
-                out[idx, 64 * stripe + 8 * byte + bitpos] = (inp_byte >> bitpos) & 1
-
-
-@numba.jit(inline='always')
-def decode_r1_swap_row(inp, out):
-    """
-    Decode a single 1bit encoded row
-    """
-    for stripe in range(inp.shape[0] // 8):
-        for byte in range(8):
-            inp_byte = inp[(stripe + 1) * 8 - (byte + 1)]
-            for bitpos in range(8):
-                outpos = 64 * stripe + 8 * byte + bitpos
-                out[outpos] = (inp_byte >> bitpos) & 1
-
-
-@numba.jit(inline='always')
-def decode_r1_swap_row_rev(inp, out):
-    """
-    Same as `decode_r1_swap_row`, but stores results in reverse in the output buffer
-    """
-    for stripe in range(inp.shape[0] // 8):
-        for byte in range(8):
-            inp_byte = inp[(stripe + 1) * 8 - (byte + 1)]
-            for bitpos in range(8):
-                outpos = 64 * stripe + 8 * byte + bitpos
-                out[out.shape[0] - outpos - 1] = (inp_byte >> bitpos) & 1
-
-
-@numba.jit(nogil=True, cache=True, parallel=True)
-def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = sig_size // 8
-    for frame in numba.prange(num_frames):
-        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
-        end_offset = start_offset + frame_size_bytes
-        in_for_frame = input_bytes[start_offset:end_offset]
-        decode_r1_swap(in_for_frame, out, frame)
-
-
-@numba.njit(inline='always')
-def _strided_start_stop(offset_global, offset_local, stride, row_idx, row_length):
-    start = offset_global + offset_local + row_idx * stride
-    stop = start + row_length
-    return start, stop
-
-
-@numba.njit(nogil=True, parallel=True, cache=True)
-def decode_quad_r1(input_bytes, out, header_size_bytes, num_frames):
-    bpp = 1  # bits per pixel
-    x_size_half_px = 256  # assumption - might need to be a parameter later
-    x_size_half = x_size_half_px * bpp // 8
-    rows = 256
-
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = sig_size // 8
-    stride = 4 * x_size_half
-
-    for i in numba.prange(num_frames):
-        offset = header_size_bytes * (i + 1) + i * frame_size_bytes
-        out_for_frame = out[i].reshape((512, 512))
-
-        # read the strided data, per input quadrant, one row at a time:
-        # quadrant 1:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 3 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[row, :x_size_half_px]
-            decode_r1_swap_row(in_for_row, out_for_row)
-
-        # quadrant 2:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 2 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[row, x_size_half_px:]
-            decode_r1_swap_row(in_for_row, out_for_row)
-
-        # these two quadrants need flipping in x and y direction
-        # quadrant 3:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 1 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[2 * rows - row - 1, :x_size_half_px]
-            decode_r1_swap_row_rev(in_for_row, out_for_row)
-
-        # quadrant 4:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 0 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[2 * rows - row - 1, x_size_half_px:]
-            decode_r1_swap_row_rev(in_for_row, out_for_row)
-
-
-@numba.njit(inline='always', cache=True)
-def decode_r6_swap(inp, out, idx):
-    """
-    RAW 6bit format: the pixels need to be re-ordered in groups of 8. `inp`
-    should have dtype uint8.
-    """
-    for i in range(out.shape[1]):
-        col = i % 8
-        pos = i // 8
-        out_pos = (pos + 1) * 8 - col - 1
-        out[idx, out_pos] = inp[i]
-
-
-@numba.jit(nogil=True, cache=True, parallel=True)
-def decode_multi_r6(input_bytes, out, header_size_bytes, num_frames):
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = sig_size
-    for frame in numba.prange(num_frames):
-        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
-        end_offset = start_offset + frame_size_bytes
-        in_for_frame = input_bytes[start_offset:end_offset]
-        decode_r6_swap(in_for_frame, out, frame)
-
-
-@numba.njit(inline='always')
-def decode_r6_swap_row(inp, out):
-    """
-    Per-row version of `decode_r6-swap`
-    """
-    for i in range(out.shape[0]):
-        col = i % 8
-        pos = i // 8
-        out_pos = (pos + 1) * 8 - col - 1
-        out[out_pos] = inp[i]
-
-
-@numba.njit(inline='always')
-def decode_r6_swap_row_rev(inp, out):
-    """
-    Reverse version of `decode_r6_swap_row`
-    """
-    for i in range(out.shape[0]):
-        col = i % 8
-        pos = i // 8
-        out_pos = (pos + 1) * 8 - col - 1
-        out[out.shape[0] - out_pos - 1] = inp[i]
-
-
-@numba.njit(nogil=True, cache=True, parallel=True)
-def decode_quad_r6(input_bytes, out, header_size_bytes, num_frames):
-    bpp = 8  # bits per pixel - with padding!
-    x_size_half_px = 256  # assumption - might need to be a parameter later
-    x_size_half = x_size_half_px * bpp // 8
-    rows = 256
-
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = sig_size * bpp // 8
-    stride = 4 * x_size_half
-
-    for frame in numba.prange(num_frames):
-        offset = header_size_bytes * (frame + 1) + frame * frame_size_bytes
-        out_for_frame = out[frame].reshape((512, 512))
-
-        # read the strided data, per input quadrant, one row at a time:
-        # quadrant 1:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 3 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[row, :x_size_half_px]
-            decode_r6_swap_row(in_for_row, out_for_row)
-
-        # quadrant 2:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 2 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[row, x_size_half_px:]
-            decode_r6_swap_row(in_for_row, out_for_row)
-
-        # these two quadrants need flipping in x and y direction
-        # quadrant 3:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 1 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[2 * rows - row - 1, :x_size_half_px]
-            decode_r6_swap_row_rev(in_for_row, out_for_row)
-
-        # quadrant 4:
-        for row in range(rows):
-            start, stop = _strided_start_stop(offset, 0 * x_size_half, stride, row, x_size_half)
-            in_for_row = input_bytes[start:stop]
-            out_for_row = out_for_frame[2 * rows - row - 1, x_size_half_px:]
-            decode_r6_swap_row_rev(in_for_row, out_for_row)
-
-
-@numba.njit(inline='always', cache=True)
-def decode_r12_swap(inp, out, idx):
-    """
-    RAW 12bit format: the pixels need to be re-ordered in groups of 4. `inp`
-    should be an uint8 view on big endian 12bit data (">u2")
-    """
-    for i in range(out.shape[1]):
-        col = i % 4
-        pos = i // 4
-        out_pos = (pos + 1) * 4 - col - 1
-        out[idx, out_pos] = (inp[i * 2] << 8) + (inp[i * 2 + 1] << 0)
-
-
-@numba.jit(nogil=True, cache=True, parallel=True)
-def decode_multi_r12(input_bytes, out, header_size_bytes, num_frames):
-    out = out.reshape((num_frames, -1))
-    sig_size = out.shape[-1]
-    frame_size_bytes = 2 * sig_size
-    for frame in numba.prange(num_frames):
-        start_offset = header_size_bytes*(frame+1)+frame*frame_size_bytes
-        end_offset = start_offset + frame_size_bytes
-        in_for_frame = input_bytes[start_offset:end_offset]
-        decode_r12_swap(in_for_frame, out, frame)
-
-
-@numba.njit(inline='always', cache=True)
-def decode_r24_swap(inp, out, idx):
-    """
-    RAW 24bit format: a single 24bit consists of two frames that are encoded
-    like the RAW 12bit format, the first contains the most significant bits.
-
-    So after a frame header, there are (512, 256) >u2 values, which then
-    need to be shuffled like in `decode_r12_swap`.
-
-    This decoder function only works together with mib_r24_get_read_ranges
-    which generates twice as many read ranges than normally.
-    """
-    for i in range(out.shape[1]):
-        col = i % 4
-        pos = i // 4
-        out_pos = (pos + 1) * 4 - col - 1
-        out_val = np.uint32((inp[i * 2] << 8) + (inp[i * 2 + 1] << 0))
-        if idx % 2 == 0:  # from first frame: most significant bits
-            out_val = out_val << 12
-        out[idx // 2, out_pos] += out_val
 
 
 class MerlinDataSocket:
@@ -534,13 +262,19 @@ class MerlinDataSocket:
                 return False
         finally:
             self._read_lock.release()
-        self.decode(input_buffer[:bytes_read], out_flat[:frames_read], header_size, frames_read)
+        self.decode(
+            input_buffer[:bytes_read],
+            out_flat[:frames_read],
+            header_size,
+            frames_read,
+        )
         return (out[:frames_read], frame_counter - frames_read, frame_counter)
 
     def decode(self, input_buffer, out_flat, header_size, num_frames):
         fh = self._first_frame_header
         itemsize = fh['dtype'].itemsize
         bits_pp = fh['bits_per_pixel']
+        num_rows = fh['image_size'][0]
         if fh['mib_kind'] == 'u':
             # binary:
             if itemsize == 1:
@@ -556,11 +290,12 @@ class MerlinDataSocket:
                     fn = decode_quad_r1
                 elif bits_pp == 6:
                     fn = decode_quad_r6
+                elif bits_pp == 12:
+                    fn = decode_quad_r12
                 else:
                     raise RuntimeError(
                         "can't handle quad raw binary %d bits per pixel yet" % bits_pp
                     )
-
             elif fh['num_chips'] == 1:
                 if bits_pp == 1:
                     fn = decode_multi_r1
@@ -572,8 +307,12 @@ class MerlinDataSocket:
                     raise RuntimeError("can't handle raw binary %d bits per pixel yet" % bits_pp)
             else:
                 raise RuntimeError(f"Can't handle num_chips={fh['num_chips']}")
-        input_arr = np.frombuffer(input_buffer, dtype=np.uint8)
-        fn(input_arr, out_flat[:num_frames], header_size, num_frames)
+        compat_shape = (num_frames, num_rows, -1)
+        input_arr = np.frombuffer(input_buffer, dtype=np.uint8).reshape(
+            (num_frames, -1)
+        )[:, header_size:].reshape(compat_shape)
+        out = out_flat[:num_frames].reshape(compat_shape)
+        fn(input_arr, out, header_size, num_frames)
 
     def _peek_frame_header(self):
         # first, peek only the MPX header part:
