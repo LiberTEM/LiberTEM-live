@@ -1,5 +1,4 @@
 import numba
-import numpy as np
 
 
 @numba.jit(cache=True)
@@ -63,13 +62,6 @@ def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
         in_for_frame = input_bytes[frame]
         out_for_frame = out[frame]
         decode_r1(in_for_frame, out_for_frame)
-
-
-@numba.njit(cache=True)
-def _strided_start_stop(offset_global, offset_local, stride, row_idx, row_length):
-    start = offset_global + offset_local + row_idx * stride
-    stop = start + row_length
-    return start, stop
 
 
 @numba.njit(nogil=True, parallel=True, cache=True)
@@ -240,25 +232,3 @@ def decode_quad_r12(input_bytes, out, header_size_bytes, num_frames):
         out_for_q = out_for_frame[y_size_half_px:, x_size_half_px:][::-1, ::-1]
         in_for_q = in_for_frame[:, 0 * x_size_half:1 * x_size_half]
         decode_r12(in_for_q, out_for_q)
-
-
-@numba.njit(cache=True)
-def decode_r24_swap(inp, out, idx):
-    """
-    RAW 24bit format: a single 24bit consists of two frames that are encoded
-    like the RAW 12bit format, the first contains the most significant bits.
-
-    So after a frame header, there are (512, 256) >u2 values, which then
-    need to be shuffled like in `decode_r12_swap`.
-
-    This decoder function only works together with mib_r24_get_read_ranges
-    which generates twice as many read ranges than normally.
-    """
-    for i in range(out.shape[1]):
-        col = i % 4
-        pos = i // 4
-        out_pos = (pos + 1) * 4 - col - 1
-        out_val = np.uint32((inp[i * 2] << 8) + (inp[i * 2 + 1] << 0))
-        if idx % 2 == 0:  # from first frame: most significant bits
-            out_val = out_val << 12
-        out[idx // 2, out_pos] += out_val
