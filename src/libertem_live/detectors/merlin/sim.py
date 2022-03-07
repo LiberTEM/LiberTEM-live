@@ -243,14 +243,12 @@ class DataSocketSimulator:
         full_frame_size : int
             Size of header plus frame in bytes
         """
-        # backwards-compat. for LiberTEM v0.8
-        if hasattr(fh, "_path"):
-            path = fh._path
-        elif hasattr(fh, "path"):
-            path = fh.path
+        if hasattr(fh, '_file'):
+            if fh._file is None:
+                fh.open()
+            f = fh._file
         else:
-            raise RuntimeError(f"unknown file object {fh}")
-        f = open(path, "rb")
+            f = open(fh._path, 'rb')
         fileno = f.fileno()
         if fileno not in self._mmaps:
             self._mmaps[fileno] = raw_mmap = mmap.mmap(
