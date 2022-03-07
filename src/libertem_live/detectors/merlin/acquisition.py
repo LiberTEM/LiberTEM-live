@@ -123,6 +123,22 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     #     )
     #     return header
 
+    def need_decode(self, read_dtype, roi, corrections):
+        return True  # FIXME: we just do this to get a large tile size
+
+    def adjust_tileshape(self, tileshape, roi):
+        depth = 24
+        return (depth, *self.meta.shape.sig)
+        # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
+
+    def get_max_io_size(self):
+        # return 12*256*256*8
+        # FIXME magic numbers?
+        return 24*np.prod(self.meta.shape.sig)*8
+
+    def get_base_shape(self, roi):
+        return (1, 1, self.meta.shape.sig[-1])
+
     def get_partitions(self):
         # FIXME: only works for inline executor or similar, as we pass a
         # TCP connection to each partition, which cannot be serialized
@@ -151,7 +167,7 @@ class MerlinLivePartition(Partition):
         self, start_idx, end_idx, partition_slice,
         data_source, meta, acq_header,
     ):
-        super().__init__(meta=meta, partition_slice=partition_slice, io_backend=None)
+        super().__init__(meta=meta, partition_slice=partition_slice, io_backend=None, decoder=None)
         self._start_idx = start_idx
         self._end_idx = end_idx
         self._acq_header = acq_header
@@ -170,22 +186,6 @@ class MerlinLivePartition(Partition):
 
     def set_corrections(self, corrections):
         self._corrections = corrections
-
-    def need_decode(self, read_dtype, roi, corrections):
-        return True  # FIXME: we just do this to get a large tile size
-
-    def adjust_tileshape(self, tileshape, roi):
-        depth = min(24, self._end_idx - self._start_idx)
-        return (depth, *self.meta.shape.sig)
-        # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
-
-    def get_max_io_size(self):
-        # return 12*256*256*8
-        # FIXME magic numbers?
-        return 24*np.prod(self.meta.shape.sig)*8
-
-    def get_base_shape(self, roi):
-        return (1, 1, self.meta.shape.sig[-1])
 
     def _get_tiles_fullframe(self, tiling_scheme, dest_dtype="float32", roi=None):
         # assert len(tiling_scheme) == 1

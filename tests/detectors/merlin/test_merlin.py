@@ -138,6 +138,16 @@ def merlin_ds(ltl_ctx):
     return ltl_ctx.load('MIB', path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
 
 
+@pytest.mark.parametrize(
+    'sim_cls', (CachedDataSocketSim, MemfdSocketSim)
+)
+def test_socket_simulator_get_chunks(sim_cls):
+    sim = sim_cls(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
+    sim.open()
+    for chunk in sim.get_chunks():
+        pass
+
+
 @pytest.mark.with_numba  # Get coverage for decoders
 def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
