@@ -123,8 +123,7 @@ stages:
           reportDirectory: '$(System.DefaultWorkingDirectory)/**/htmlcov'
 
     - job: linux_tests
-      pool:
-        vmImage: 'ubuntu-latest'
+      pool: DataAccess
       strategy:
         matrix:
           Python36:
@@ -173,8 +172,7 @@ stages:
           testRunTitle: 'Publish test results for Python $(python.version)'
 
     - job: numba_coverage
-      pool:
-        vmImage: 'ubuntu-latest'
+      pool: DataAccess
       variables:
         TOXENV: 'numba_coverage'
       steps:
@@ -209,8 +207,7 @@ stages:
           testRunTitle: 'Publish test results for numba coverage on Python 3.9'
 
     - job: lint
-      pool:
-        vmImage: 'ubuntu-latest'
+      pool: DataAccess
       strategy:
         matrix:
           docs-check:
@@ -248,8 +245,7 @@ stages:
   - stage: deploy
     jobs:
     - job: deploy_docs
-      pool:
-        vmImage: 'ubuntu-latest'
+      pool: DataAccess
       steps:
       - task: UsePythonVersion@0
         displayName: 'Use Python 3.9'
@@ -289,8 +285,7 @@ stages:
             and(not(eq(variables['Build.Reason'], 'PullRequest')),
                 eq(variables['Build.SourceBranch'], 'refs/heads/master'))
     - job: make_upload_packages
-      pool:
-        vmImage: 'ubuntu-latest'
+      pool: DataAccess
       steps:
       - task: UsePythonVersion@0
         displayName: 'Use Python 3.9'
