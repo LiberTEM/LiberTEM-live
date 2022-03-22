@@ -103,6 +103,7 @@ class MerlinDataSocket:
         self._timeout = timeout
         self._socket = None
         self._acquisition_header = None
+        self._first_frame_header = None
         self._is_connected = False
         self._read_lock = threading.Lock()
         self._frame_counter = 0
