@@ -26,15 +26,6 @@ stages:
         inputs:
           versionSpec: '3.9'
 
-      - task: Cache@2
-        inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
-          restoreKeys: |
-            python | "$(Agent.OS)"
-            python
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
-
       - bash: python3.9 -m venv venv
         displayName: 'create venv'
 
@@ -89,15 +80,6 @@ stages:
         inputs:
           versionSpec: '$(python.version)'
 
-      - task: Cache@2
-        inputs:
-          key: 'python | "$(Agent.OS)" | test_requirements.txt'
-          restoreKeys: |
-            python | "$(Agent.OS)"
-            python
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
-
       - bash: python3.9 -m venv venv
         displayName: 'create venv'
 
@@ -146,16 +128,6 @@ stages:
         inputs:
           versionSpec: '$(python.version)'
 
-      - task: Cache@2
-        inputs:
-          key: 'python | "$(Agent.OS)" | "$(python.version)" | setup.py | test_requirements.txt'
-          restoreKeys: |
-            python | "$(Agent.OS)" | "$(python.version)"
-            python | "$(Agent.OS)"
-            python
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
-
       - bash: pip install -U tox
         displayName: 'install requirements'
 
@@ -180,16 +152,6 @@ stages:
         displayName: 'Use Python 3.9'
         inputs:
           versionSpec: '3.9'
-
-      - task: Cache@2
-        inputs:
-          key: 'python | "$(Agent.OS)" | "3.9" | setup.py | test_requirements.txt'
-          restoreKeys: |
-            python | "$(Agent.OS)" | "3.9"
-            python | "$(Agent.OS)"
-            python
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
 
       - bash: pip install -U tox
         displayName: 'install requirements'
@@ -220,15 +182,6 @@ stages:
         inputs:
           versionSpec: '3.9'
 
-      - task: Cache@2
-        inputs:
-          key: 'lint | "$(Agent.OS)"'
-          restoreKeys: |
-            lint | "$(Agent.OS)"
-            lint
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
-
       - bash: apt install -y pandoc
         displayName: install required debian packages
       - bash: pip install -U tox
@@ -247,15 +200,6 @@ stages:
           versionSpec: '3.9'
       - bash: apt install -y pandoc
         displayName: 'install required debian packages'
-
-      - task: Cache@2
-        inputs:
-          key: 'deploy_docs | "$(Agent.OS)" | setup.py | docs_requirements.txt'
-          restoreKeys: |
-            deploy_docs | "$(Agent.OS)"
-            deploy_docs
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
 
       - bash: pip install -U tox && pip install -r scripts/requirements.txt
         displayName: 'install requirements'
@@ -285,14 +229,6 @@ stages:
         displayName: 'Use Python 3.9'
         inputs:
           versionSpec: '3.9'
-      - task: Cache@2
-        inputs:
-          key: 'deploy | "$(Agent.OS)" | scripts/requirements.txt'
-          restoreKeys: |
-            deploy | "$(Agent.OS)"
-            deploy
-          path: $(PIP_CACHE_DIR)
-        displayName: 'cache pip packages'
       - bash: pip install -U tox && pip install -r scripts/requirements.txt
         displayName: 'install requirements'
       - bash: python scripts/release --verbose upload --no-dry-run
