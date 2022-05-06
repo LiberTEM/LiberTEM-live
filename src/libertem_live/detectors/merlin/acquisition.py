@@ -190,6 +190,7 @@ class MerlinLivePartition(Partition):
 
     def _get_tiles_fullframe(self, tiling_scheme, dest_dtype="float32", roi=None):
         # assert len(tiling_scheme) == 1
+        tiling_scheme = tiling_scheme.adjust_for_partition(self)
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         pool = self._data_source.pool.get_impl(
             read_upto_frame=self._end_idx,
