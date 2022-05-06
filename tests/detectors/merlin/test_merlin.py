@@ -16,9 +16,7 @@ from libertem.udf.sumsigudf import SumSigUDF
 
 from libertem_live.detectors.merlin import MerlinDataSource, MerlinControl
 from libertem_live.detectors.merlin.sim import (
-        DataSocketServer, ControlSocketServer,
-        DataSocketSimulator, CachedDataSocketSim, MemfdSocketSim,
-        ServerThreadMixin, StopException, TriggerSocketServer, TriggerClient
+        CameraSim, ServerThreadMixin, StopException, TriggerClient, UndeadException
 )
 
 from utils import get_testdata_path
@@ -33,119 +31,117 @@ pytestmark = [
 ]
 
 
-def serve(cls, host='127.0.0.1', port=0):
-    server = cls(host=host, port=port)
+def run_camera_sim(*args, **kwargs):
+    server = CameraSim(
+        *args, host='127.0.0.1', data_port=0, control_port=0, trigger_port=0, **kwargs
+    )
     server.start()
     server.wait_for_listen()
     yield server
     print("cleaning up server thread")
     server.maybe_raise()
     print("stopping server thread")
-    server.stop()
-    timeout = 2
-    start = time.time()
-    while True:
-        print("are we there yet?")
-        server.maybe_raise()
-        if not server.is_alive():
-            print("server is dead, we are there")
-            break
-        if (time.time() - start) >= timeout:
-            raise RuntimeError("Server didn't stop gracefully")
-        time.sleep(0.1)
+    try:
+        server.stop()
+    except UndeadException:
+        raise RuntimeError("Server didn't stop gracefully")
 
 
 @pytest.fixture(scope='module')
-def merlin_detector_sim_thread():
-    sim = DataSocketSimulator(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-    cls = functools.partial(DataSocketServer, sim=sim)
-    yield from serve(cls)
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim(merlin_detector_sim_thread):
-    return merlin_detector_sim_thread.sockname
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_cached_thread():
-    sim = CachedDataSocketSim(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-    cls = functools.partial(DataSocketServer, sim=sim)
-    yield from serve(cls)
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_cached(merlin_detector_cached_thread):
-    return merlin_detector_cached_thread.sockname
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_memfd_thread():
-    sim = MemfdSocketSim(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-    cls = functools.partial(DataSocketServer, sim=sim)
-    yield from serve(cls)
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_memfd(merlin_detector_memfd_thread):
-    return merlin_detector_memfd_thread.sockname
-
-
-@pytest.fixture(scope='module')
-def merlin_control_sim_thread(merlin_detector_sim_garbage_thread):
-    control = functools.partial(
-        ControlSocketServer,
-        trigger_event=merlin_detector_sim_garbage_thread.trigger_event
+def merlin_detector_sim_threads():
+    '''
+    Untriggered default simulator.
+    '''
+    yield from run_camera_sim(
+        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
     )
-    yield from serve(control)
 
 
 @pytest.fixture(scope='module')
-def merlin_control_sim(merlin_control_sim_thread):
-    return merlin_control_sim_thread.sockname
+def merlin_detector_sim(merlin_detector_sim_threads):
+    '''
+    Host, port tuple of the untriggered default simulator
+    '''
+    return merlin_detector_sim_threads.server_t.sockname
 
 
 @pytest.fixture(scope='module')
-def merlin_detector_sim_garbage_thread():
-    sim = DataSocketSimulator(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-    cls = functools.partial(DataSocketServer, sim=sim, garbage=True, wait_trigger=True)
-    yield from serve(cls)
-
-
-@pytest.fixture(scope='module')
-def triggered_sim_thread(merlin_detector_sim_garbage_thread):
-    sim = merlin_detector_sim_garbage_thread
-    cls = functools.partial(
-        TriggerSocketServer,
-        trigger_event=sim.trigger_event,
-        finish_event=sim.finish_event
+def merlin_detector_cached_threads():
+    '''
+    Untriggered default simulator with memory cache.
+    '''
+    yield from run_camera_sim(
+        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
+        cached='MEM'
     )
-    yield from serve(cls)
 
 
 @pytest.fixture(scope='module')
-def trigger_sim(triggered_sim_thread):
-    return triggered_sim_thread.sockname
+def merlin_detector_cached(merlin_detector_cached_threads):
+    '''
+    Host, port tuple of the untriggered default simulator with memory cache
+    '''
+    return merlin_detector_cached_threads.server_t.sockname
 
 
 @pytest.fixture(scope='module')
-def garbage_sim(merlin_detector_sim_garbage_thread):
-    return merlin_detector_sim_garbage_thread.sockname
+def merlin_detector_memfd_threads():
+    '''
+    Untriggered default simulator with memfd cache.
+    '''
+    yield from run_camera_sim(
+        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
+        cached='MEMFD'
+    )
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_memfd(merlin_detector_memfd_threads):
+    '''
+    Host, port tuple of the untriggered default simulator with memfd cache
+    '''
+    return merlin_detector_memfd_threads.server_t.sockname
+
+
+@pytest.fixture(scope='module')
+def merlin_triggered_garbage_threads():
+    '''
+    Triggered simulator with garbage.
+    '''
+    yield from run_camera_sim(
+        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
+        cached='MEMFD',
+        wait_trigger=True, garbage=True,
+    )
+
+
+@pytest.fixture(scope='module')
+def merlin_control_sim(merlin_triggered_garbage_threads):
+    '''
+    Host, port tuple of the control port for the triggered simulator
+    '''
+    return merlin_triggered_garbage_threads.control_t.sockname
+
+
+@pytest.fixture(scope='module')
+def trigger_sim(merlin_triggered_garbage_threads):
+    '''
+    Host, port tuple of the trigger port for the triggered simulator
+    '''
+    return merlin_triggered_garbage_threads.trigger_t.sockname
+
+
+@pytest.fixture(scope='module')
+def garbage_sim(merlin_triggered_garbage_threads):
+    '''
+    Host, port tuple of the data port for the triggered simulator
+    '''
+    return merlin_triggered_garbage_threads.server_t.sockname
 
 
 @pytest.fixture
 def merlin_ds(ltl_ctx):
     return ltl_ctx.load('MIB', path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-
-
-@pytest.mark.parametrize(
-    'sim_cls', (CachedDataSocketSim, MemfdSocketSim)
-)
-def test_socket_simulator_get_chunks(sim_cls):
-    sim = sim_cls(path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-    sim.open()
-    for chunk in sim.get_chunks():
-        pass
 
 
 @pytest.mark.with_numba  # Get coverage for decoders
@@ -344,7 +340,8 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     assert_allclose(res['intensity'], ref['intensity'])
 
 
-def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin_ds):
+def test_acquisition_triggered_garbage(
+        ltl_ctx, merlin_control_sim, trigger_sim, garbage_sim, merlin_ds):
     sim_host, sim_port = garbage_sim
 
     pool = concurrent.futures.ThreadPoolExecutor(1)
@@ -354,6 +351,9 @@ def test_acquisition_triggered_garbage(ltl_ctx, trigger_sim, garbage_sim, merlin
     }
 
     def trigger(acquisition):
+        control = MerlinControl(*merlin_control_sim)
+        with control:
+            control.cmd('STARTACQUISITION')
         tr = TriggerClient(*trigger_sim)
         print("Trigger connection:", trigger_sim)
         tr.connect()
@@ -397,6 +397,8 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
 
     def trigger(acquisition):
         control = MerlinControl(*merlin_control_sim)
+        with control:
+            control.cmd('STARTACQUISITION')
 
         def do_scan():
             '''
@@ -479,6 +481,28 @@ class BadServer(ServerThreadMixin, threading.Thread):
 
 class OtherError(Exception):
     pass
+
+
+def serve(cls, host='127.0.0.1', port=0):
+    server = cls(host=host, port=port)
+    server.start()
+    server.wait_for_listen()
+    yield server
+    print("cleaning up server thread")
+    server.maybe_raise()
+    print("stopping server thread")
+    server.stop()
+    timeout = 2
+    start = time.time()
+    while True:
+        print("are we there yet?")
+        server.maybe_raise()
+        if not server.is_alive():
+            print("server is dead, we are there")
+            break
+        if (time.time() - start) >= timeout:
+            raise RuntimeError("Server didn't stop gracefully")
+        time.sleep(0.1)
 
 
 @pytest.mark.parametrize(
