@@ -26,8 +26,10 @@ logger = logging.getLogger(__name__)
 # Copied from the k2is branch as a temporary fix.
 # FIXME use a proper import as soon as the k2is branch is merged
 class StoppableThreadMixin:
-    def __init__(self, *args, **kwargs):
-        self._stop_event = threading.Event()
+    def __init__(self, *args, stop_event=None, **kwargs):
+        if stop_event is None:
+            stop_event = threading.Event()
+        self._stop_event = stop_event
         super().__init__(*args, **kwargs)
 
     def stop(self):
@@ -58,13 +60,15 @@ class ErrThreadMixin(StoppableThreadMixin):
 
 
 class ServerThreadMixin(ErrThreadMixin):
-    def __init__(self, host, port, name, *args, **kwargs):
+    def __init__(self, host, port, name, *args, listen_event=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._host = host
         self._port = port
         self._name = name
-        self.listen_event = threading.Event()
+        if listen_event is None:
+            listen_event = threading.Event()
+        self.listen_event = listen_event
 
     def wait_for_listen(self, timeout=10):
         """
@@ -148,8 +152,8 @@ class StopException(Exception):
     pass
 
 
-class DataSocketSimulator:
-    def __init__(self, path: str, nav_shape=None, continuous=False, rois=None,
+class HeaderSocketSimulator:
+    def __init__(self, path: str, stop_event=None, nav_shape=None, continuous=False, rois=None,
                  max_runs=-1):
         """
         Parameters
@@ -157,6 +161,9 @@ class DataSocketSimulator:
 
         path
             Path to the HDR file
+
+        stop_event
+            Will stop gracefully if this event is set.
 
         continuous
             If set to True, will continuously output data
@@ -168,7 +175,9 @@ class DataSocketSimulator:
         max_runs: int
             Maximum number of continuous runs
         """
-        self.stop_event = threading.Event()
+        if stop_event is None:
+            stop_event = threading.Event()
+        self.stop_event = stop_event
         if rois is None:
             rois = []
         if nav_shape is None and not is_valid_hdr(path):
@@ -180,13 +189,6 @@ class DataSocketSimulator:
         self._ds = None
         self._max_runs = max_runs
         self._mmaps = {}
-
-    def open(self):
-        ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
-        ds.initialize(MITExecutor())
-        print(f"dataset shape: {ds.shape}")
-        self._ds = ds
-        self._warmup()
 
     def _make_hdr(self):
         hdr = (
@@ -216,6 +218,64 @@ class DataSocketSimulator:
         hdr = self.hdr
         yield get_mpx_header(len(hdr))
         yield hdr
+
+    def handle_conn(self, conn):
+        for chunk in self.get_chunks():
+            conn.sendall(chunk)
+
+    def is_stopped(self):
+        return self.stop_event.is_set()
+
+
+class DataSocketSimulator:
+    def __init__(self, path: str, stop_event=None, nav_shape=None, continuous=False, rois=None,
+                 max_runs=-1):
+        """
+        Parameters
+        ----------
+
+        path
+            Path to the HDR file
+
+        stop_event
+            Will stop gracefully if this event is set.
+
+        continuous
+            If set to True, will continuously output data
+
+        rois: List[np.ndarray]
+            If a list of ROIs is given, in continuous mode, cycle through
+            these ROIs from the source data
+
+        max_runs: int
+            Maximum number of continuous runs
+        """
+        if stop_event is None:
+            stop_event = threading.Event()
+        self.stop_event = stop_event
+        if rois is None:
+            rois = []
+        if nav_shape is None and not is_valid_hdr(path):
+            raise ValueError("please pass the path to a valid HDR file or specify a nav shape!")
+        self._path = path
+        self._nav_shape = nav_shape
+        self._continuous = continuous
+        self._rois = rois
+        self._ds = None
+        self._max_runs = max_runs
+        self._mmaps = {}
+
+    def open(self):
+        ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
+        ds.initialize(MITExecutor())
+        print(f"dataset shape: {ds.shape}")
+        self._ds = ds
+        self._warmup()
+
+    def get_chunks(self):
+        """
+        generator of `bytes` for the given configuration
+        """
         if self._continuous:
             print("yielding from continuous")
             yield from self._get_continuous()
@@ -433,11 +493,6 @@ class MemfdSocketSim(DataSocketSimulator):
         print("_send_full_file took %d reps" % reps)
 
     def handle_conn(self, conn):
-        # first, send acquisition header:
-        hdr = self.hdr
-        # FIXME: possibly change header in continuous mode?
-        conn.sendall(get_mpx_header(len(hdr)))
-        conn.sendall(hdr)
         if self._continuous:
             i = 0
             while True:
@@ -459,14 +514,37 @@ class MemfdSocketSim(DataSocketSimulator):
         conn.close()
 
 
+def wait_with_socket(event: threading.Event, connection):
+    while True:
+        if event.wait(0.1):
+            # the event is set, break out of the loop and
+            # return True to signal that normal operation
+            # can continue
+            return True
+        (readable, writable, exceptional) = select.select(
+            [connection], [connection], [connection], 0.1
+        )
+        if readable:
+            # The connection is unidirectional, we don't receive any data
+            # normally, but only send
+            res = connection.recv(1)
+            if not res:
+                print("Readable socket yielded no result, probably closed")
+                # The socket was closed, return False to signal abort
+                return False
+
+
 class DataSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, sim: DataSocketSimulator,
+    def __init__(self, headers: HeaderSocketSimulator, sim: DataSocketSimulator,
+            stop_event, acquisition_event, trigger_event, finish_event,
             host='0.0.0.0', port=6342, wait_trigger=False, garbage=False):
+        self.acquisition_event = acquisition_event
+        self.trigger_event = trigger_event
+        self.finish_event = finish_event
+        self._headers = headers
         self._sim = sim
-        super().__init__(host=host, port=port, name=self.__class__.__name__)
-        self._sim.stop_event = self._stop_event
-        self.trigger_event = threading.Event()
-        self.finish_event = threading.Event()
+        super().__init__(host=host, port=port, name=self.__class__.__name__, stop_event=stop_event)
+
         self._wait_trigger = wait_trigger
         if garbage and not wait_trigger:
             raise ValueError("Can only send garbage if wait_trigger is set!")
@@ -485,23 +563,19 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
                 if self._garbage:
                     print("Sending some garbage...")
                     connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
+                print("Waiting for acquisition start...")
+                if not wait_with_socket(self.acquisition_event, connection):
+                    print("Readable socket yielded no result, probably closed")
+                    connection.close()
+                    return
+                self.acquisition_event.clear()
+            self._headers.handle_conn(connection)
+            if self._wait_trigger:
                 print("Waiting for trigger...")
-                while True:
-                    if self.trigger_event.wait(0.1):
-                        # the trigger event is set, break out of the loop and
-                        # handle the connection below:
-                        break
-                    (readable, writable, exceptional) = select.select(
-                        [connection], [connection], [connection], 0.1
-                    )
-                    if readable:
-                        # The connection is unidirectional, we don't receive any data
-                        # normally, but only send
-                        res = connection.recv(1)
-                        if not res:
-                            print("Readable socket yielded no result, probably closed")
-                            connection.close()
-                            return
+                if not wait_with_socket(self.trigger_event, connection):
+                    print("Readable socket yielded no result, probably closed")
+                    connection.close()
+                    return
                 self.trigger_event.clear()
             return self._sim.handle_conn(connection)
         finally:
@@ -509,10 +583,13 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
 
 
 class ControlSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, trigger_event, host='0.0.0.0', port=6341):
+    def __init__(
+            self, acquisition_event, trigger_event, stop_event=None,
+            host='0.0.0.0', port=6341):
         self._trigger_event = trigger_event
+        self._acquisition_event = acquisition_event
         self._params = {}
-        super().__init__(host=host, port=port, name=self.__class__.__name__)
+        super().__init__(host=host, port=port, name=self.__class__.__name__, stop_event=stop_event)
 
     def handle_conn(self, connection):
         connection.settimeout(1)
@@ -562,6 +639,8 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             elif method == 'CMD':
                 if param == 'SOFTTRIGGER':
                     self._trigger_event.set()
+                elif param == 'STARTACQUISITION':
+                    self._acquisition_event.set()
                 response_parts = (
                     "noideafirst",  # 0
                     "noideasecond",  # 1
@@ -577,10 +656,10 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
 
 
 class TriggerSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, trigger_event, finish_event, host='0.0.0.0', port=6343):
+    def __init__(self, trigger_event, finish_event, stop_event=None, host='0.0.0.0', port=6343):
         self._trigger_event = trigger_event
         self._finish_event = finish_event
-        super().__init__(host, port, name=self.__class__.__name__)
+        super().__init__(host, port, name=self.__class__.__name__, stop_event=stop_event)
 
     def handle_conn(self, connection):
         connection.settimeout(1)
@@ -632,6 +711,114 @@ class TriggerClient():
         self._socket.close()
 
 
+class UndeadException(Exception):
+    pass
+
+
+class CameraSim:
+    def __init__(self, path, nav_shape, continuous=False,
+            host='0.0.0.0', data_port=6342, control_port=6341,
+            trigger_port=6343, wait_trigger=False, garbage=False,
+            cached=None, max_runs=-1):
+        if garbage:
+            wait_trigger = True
+
+        if cached == 'MEM':
+            cls = CachedDataSocketSim
+        elif cached == 'MEMFD':
+            cls = MemfdSocketSim
+        else:
+            cls = DataSocketSimulator
+
+        if nav_shape == (0, 0):
+            nav_shape = None
+
+        self.stop_event = threading.Event()
+        self.acquisition_event = threading.Event()
+        self.trigger_event = threading.Event()
+        self.finish_event = threading.Event()
+
+        self.headers = HeaderSocketSimulator(
+            path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs,
+            stop_event=self.stop_event
+        )
+
+        self.sim = cls(
+            path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs,
+            stop_event=self.stop_event
+        )
+
+        self.server_t = DataSocketServer(
+            headers=self.headers, sim=self.sim, host=host, port=data_port,
+            wait_trigger=wait_trigger, garbage=garbage,
+            stop_event=self.stop_event,
+            acquisition_event=self.acquisition_event,
+            trigger_event=self.trigger_event,
+            finish_event=self.finish_event
+        )
+        # Make sure the thread dies with the main program
+        self.server_t.daemon = True
+
+        self.control_t = ControlSocketServer(
+            host=host,
+            port=control_port,
+            stop_event=self.stop_event,
+            acquisition_event=self.acquisition_event,
+            trigger_event=self.trigger_event,
+        )
+        # Make sure the thread dies with the main program
+        self.control_t.daemon = True
+
+        self.trigger_t = TriggerSocketServer(
+            host=host, port=trigger_port,
+            stop_event=self.stop_event,
+            trigger_event=self.trigger_event,
+            finish_event=self.finish_event,
+        )
+        # Make sure the thread dies with the main program
+        self.trigger_t.daemon = True
+
+    def start(self):
+        self.server_t.start()
+        self.control_t.start()
+        self.trigger_t.start()
+
+    def wait_for_listen(self):
+        self.server_t.wait_for_listen()
+        self.control_t.wait_for_listen()
+        self.trigger_t.wait_for_listen()
+
+    def is_alive(self):
+        return self.control_t.is_alive() and self.server_t.is_alive() and self.trigger_t.is_alive()
+
+    def maybe_raise(self):
+        self.control_t.maybe_raise()
+        self.server_t.maybe_raise()
+        self.trigger_t.maybe_raise()
+
+    def stop(self):
+        print("Stopping...")
+        self.stop_event.set()
+        timeout = 2
+        start = time.time()
+        while True:
+            self.control_t.maybe_raise()
+            self.server_t.maybe_raise()
+            self.trigger_t.maybe_raise()
+            if (
+                    (not self.control_t.is_alive())
+                    and (not self.server_t.is_alive())
+                    and (not self.trigger_t.is_alive())
+            ):
+                break
+
+            if (time.time() - start) >= timeout:
+                # Since the threads are daemon threads, they will die abruptly
+                # when this main thread finishes. This is at the discretion of the caller.
+                raise UndeadException("Server threads won't die")
+            time.sleep(0.1)
+
+
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--nav-shape', type=(int, int), default=(0, 0))
@@ -658,83 +845,31 @@ class TriggerClient():
 @click.option('--max-runs', type=int, default=-1)
 def main(path, nav_shape, continuous,
         host, data_port, control_port, trigger_port, wait_trigger, garbage, cached, max_runs):
-
-    if garbage:
-        wait_trigger = True
-
-    if cached == 'MEM':
-        cls = CachedDataSocketSim
-    elif cached == 'MEMFD':
-        cls = MemfdSocketSim
-    else:
-        cls = DataSocketSimulator
-
-    if nav_shape == (0, 0):
-        nav_shape = None
-
-    sim = cls(path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs)
-
-    server_t = DataSocketServer(
-        sim=sim, host=host, port=data_port, wait_trigger=wait_trigger, garbage=garbage
+    camera_sim = CameraSim(
+        path=path, nav_shape=nav_shape, continuous=continuous,
+        host=host, data_port=data_port, control_port=control_port, trigger_port=trigger_port,
+        wait_trigger=wait_trigger, garbage=garbage, cached=cached, max_runs=max_runs
     )
-    # Make sure the thread dies with the main program
-    server_t.daemon = True
-    server_t.start()
 
-    control_t = ControlSocketServer(
-        host=host,
-        port=control_port,
-        trigger_event=server_t.trigger_event,
-    )
-    # Make sure the thread dies with the main program
-    control_t.daemon = True
-    control_t.start()
-
-    trigger_t = TriggerSocketServer(
-        host=host, port=trigger_port,
-        trigger_event=server_t.trigger_event,
-        finish_event=server_t.finish_event,
-    )
-    # Make sure the thread dies with the main program
-    trigger_t.daemon = True
-    trigger_t.start()
-
+    camera_sim.start()
     # This allows us to handle Ctrl-C, and the main program
     # stops in a timely fashion when continuous scanning stops.
     try:
-        while control_t.is_alive() and server_t.is_alive() and trigger_t.is_alive():
-            control_t.maybe_raise()
-            server_t.maybe_raise()
-            trigger_t.maybe_raise()
+        while camera_sim.is_alive():
+            camera_sim.maybe_raise()
             time.sleep(1)
     except KeyboardInterrupt:
         # Just to not print "Aborted!"" from click
         sys.exit(0)
     finally:
         print("Stopping...")
-        control_t.stop()
-        server_t.stop()
-        trigger_t.stop()
-        timeout = 2
-        start = time.time()
-        while True:
-            control_t.maybe_raise()
-            server_t.maybe_raise()
-            trigger_t.maybe_raise()
-            if (
-                    (not control_t.is_alive())
-                    and (not server_t.is_alive())
-                    and (not trigger_t.is_alive())
-            ):
-                break
-
-            if (time.time() - start) >= timeout:
-                print("Killing server threads")
-                # Since the threads are daemon threads, they will die abruptly
-                # when this main thread finishes.
-                break
-
-            time.sleep(0.1)
+        try:
+            camera_sim.stop()
+        except UndeadException:
+            print("Killing server threads")
+            # Since the threads are daemon threads, they will die abruptly
+            # when this main thread finishes.
+            return
 
 
 if __name__ == "__main__":
