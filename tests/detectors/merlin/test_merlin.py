@@ -13,6 +13,9 @@ from numpy.testing import assert_allclose
 
 from libertem.udf.sum import SumUDF
 from libertem.udf.sumsigudf import SumSigUDF
+from libertem.contrib.daskadapter import make_dask_array
+from libertem.io.dataset.base import TilingScheme
+from libertem.common import Shape
 
 from libertem_live.detectors.merlin import MerlinDataSource, MerlinControl
 from libertem_live.detectors.merlin.sim import (
@@ -250,6 +253,59 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
         pass
 
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
+
+
+@pytest.fixture
+def merlin_ds_live(ltl_ctx):
+    return ltl_ctx.load(
+        'MIB', path="/home/alex/Data/20200518 165148/default.hdr", nav_shape=(128, 128)
+    )
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_sim_threads_2():
+    '''
+    Untriggered default simulator.
+    '''
+    yield from run_camera_sim(
+        path="/home/alex/Data/20200518 165148/default.hdr", nav_shape=(32, 32),
+    )
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_sim_2(merlin_detector_sim_threads_2):
+    '''
+    Host, port tuple of the untriggered default simulator
+    '''
+    return merlin_detector_sim_threads_2.server_t.sockname
+
+
+def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_2, merlin_ds_live):
+    merlin_ds = merlin_ds_live
+    da, _ = make_dask_array(merlin_ds)
+    host, port = merlin_detector_sim_2
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=None,
+        nav_shape=merlin_ds.shape.nav,
+        host=host,
+        port=port,
+        drain=False,
+        pool_size=1,
+    )
+    s = TilingScheme.make_for_shape(
+        tileshape=Shape((7, 256, 256), sig_dims=2),
+        dataset_shape=aq.shape
+    )
+
+    with ltl_ctx._do_acquisition(aq, None):
+        for p in aq.get_partitions():
+            part_data = da.reshape((-1, 256, 256), limit='512MiB')[p.slice.get()].compute()
+            print(f"comparing partition {p}")
+            for tile in p.get_tiles(s):
+                print(f"comparing tile {tile.tile_slice} in partition {p.slice}")
+                tile_data = part_data[tile.tile_slice.shift(p.slice).get()]
+                assert np.allclose(tile, tile_data)
 
 
 @pytest.mark.parametrize(

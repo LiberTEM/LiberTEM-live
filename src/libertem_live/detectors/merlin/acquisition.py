@@ -217,6 +217,7 @@ class MerlinLivePartition(Partition):
                         origin=(res_wrapped.start,) + (0, 0),
                         shape=tile_shape,
                     )
+                    print(f"yielding tile for {tile_slice}")
                     yield DataTile(
                         res_wrapped.buf,
                         tile_slice=tile_slice,
@@ -255,3 +256,6 @@ class MerlinLivePartition(Partition):
         #                 sliced_res = res_wrapped.buf[nav_slice_raw]
         #                 yield DataTile(sliced_res, tile_slice=tile_slice, scheme_idx=idx)
         #             to_read -= frames_in_tile
+
+    def __repr__(self):
+        return f"<MerlinLivePartition {self._start_idx}:{self._end_idx}>"
