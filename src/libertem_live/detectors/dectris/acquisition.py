@@ -1,8 +1,12 @@
 from contextlib import contextmanager
+import json
 import logging
 from typing import NamedTuple, Optional, Protocol, Tuple
 import numpy as np
+import bitshuffle
+import lz4.block
 from libertem.common import Shape, Slice
+from libertem.common.math import prod
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
@@ -28,19 +32,87 @@ class Receiver(Protocol):
     def __iter__(self):
         return self
 
+    def start(self):
+        pass
+
     def __next__(self) -> np.ndarray:
-        raise NotImplementedError(f"{self.__class__.__name__}.get_next_frame is not implemented")
+        raise NotImplementedError(f"{self.__class__.__name__}.__next__ is not implemented")
 
 
 class ZeroMQReceiver(Receiver):
     def __init__(self, socket: zmq.Socket, params: Optional[AcquisitionParams]):
         self._socket = socket
         self._params = params
+        self._frame_id = 0
+        self._running = False
+        self._n_frames = None
 
-    def __next__(self) -> np.ndarray:
+    def start(self):
+        if self._running:
+            return
         if self._params is None:
             raise RuntimeError("can't receive frames without acquisition parameters set!")
-        # TODO: rest of the owl
+        header_header, header = self.receive_acquisition_header()
+        self._n_frames = header['nimages']
+        self._running = True
+
+    def recv(self):
+        res = 0
+        while not res:
+            res = self._socket.poll(100)
+        return self._socket.recv()
+
+    def receive_acquisition_header(self):
+        while True:
+            data = self.recv()
+            try:
+                header_header = json.loads(data)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            if ('header_detail' in header_header
+                    and header_header['series'] == self._params.sequence_id):
+                break
+        header = json.loads(self.recv())
+        return header_header, header
+
+    def receive_frame(self, frame_id):
+        header_header = json.loads(self.recv())
+        assert header_header['series'] == self._params.sequence_id
+        assert header_header['frame'] == frame_id
+        header = json.loads(self.recv())
+        shape = tuple(reversed(header['shape']))
+        dtype = np.dtype(header['type'])
+        size = prod(shape) * dtype.itemsize
+        data = self.recv()
+        if header['encoding'] in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
+            decompressed = bitshuffle.decompress_lz4(
+                np.frombuffer(data[12:], dtype=np.uint8),
+                shape=shape,
+                dtype=dtype,
+                block_size=0
+            )
+        elif header['encoding'] == 'lz4<':
+            decompressed = lz4.block.decompress(data, uncompressed_size=size)
+            decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
+        else:
+            raise RuntimeError(f'Unsupported encoding {header["encoding"]}')
+
+        footer = json.loads(self.recv())
+        return header_header, header, decompressed, footer
+
+    def receive_acquisition_footer(self):
+        footer = self.recv()
+        return footer
+
+    def __next__(self) -> np.ndarray:
+        if self._frame_id >= self._n_frames:
+            self.receive_acquisition_footer()
+            self._running = False
+            self._n_frames = None
+            raise StopIteration()
+        f_header_header, f_header, decompressed, f_footer = self.receive_frame(self._frame_id)
+        self._frame_id += 1
+        return decompressed
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -106,7 +178,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         """
         self._zmq_ctx = zmq.Context()
         self._socket = self._zmq_ctx.socket(socket_type=zmq.PULL)
-        self._socket.bind((self._data_host, self._data_port))
+        self._socket.connect(f"tcp://{self._data_host}:{self._data_port}")
 
     @property
     def dtype(self):
@@ -161,7 +233,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return self._acq_state
 
     def get_receiver(self):
-        return Receiver(self._socket, params=self._acq_state)
+        return ZeroMQReceiver(self._socket, params=self._acq_state)
 
     def get_partitions(self):
         # FIXME: only works for inline executor or similar, as we are using a zeromq socket
@@ -215,6 +287,7 @@ class DectrisLivePartition(Partition):
         buf = np.zeros((depth,) + tiling_scheme[0].shape, dtype=dest_dtype)
         buf_idx = 0
         tile_start = self._start_idx
+        self._receiver.start()
         while to_read > 0:
             # 1) put frame into tile buffer (including dtype conversion if needed)
             assert buf_idx < depth,\
