@@ -52,7 +52,7 @@ class OfflineAcquisition(DectrisAcquisition):
     @contextmanager
     def acquire(self):
         try:
-            self._acq_state = AcquisitionParams(sequence_id=42)
+            self._acq_state = AcquisitionParams(sequence_id=42, nimages=128)
             self.trigger()  # <-- this triggers, either via API or via HW trigger
             yield
         finally:
