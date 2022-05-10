@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 class AcquisitionParams(NamedTuple):
     sequence_id: int
+    nimages: int
 
 
 class DetectorConfig(NamedTuple):
@@ -45,7 +46,6 @@ class ZeroMQReceiver(Receiver):
         self._params = params
         self._frame_id = 0
         self._running = False
-        self._n_frames = None
 
     def start(self):
         if self._running:
@@ -53,7 +53,6 @@ class ZeroMQReceiver(Receiver):
         if self._params is None:
             raise RuntimeError("can't receive frames without acquisition parameters set!")
         header_header, header = self.receive_acquisition_header()
-        self._n_frames = header['nimages']
         self._running = True
 
     def recv(self):
@@ -105,10 +104,9 @@ class ZeroMQReceiver(Receiver):
         return footer
 
     def __next__(self) -> np.ndarray:
-        if self._frame_id >= self._n_frames:
+        if self._frame_id >= self._params.nimages:
             self.receive_acquisition_footer()
             self._running = False
-            self._n_frames = None
             raise StopIteration()
         f_header_header, f_header, decompressed, f_footer = self.receive_frame(self._frame_id)
         self._frame_id += 1
@@ -202,8 +200,12 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         result = ec.sendDetectorCommand('arm')
         sequence_id = result['sequence id']
         # arm result is something like {'sequence id': 18}
+
         try:
-            self._acq_state = AcquisitionParams(sequence_id=sequence_id)
+            self._acq_state = AcquisitionParams(
+                sequence_id=sequence_id,
+                nimages=prod(self.shape.nav)
+            )
             self.trigger()  # <-- this triggers, either via API or via HW trigger
             yield
         finally:
@@ -233,6 +235,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return self._acq_state
 
     def get_receiver(self):
+        # FIXME:
         return ZeroMQReceiver(self._socket, params=self._acq_state)
 
     def get_partitions(self):
