@@ -11,6 +11,7 @@ import pytest
 import numpy as np
 from numpy.testing import assert_allclose
 
+from libertem.udf import UDF
 from libertem.udf.sum import SumUDF
 from libertem.udf.sumsigudf import SumSigUDF
 
@@ -172,6 +173,41 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
+
+
+class ProcessPartitionUDF(UDF):
+    def get_result_buffers(self):
+        return {
+            'result': self.buffer(kind='nav', dtype=np.float32),
+        }
+
+    def process_partition(self, partition):
+        self.results.result[:] = partition.sum(axis=(-1, -2))
+
+
+def test_process_partition(ltl_ctx, merlin_detector_sim, merlin_ds):
+    triggered = triggered = np.array((False,))
+
+    def trigger(acquisition):
+        triggered[:] = True
+        assert acquisition.shape.nav == merlin_ds.shape.nav
+
+    host, port = merlin_detector_sim
+    aq = ltl_ctx.prepare_acquisition(
+        'merlin',
+        trigger=trigger,
+        nav_shape=(32, 32),
+        host=host,
+        port=port,
+        drain=False,
+        pool_size=16,
+    )
+    udf = ProcessPartitionUDF()
+
+    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert_allclose(res['result'], ref['result'])
 
 
 def test_acquisition_dry_run(ltl_ctx, merlin_detector_sim, merlin_ds):
