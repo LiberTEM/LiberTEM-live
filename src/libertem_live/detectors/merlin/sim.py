@@ -153,9 +153,11 @@ class StopException(Exception):
 
 
 class HeaderSocketSimulator:
-    def __init__(self, path: str, stop_event=None, nav_shape=None, continuous=False, rois=None,
-                 max_runs=-1):
+    def __init__(self, path: str, stop_event=None, nav_shape=None, continuous=False, rois=None):
         """
+        This class handles sending out acquisition header - calling the `handle_conn` method
+        will send the header to the give connection.
+
         Parameters
         ----------
 
@@ -171,9 +173,6 @@ class HeaderSocketSimulator:
         rois: List[np.ndarray]
             If a list of ROIs is given, in continuous mode, cycle through
             these ROIs from the source data
-
-        max_runs: int
-            Maximum number of continuous runs
         """
         if stop_event is None:
             stop_event = threading.Event()
@@ -187,10 +186,9 @@ class HeaderSocketSimulator:
         self._continuous = continuous
         self._rois = rois
         self._ds = None
-        self._max_runs = max_runs
-        self._mmaps = {}
 
     def _make_hdr(self):
+        # FIXME: support for continuous mode - need to fake a better header here in that case
         hdr = (
             f"HDR,\n"
             f"Frames in Acquisition (Number):\t{np.prod(self._nav_shape, dtype=np.int64)}\n"
@@ -213,7 +211,6 @@ class HeaderSocketSimulator:
         """
         generator of `bytes` for the given configuration
         """
-
         # first, send acquisition header:
         hdr = self.hdr
         yield get_mpx_header(len(hdr))
@@ -739,13 +736,13 @@ class CameraSim:
         self.finish_event = threading.Event()
 
         self.headers = HeaderSocketSimulator(
-            path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs,
-            stop_event=self.stop_event
+            path=path, nav_shape=nav_shape, continuous=continuous,
+            stop_event=self.stop_event,
         )
 
         self.sim = cls(
             path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs,
-            stop_event=self.stop_event
+            stop_event=self.stop_event,
         )
 
         self.server_t = DataSocketServer(
@@ -754,7 +751,7 @@ class CameraSim:
             stop_event=self.stop_event,
             acquisition_event=self.acquisition_event,
             trigger_event=self.trigger_event,
-            finish_event=self.finish_event
+            finish_event=self.finish_event,
         )
         # Make sure the thread dies with the main program
         self.server_t.daemon = True
