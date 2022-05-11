@@ -89,7 +89,7 @@ class ZeroMQReceiver(Receiver):
         assert header_header['frame'] == frame_id
         header = json.loads(self.recv())
         shape = tuple(reversed(header['shape']))
-        dtype = np.dtype(header['type'])
+        dtype = np.dtype(header['type']).newbyteorder(header['encoding'][-1])
         size = prod(shape) * dtype.itemsize
         data = self.recv()
         if header['encoding'] in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
@@ -102,6 +102,8 @@ class ZeroMQReceiver(Receiver):
         elif header['encoding'] == 'lz4<':
             decompressed = lz4.block.decompress(data, uncompressed_size=size)
             decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
+        elif header['encoding'] == '<':
+            decompressed = np.frombuffer(data, dtype=dtype).reshape(shape)
         else:
             raise RuntimeError(f'Unsupported encoding {header["encoding"]}')
 
