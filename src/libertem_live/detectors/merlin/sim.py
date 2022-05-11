@@ -19,44 +19,10 @@ from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
+from libertem_live.detectors.common import ErrThreadMixin
+
 
 logger = logging.getLogger(__name__)
-
-
-# Copied from the k2is branch as a temporary fix.
-# FIXME use a proper import as soon as the k2is branch is merged
-class StoppableThreadMixin:
-    def __init__(self, *args, stop_event=None, **kwargs):
-        if stop_event is None:
-            stop_event = threading.Event()
-        self._stop_event = stop_event
-        super().__init__(*args, **kwargs)
-
-    def stop(self):
-        self._stop_event.set()
-
-    def is_stopped(self):
-        return self._stop_event.is_set()
-
-
-# Copied from the k2is branch as a temporary fix.
-# FIXME use a proper import as soon as the k2is branch is merged
-class ErrThreadMixin(StoppableThreadMixin):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._error: Optional[Exception] = None
-
-    def get_error(self):
-        return self._error
-
-    def error(self, exc):
-        logger.error("got exception %r, shutting down thread", exc)
-        self._error = exc
-        self.stop()
-
-    def maybe_raise(self):
-        if self._error is not None:
-            raise self._error
 
 
 class ServerThreadMixin(ErrThreadMixin):
