@@ -52,7 +52,11 @@ class OfflineAcquisition(DectrisAcquisition):
     @contextmanager
     def acquire(self):
         try:
-            self._acq_state = AcquisitionParams(sequence_id=42, nimages=128)
+            self._acq_state = AcquisitionParams(
+                sequence_id=42,
+                nimages=128,
+                trigger_mode=self._trigger_mode
+            )
             self.trigger()  # <-- this triggers, either via API or via HW trigger
             yield
         finally:
@@ -63,10 +67,14 @@ def test_dry_run(ltl_ctx):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
-        trigger=lambda aq: None,
         nav_shape=tuple(dataset_shape.nav),
         mock_data=data,
         frames_per_partition=42,  # chosen not to evenly divide `dataset_shape.nav`
+        api_host=None,
+        api_port=None,
+        data_host=None,
+        data_port=None,
+        trigger_mode="exte",
     )
     aq.initialize(ltl_ctx.executor)
     tileshape = Shape((7, 512, 512), sig_dims=2)
@@ -85,10 +93,14 @@ def test_udf_sig(ltl_ctx):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
-        trigger=lambda aq: None,
         nav_shape=tuple(dataset_shape.nav),
         mock_data=data,
         frames_per_partition=42,  # chosen not to evenly divide `dataset_shape.nav`
+        api_host=None,
+        api_port=None,
+        data_host=None,
+        data_port=None,
+        trigger_mode="exte",
     )
     aq.initialize(ltl_ctx.executor)
 
@@ -105,10 +117,14 @@ def test_udf_nav(ltl_ctx):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
-        trigger=lambda aq: None,
         nav_shape=tuple(dataset_shape.nav),
         mock_data=data,
         frames_per_partition=42,  # chosen not to evenly divide `dataset_shape.nav`
+        api_host=None,
+        api_port=None,
+        data_host=None,
+        data_port=None,
+        trigger_mode="exte",
     )
     aq.initialize(ltl_ctx.executor)
 
