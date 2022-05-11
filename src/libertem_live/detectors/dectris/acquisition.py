@@ -1,7 +1,8 @@
 from contextlib import contextmanager
 import json
 import logging
-from typing import NamedTuple, Optional, Protocol, Tuple
+from typing import NamedTuple, Optional, Protocol, Tuple, Union
+from typing_extensions import Literal
 import numpy as np
 import bitshuffle
 import lz4.block
@@ -17,10 +18,18 @@ from libertem_live.detectors.base.acquisition import AcquisitionMixin
 
 logger = logging.getLogger(__name__)
 
+TriggerMode = Union[
+    Literal['exte'],  # acquire one image for each trigger, `ntrigger` times
+    Literal['exts'],  # acquire series of `nimages` with a single trigger
+    Literal['ints'],  # internal software triggering
+    Literal['inte'],  # internal software enable -> one image for each soft-trigger
+]
+
 
 class AcquisitionParams(NamedTuple):
     sequence_id: int
     nimages: int
+    trigger_mode: TriggerMode
 
 
 class DetectorConfig(NamedTuple):
@@ -116,11 +125,12 @@ class ZeroMQReceiver(Receiver):
 class DectrisAcquisition(AcquisitionMixin, DataSet):
     def __init__(
         self,
-        trigger,
         api_host: str,
         api_port: int,
         data_host: str,
         data_port: int,
+        trigger_mode: TriggerMode,
+        trigger=lambda aq: None,
         nav_shape: Optional[Tuple[int, ...]] = None,
         frames_per_partition: int = 128,
     ):
@@ -133,7 +143,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._sig_shape: Tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None
         self._socket: Optional[zmq.Socket] = None
-        self._frames_per_partition = frames_per_partition  # FIXME: parameter?
+        self._frames_per_partition = frames_per_partition
+        self._trigger_mode = trigger_mode
 
     def get_api_client(self):
         from .DEigerClient import DEigerClient
@@ -197,6 +208,14 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     @contextmanager
     def acquire(self):
         ec = self.get_api_client()
+        nimages = prod(self.shape.nav)
+
+        ec.setDetectorConfig('trigger_mode', self._trigger_mode)
+        if self._trigger_mode in ('exte', 'inte'):
+            ec.setDetectorConfig('ntrigger', nimages)
+        elif self._trigger_mode in ('exts', 'ints'):
+            ec.setDetectorConfig('nimages', nimages)
+
         result = ec.sendDetectorCommand('arm')
         sequence_id = result['sequence id']
         # arm result is something like {'sequence id': 18}
@@ -204,9 +223,12 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         try:
             self._acq_state = AcquisitionParams(
                 sequence_id=sequence_id,
-                nimages=prod(self.shape.nav)
+                nimages=nimages,
+                trigger_mode=self._trigger_mode,
             )
-            self.trigger()  # <-- this triggers, either via API or via HW trigger
+            # this triggers, either via API or via HW trigger (in which case we
+            # don't need to do anything in the trigger function):
+            self.trigger()
             yield
         finally:
             self._acq_state = None

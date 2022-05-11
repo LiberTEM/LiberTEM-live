@@ -83,6 +83,7 @@ setup(
         "click",
         "tqdm",
         "numba",
+        "lz4",
     ],
     extras_require={
         'pymemfd': 'pymemfd',
