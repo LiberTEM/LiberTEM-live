@@ -95,6 +95,7 @@ setup(
     entry_points={
         'console_scripts': [
             'libertem-live-mib-sim=libertem_live.detectors.merlin.sim:main',
+            'libertem-live-dectris-sim=libertem_live.detectors.dectris.sim:main',
         ]
     },
     cmdclass={
