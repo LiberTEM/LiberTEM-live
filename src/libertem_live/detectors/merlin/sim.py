@@ -7,7 +7,6 @@ import itertools
 import functools
 import platform
 import threading
-from typing import Optional
 import logging
 import select
 
