@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import base64
 import json
 import logging
 from typing import NamedTuple, Optional, Protocol, Tuple, Union
@@ -11,6 +12,7 @@ from libertem.common.math import prod
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
+from libertem.corrections.corrset import CorrectionSet
 import zmq
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
@@ -49,6 +51,19 @@ class Receiver(Protocol):
         raise NotImplementedError(f"{self.__class__.__name__}.__next__ is not implemented")
 
 
+def get_darray(darray) -> np.ndarray:
+    """
+    Helper to decode darray-encoded arrays to numpy
+    """
+    data = darray['value']['data']
+    if 'base64' not in darray['value']['filters']:
+        raise RuntimeError("don't unterstand this encoding, bailing")
+    shape = tuple(darray['value']['shape'])
+    dtype = darray['value']['type']
+    data = base64.decodebytes(data.encode("ascii"))
+    return np.frombuffer(data, dtype=dtype).reshape(shape)
+
+
 class ZeroMQReceiver(Receiver):
     def __init__(self, socket: zmq.Socket, params: Optional[AcquisitionParams]):
         self._socket = socket
@@ -84,6 +99,7 @@ class ZeroMQReceiver(Receiver):
         return header_header, header
 
     def receive_frame(self, frame_id):
+        assert self._running, "need to be running to receive frames!"
         header_header = json.loads(self.recv())
         assert header_header['series'] == self._params.sequence_id
         assert header_header['frame'] == frame_id
@@ -135,6 +151,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         trigger=lambda aq: None,
         nav_shape: Optional[Tuple[int, ...]] = None,
         frames_per_partition: int = 128,
+        enable_corrections: bool = False,
     ):
         super().__init__(trigger=trigger)
         self._api_host = api_host
@@ -148,6 +165,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._socket: Optional[zmq.Socket] = None
         self._frames_per_partition = frames_per_partition
         self._trigger_mode = trigger_mode
+        self._enable_corrections = enable_corrections
 
     def get_api_client(self):
         from .DEigerClient import DEigerClient
@@ -199,7 +217,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._zmq_ctx = None
         self._socket = None
 
-
     @property
     def dtype(self):
         return self._meta.dtype
@@ -215,6 +232,15 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     @property
     def meta(self):
         return self._meta
+
+    def get_correction_data(self):
+        if not self._enable_corrections:
+            return CorrectionSet()
+        ec = self.get_api_client()
+        mask = ec.detectorConfig("pixel_mask")
+        mask_arr = get_darray(mask)
+        excluded_pixels = mask_arr > 0
+        return CorrectionSet(excluded_pixels=excluded_pixels)
 
     @contextmanager
     def acquire(self):
@@ -347,7 +373,7 @@ class DectrisLivePartition(Partition):
                 tile_done = buf_idx == depth
                 partition_done = to_read == 0
             except StopIteration:
-                assert to_read == 0
+                assert to_read == 0, f"we were still expecting to read {to_read} frames more!"
                 tile_done = True
                 partition_done = True
 
