@@ -144,6 +144,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._nav_shape = nav_shape
         self._sig_shape: Tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None
+        self._zmq_ctx: Optional[zmq.Context] = None
         self._socket: Optional[zmq.Socket] = None
         self._frames_per_partition = frames_per_partition
         self._trigger_mode = trigger_mode
@@ -180,7 +181,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             raw_dtype=dtype,
             dtype=dtype,
         )
-        self.connect()
         return self
 
     def connect(self):
@@ -190,6 +190,15 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._zmq_ctx = zmq.Context()
         self._socket = self._zmq_ctx.socket(socket_type=zmq.PULL)
         self._socket.connect(f"tcp://{self._data_host}:{self._data_port}")
+
+    def close(self):
+        """
+        Close the zeromq context and PULL socket
+        """
+        self._zmq_ctx.destroy()
+        self._zmq_ctx = None
+        self._socket = None
+
 
     @property
     def dtype(self):
@@ -210,30 +219,34 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     @contextmanager
     def acquire(self):
         ec = self.get_api_client()
-        nimages = prod(self.shape.nav)
-
-        ec.setDetectorConfig('trigger_mode', self._trigger_mode)
-        if self._trigger_mode in ('exte', 'inte'):
-            ec.setDetectorConfig('ntrigger', nimages)
-        elif self._trigger_mode in ('exts', 'ints'):
-            ec.setDetectorConfig('nimages', nimages)
-
-        result = ec.sendDetectorCommand('arm')
-        sequence_id = result['sequence id']
-        # arm result is something like {'sequence id': 18}
-
         try:
-            self._acq_state = AcquisitionParams(
-                sequence_id=sequence_id,
-                nimages=nimages,
-                trigger_mode=self._trigger_mode,
-            )
-            # this triggers, either via API or via HW trigger (in which case we
-            # don't need to do anything in the trigger function):
-            self.trigger()
-            yield
+            self.connect()
+            nimages = prod(self.shape.nav)
+
+            ec.setDetectorConfig('trigger_mode', self._trigger_mode)
+            if self._trigger_mode in ('exte', 'inte'):
+                ec.setDetectorConfig('ntrigger', nimages)
+            elif self._trigger_mode in ('exts', 'ints'):
+                ec.setDetectorConfig('nimages', nimages)
+
+            result = ec.sendDetectorCommand('arm')
+            sequence_id = result['sequence id']
+            # arm result is something like {'sequence id': 18}
+
+            try:
+                self._acq_state = AcquisitionParams(
+                    sequence_id=sequence_id,
+                    nimages=nimages,
+                    trigger_mode=self._trigger_mode,
+                )
+                # this triggers, either via API or via HW trigger (in which case we
+                # don't need to do anything in the trigger function):
+                self.trigger()
+                yield
+            finally:
+                self._acq_state = None
         finally:
-            self._acq_state = None
+            self.close()
 
     def check_valid(self):
         pass
