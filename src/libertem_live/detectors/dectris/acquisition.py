@@ -58,7 +58,7 @@ def get_darray(darray) -> np.ndarray:
     data = darray['value']['data']
     if 'base64' not in darray['value']['filters']:
         raise RuntimeError("don't unterstand this encoding, bailing")
-    shape = tuple(darray['value']['shape'])
+    shape = tuple(reversed(darray['value']['shape']))
     dtype = darray['value']['type']
     data = base64.decodebytes(data.encode("ascii"))
     return np.frombuffer(data, dtype=dtype).reshape(shape)
