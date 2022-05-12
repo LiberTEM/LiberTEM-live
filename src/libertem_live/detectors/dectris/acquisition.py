@@ -319,6 +319,11 @@ class DectrisLivePartition(Partition):
     def set_corrections(self, corrections):
         self._corrections = corrections
 
+    def _preprocess(self, tile_data, tile_slice):
+        if self._corrections is None:
+            return
+        self._corrections.apply(tile_data, tile_slice)
+
     def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None):
         assert len(tiling_scheme) == 1
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
@@ -361,7 +366,8 @@ class DectrisLivePartition(Partition):
                     origin=(tile_start,) + (0, 0),
                     shape=tile_shape,
                 )
-                print(f"yielding tile for {tile_slice}")
+                # print(f"yielding tile for {tile_slice}")
+                self._preprocess(tile_buf, tile_slice)
                 yield DataTile(
                     tile_buf,
                     tile_slice=tile_slice,
