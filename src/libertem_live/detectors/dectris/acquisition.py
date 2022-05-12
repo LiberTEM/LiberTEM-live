@@ -249,6 +249,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             self.connect()
             nimages = prod(self.shape.nav)
 
+            ec.setDetectorConfig('ntrigger', 1)
+            ec.setDetectorConfig('nimages', 1)
             ec.setDetectorConfig('trigger_mode', self._trigger_mode)
             if self._trigger_mode in ('exte', 'inte'):
                 ec.setDetectorConfig('ntrigger', nimages)
