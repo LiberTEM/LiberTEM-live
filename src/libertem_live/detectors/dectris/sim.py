@@ -277,7 +277,9 @@ def main(path, port, zmqport):
     def set_detector_config(parameter):
         request_data = request.json
         if parameter in headers[1]:
-            if request_data['value'] != headers[1][parameter]:
+            if (request_data['value'] != headers[1][parameter]
+                    and (parameter not in {'ntrigger', 'nimages'}
+                         or request_data['value'] != 1)):
                 raise ValueError(
                     f'Value {request_data["value"]} for parameter {parameter} '
                     f'does not match file content {headers[1][parameter]}.'
