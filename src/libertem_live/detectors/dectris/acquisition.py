@@ -152,6 +152,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         nav_shape: Optional[Tuple[int, ...]] = None,
         frames_per_partition: int = 128,
         enable_corrections: bool = False,
+        name_pattern: Optional[str] = None,
     ):
         super().__init__(trigger=trigger)
         self._api_host = api_host
@@ -166,6 +167,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._frames_per_partition = frames_per_partition
         self._trigger_mode = trigger_mode
         self._enable_corrections = enable_corrections
+        self._name_pattern = name_pattern
 
     def get_api_client(self):
         from .DEigerClient import DEigerClient
@@ -257,6 +259,11 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             elif self._trigger_mode in ('exts', 'ints'):
                 ec.setDetectorConfig('nimages', nimages)
 
+            if self._name_pattern is not None:
+                ec.setFileWriterConfig("mode", "enabled")
+                ec.setFileWriterConfig("name_pattern", self._name_pattern)
+                ec.setFileWriterConfig("nimages_per_file", 0)
+
             result = ec.sendDetectorCommand('arm')
             sequence_id = result['sequence id']
             # arm result is something like {'sequence id': 18}
@@ -300,7 +307,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return self._acq_state
 
     def get_receiver(self):
-        # FIXME:
         return ZeroMQReceiver(self._socket, params=self._acq_state)
 
     def get_partitions(self):
