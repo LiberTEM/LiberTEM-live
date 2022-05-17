@@ -29,3 +29,4 @@ data
 .benchmarks
 junit.xml
 DEigerClient.py
+profiles/

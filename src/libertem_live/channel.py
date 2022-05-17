@@ -5,7 +5,7 @@ import multiprocessing as mp
 from multiprocessing import shared_memory
 from multiprocessing.managers import SharedMemoryManager
 from queue import Empty
-from typing import Callable, NamedTuple, Optional, Tuple
+from typing import Callable, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 
@@ -15,6 +15,23 @@ class PoolAllocation(NamedTuple):
     handle: int  # internal handle, could be an offset
     full_size: int  # full size of the allocation, in bytes (including padding)
     req_size: int  # requested allocation size
+
+    def resize(self, new_req_size) -> "PoolAllocation":
+        assert new_req_size <= self.full_size
+        return PoolAllocation(
+            shm_name=self.shm_name,
+            handle=self.handle,
+            full_size=self.full_size,
+            req_size=new_req_size,
+        )
+
+
+def drain_queue(q: mp.Queue):
+    while True:
+        try:
+            q.get_nowait()
+        except Empty:
+            break
 
 
 class PoolShmClient:
@@ -92,6 +109,7 @@ class ShmQueue:
         self.release_q = mp.Queue()
         self._psa = None
         self._psc = None
+        self._closed = False
 
     def put(self, header, payload: Optional[memoryview] = None):
         """
@@ -114,23 +132,26 @@ class ShmQueue:
         """
         if self._psa is None:
             # FIXME: config item size, pool size
-            self._psa = PoolShmAllocator(item_size=512*512*4*2, size_num_items=4096)
+            self._psa = PoolShmAllocator(item_size=512*512*4*2, size_num_items=128*128)
         size = src_buffer.nbytes
         try:
             alloc_handle = self.release_q.get_nowait()
+            alloc_handle = alloc_handle.resize(size)
         except Empty:
-            alloc_handle = self._psa.allocate(src_buffer.nbytes)
+            alloc_handle = self._psa.allocate(size)
         payload_shm = self._psa.get(alloc_handle)
-        payload_arr = np.frombuffer(src_buffer, dtype=np.uint8)
-        payload_arr_shm = np.frombuffer(payload_shm[:size], dtype=np.uint8)
-        payload_arr_shm[:] = payload_arr
+        assert payload_shm.nbytes == size, f"{payload_shm.nbytes} != {size}"
+        src_arr = np.frombuffer(src_buffer, dtype=np.uint8)
+        arr_shm = np.frombuffer(payload_shm, dtype=np.uint8)
+        assert arr_shm.size == size, f"{arr_shm.size} != {size}"
+        arr_shm[:] = src_arr
         return alloc_handle
 
     def _get_named_shm(self, name: str) -> shared_memory.SharedMemory:
         return shared_memory.SharedMemory(name=name, create=False)
 
     @contextlib.contextmanager
-    def get(self, timeout: Optional[float] = None):
+    def get(self, block: bool = True, timeout: Optional[float] = None):
         """
         Receive a message. Memory of the payload will be cleaned up after the
         context manager scope, so don't keep references outside of it!
@@ -142,29 +163,34 @@ class ShmQueue:
         """
         if self._psc is None:
             self._psc = PoolShmClient()
-        while True:
-            try:
-                header, typ, payload_handle = self.q.get(timeout=timeout)
-            except Empty:
-                continue
-            try:
-                if payload_handle is not None:
-                    payload_buf = self._psc.get(payload_handle)
-                    payload_memview = memoryview(payload_buf)
-                else:
-                    payload_buf = None
-                    payload_memview = None
-                if typ == "bytes":
-                    yield (pickle.loads(header), payload_memview)
-            finally:
-                if payload_memview is not None:
-                    payload_memview.release()
-                if payload_buf is not None:
-                    self.release_q.put(payload_handle)
-            break
+        header, typ, payload_handle = self.q.get(block=block, timeout=timeout)
+        try:
+            if payload_handle is not None:
+                payload_buf = self._psc.get(payload_handle)
+                payload_memview = memoryview(payload_buf)
+            else:
+                payload_buf = None
+                payload_memview = None
+            if typ == "bytes":
+                yield (pickle.loads(header), payload_memview)
+        finally:
+            if payload_memview is not None:
+                payload_memview.release()
+            if payload_handle is not None:
+                self.release_q.put(payload_handle)
 
     def empty(self):
         return self.q.empty()
+
+    def close(self):
+        if not self._closed:
+            drain_queue(self.q)
+            self.q.close()
+            self.q.join_thread()
+            drain_queue(self.release_q)
+            self.release_q.close()
+            self.release_q.join_thread()
+            self._closed = True
 
 
 class ChannelManager:
@@ -184,10 +210,15 @@ class WorkerQueues(NamedTuple):
 class WorkerPool:
     def __init__(self, processes: int, worker_fn: Callable):
         self._cm = ChannelManager()
-        self._workers: Tuple[WorkerQueues, mp.Process] = []
+        self._workers: List[Tuple[WorkerQueues, mp.Process]] = []
         self._worker_fn = worker_fn
         self._processes = processes
+        self._response_q = ShmQueue()
         self._start_workers()
+
+    @property
+    def response_queue(self):
+        return self._response_q
 
     @property
     def size(self):
@@ -196,7 +227,7 @@ class WorkerPool:
     def _start_workers(self):
         for i in range(self._processes):
             queues = self._make_worker_queues()
-            p = mp.Process(target=self._worker_fn, args=(queues,))
+            p = mp.Process(target=self._worker_fn, args=(queues, i))
             p.start()
             self._workers.append((queues, p))
 
@@ -204,21 +235,21 @@ class WorkerPool:
         for (qs, _) in self._workers:
             yield qs
 
+    def all_workers(self):
+        return self._workers
+
     def join_all(self):
         for (_, p) in self._workers:
             p.join()
 
+    def close_resp_queue(self):
+        self._response_q.close()
+
     def get_worker_queues(self, idx) -> WorkerQueues:
         return self._workers[idx][0]
-
-    def poll_all(self) -> Optional[WorkerQueues]:
-        # FIXME: is there a way to just poll all queues together?
-        for (qs, p) in self._workers:
-            if not qs.response.empty():
-                return qs
 
     def _make_worker_queues(self):
         return WorkerQueues(
             request=ShmQueue(),
-            response=ShmQueue(),
+            response=self._response_q,
         )
