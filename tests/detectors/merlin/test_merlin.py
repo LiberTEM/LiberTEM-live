@@ -151,9 +151,9 @@ def merlin_ds(ltl_ctx):
 
 
 @pytest.fixture
-def merlin_ds_ptycho(ltl_ctx):
+def merlin_ds_ptycho_flat(ltl_ctx):
     return ltl_ctx.load(
-        'MIB', path=PTYCHO_TESTDATA_PATH, nav_shape=(128, 128)
+        'MIB', path=PTYCHO_TESTDATA_PATH, nav_shape=(128*128, )
     )
 
 
@@ -283,9 +283,10 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
-def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_ptycho):
-    merlin_ds = merlin_ds_ptycho
+def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_ptycho_flat):
+    merlin_ds = merlin_ds_ptycho_flat
     da, _ = make_dask_array(merlin_ds)
+    p = next(merlin_ds.get_partitions())
     host, port = merlin_detector_sim_ptycho
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
@@ -294,7 +295,10 @@ def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_pty
         host=host,
         port=port,
         drain=False,
-        pool_size=1,
+        pool_size=4,
+        # Match live partition size with offline
+        # partition size to avoid read amplification
+        frames_per_partition=p.slice.shape[0]
     )
     s = TilingScheme.make_for_shape(
         tileshape=Shape((7, 256, 256), sig_dims=2),
@@ -303,7 +307,7 @@ def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_pty
 
     with ltl_ctx._do_acquisition(aq, None):
         for p in aq.get_partitions():
-            part_data = da.reshape((-1, 256, 256), limit='512MiB')[p.slice.get()].compute()
+            part_data = da[p.slice.get()].compute()
             print(f"comparing partition {p}")
             for tile in p.get_tiles(s):
                 print(f"comparing tile {tile.tile_slice} in partition {p.slice}")
