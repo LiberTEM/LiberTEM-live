@@ -55,7 +55,9 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                 if self.is_stopped():
                     raise StopException("Server is stopped")
                 res = zmq_socket.poll(100, flags=zmq.POLLOUT)
-            zmq_socket.send(data)
+            # XXX quite bizarrely, for this kind of data stream, using
+            # `send(..., copy=True)` is faster than `send(..., copy=False)`.
+            zmq_socket.send(data, copy=True)
             index += len(data)
             return index
 

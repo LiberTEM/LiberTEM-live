@@ -40,6 +40,22 @@ class DetectorConfig(NamedTuple):
     bit_depth: int
 
 
+class RawFrame:
+    def __init__(self, data, encoding, dtype, shape):
+        self.data = data
+        self.dtype = dtype
+        self.shape = shape
+        self.encoding = encoding
+
+    def decode(self):
+        return decode(
+            data=self.data,
+            encoding=self.encoding,
+            shape=self.shape,
+            dtype=self.dtype
+        )
+
+
 class Receiver(Protocol):
     def __iter__(self):
         return self
@@ -47,7 +63,7 @@ class Receiver(Protocol):
     def start(self):
         pass
 
-    def __next__(self) -> np.ndarray:
+    def __next__(self) -> RawFrame:
         raise NotImplementedError(f"{self.__class__.__name__}.__next__ is not implemented")
 
 
@@ -62,6 +78,33 @@ def get_darray(darray) -> np.ndarray:
     dtype = darray['value']['type']
     data = base64.decodebytes(data.encode("ascii"))
     return np.frombuffer(data, dtype=dtype).reshape(shape)
+
+
+def dtype_from_frame_header(header):
+    return np.dtype(header['type']).newbyteorder(header['encoding'][-1])
+
+
+def shape_from_frame_header(header):
+    return tuple(reversed(header['shape']))
+
+
+def decode(data, encoding, shape, dtype):
+    size = prod(shape) * dtype.itemsize
+    if encoding in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
+        decompressed = bitshuffle.decompress_lz4(
+            np.frombuffer(data[12:], dtype=np.uint8),
+            shape=shape,
+            dtype=dtype,
+            block_size=0
+        )
+    elif encoding == 'lz4<':
+        decompressed = lz4.block.decompress(data, uncompressed_size=size)
+        decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
+    elif encoding == '<':
+        decompressed = np.frombuffer(data, dtype=dtype).reshape(shape)
+    else:
+        raise RuntimeError(f'Unsupported encoding {encoding}')
+    return decompressed
 
 
 class ZeroMQReceiver(Receiver):
@@ -83,61 +126,50 @@ class ZeroMQReceiver(Receiver):
         res = 0
         while not res:
             res = self._socket.poll(100)
-        return self._socket.recv()
+        msg = self._socket.recv(copy=False)
+        return msg.buffer
 
     def receive_acquisition_header(self):
         while True:
             data = self.recv()
             try:
-                header_header = json.loads(data)
+                header_header = json.loads(bytes(data))
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
             if ('header_detail' in header_header
                     and header_header['series'] == self._params.sequence_id):
                 break
-        header = json.loads(self.recv())
+        header = json.loads(bytes(self.recv()))
         return header_header, header
 
     def receive_frame(self, frame_id):
         assert self._running, "need to be running to receive frames!"
-        header_header = json.loads(self.recv())
+        header_header = json.loads(bytes(self.recv()))
         assert header_header['series'] == self._params.sequence_id
         assert header_header['frame'] == frame_id
-        header = json.loads(self.recv())
-        shape = tuple(reversed(header['shape']))
-        dtype = np.dtype(header['type']).newbyteorder(header['encoding'][-1])
-        size = prod(shape) * dtype.itemsize
+        header = json.loads(bytes(self.recv()))
         data = self.recv()
-        if header['encoding'] in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
-            decompressed = bitshuffle.decompress_lz4(
-                np.frombuffer(data[12:], dtype=np.uint8),
-                shape=shape,
-                dtype=dtype,
-                block_size=0
-            )
-        elif header['encoding'] == 'lz4<':
-            decompressed = lz4.block.decompress(data, uncompressed_size=size)
-            decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
-        elif header['encoding'] == '<':
-            decompressed = np.frombuffer(data, dtype=dtype).reshape(shape)
-        else:
-            raise RuntimeError(f'Unsupported encoding {header["encoding"]}')
-
-        footer = json.loads(self.recv())
-        return header_header, header, decompressed, footer
+        footer = json.loads(bytes(self.recv()))
+        return header_header, header, data, footer
 
     def receive_acquisition_footer(self):
         footer = self.recv()
         return footer
 
-    def __next__(self) -> np.ndarray:
+    def __next__(self) -> RawFrame:
+        assert self._params is not None
         if self._frame_id >= self._params.nimages:
             self.receive_acquisition_footer()
             self._running = False
             raise StopIteration()
-        f_header_header, f_header, decompressed, f_footer = self.receive_frame(self._frame_id)
+        f_header_header, f_header, data, f_footer = self.receive_frame(self._frame_id)
         self._frame_id += 1
-        return decompressed
+        return RawFrame(
+            data=data,
+            encoding=f_header['encoding'],
+            dtype=dtype_from_frame_header(f_header),
+            shape=shape_from_frame_header(f_header),
+        )
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -147,9 +179,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         api_port: int,
         data_host: str,
         data_port: int,
+        nav_shape: Optional[Tuple[int, ...]],
         trigger_mode: TriggerMode,
         trigger=lambda aq: None,
-        nav_shape: Optional[Tuple[int, ...]] = None,
         frames_per_partition: int = 128,
         enable_corrections: bool = False,
         name_pattern: Optional[str] = None,
@@ -317,7 +349,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
         slices = BasePartition.make_slices(self.shape, num_partitions)
 
-        receiver = self.get_receiver()
+        # receiver = self.get_receiver()
+        receiver = None
 
         for part_slice, start, stop in slices:
             yield DectrisLivePartition(
@@ -332,7 +365,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 class DectrisLivePartition(Partition):
     def __init__(
         self, start_idx, end_idx, partition_slice,
-        meta, receiver: Receiver,
+        meta, receiver: Optional[Receiver] = None,
     ):
         super().__init__(meta=meta, partition_slice=partition_slice, io_backend=None, decoder=None)
         self._start_idx = start_idx
@@ -366,7 +399,8 @@ class DectrisLivePartition(Partition):
         buf = np.zeros((depth,) + tiling_scheme[0].shape, dtype=dest_dtype)
         buf_idx = 0
         tile_start = self._start_idx
-        self._receiver.start()
+        # self._receiver.start()
+        assert self._receiver is not None
         while to_read > 0:
             # 1) put frame into tile buffer (including dtype conversion if needed)
             assert buf_idx < depth,\
