@@ -306,16 +306,16 @@ class DataSocketSimulator:
             f = fh._file
         else:
             f = open(fh._path, 'rb')
-        fileno = f.fileno()
-        if fileno not in self._mmaps:
-            self._mmaps[fileno] = raw_mmap = mmap.mmap(
+        path = fh._path
+        if path not in self._mmaps:
+            self._mmaps[path] = raw_mmap = mmap.mmap(
                 fileno=f.fileno(),
                 length=0,
                 offset=0,
                 access=mmap.ACCESS_READ,
             )
         else:
-            raw_mmap = self._mmaps[fileno]
+            raw_mmap = self._mmaps[path]
 
         return bytearray(raw_mmap[
             full_frame_size * frame_idx: full_frame_size * (frame_idx + 1)

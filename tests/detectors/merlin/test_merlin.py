@@ -28,6 +28,9 @@ from utils import get_testdata_path
 MIB_TESTDATA_PATH = os.path.join(get_testdata_path(), 'default.mib')
 HAVE_MIB_TESTDATA = os.path.exists(MIB_TESTDATA_PATH)
 
+PTYCHO_TESTDATA_PATH = os.path.join(get_testdata_path(), '20200518 165148', 'default.hdr')
+HAVE_PTYCHO_TESTDATA = os.path.exists(PTYCHO_TESTDATA_PATH)
+
 pytestmark = [
     pytest.mark.skipif(not HAVE_MIB_TESTDATA, reason="need .mib testdata"),
     pytest.mark.data,
@@ -147,6 +150,31 @@ def merlin_ds(ltl_ctx):
     return ltl_ctx.load('MIB', path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
 
 
+@pytest.fixture
+def merlin_ds_ptycho(ltl_ctx):
+    return ltl_ctx.load(
+        'MIB', path=PTYCHO_TESTDATA_PATH, nav_shape=(128, 128)
+    )
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_sim_threads_ptycho():
+    '''
+    Untriggered default simulator.
+    '''
+    yield from run_camera_sim(
+        path=PTYCHO_TESTDATA_PATH, nav_shape=(128, 128),
+    )
+
+
+@pytest.fixture(scope='module')
+def merlin_detector_sim_ptycho(merlin_detector_sim_threads_ptycho):
+    '''
+    Host, port tuple of the untriggered default simulator
+    '''
+    return merlin_detector_sim_threads_ptycho.server_t.sockname
+
+
 @pytest.mark.with_numba  # Get coverage for decoders
 def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
@@ -255,35 +283,10 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
-@pytest.fixture
-def merlin_ds_live(ltl_ctx):
-    return ltl_ctx.load(
-        'MIB', path="/home/alex/Data/20200518 165148/default.hdr", nav_shape=(128, 128)
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim_threads_2():
-    '''
-    Untriggered default simulator.
-    '''
-    yield from run_camera_sim(
-        path="/home/alex/Data/20200518 165148/default.hdr", nav_shape=(32, 32),
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim_2(merlin_detector_sim_threads_2):
-    '''
-    Host, port tuple of the untriggered default simulator
-    '''
-    return merlin_detector_sim_threads_2.server_t.sockname
-
-
-def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_2, merlin_ds_live):
-    merlin_ds = merlin_ds_live
+def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_ptycho):
+    merlin_ds = merlin_ds_ptycho
     da, _ = make_dask_array(merlin_ds)
-    host, port = merlin_detector_sim_2
+    host, port = merlin_detector_sim_ptycho
     aq = ltl_ctx.prepare_acquisition(
         'merlin',
         trigger=None,
