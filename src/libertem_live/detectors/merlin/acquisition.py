@@ -218,7 +218,7 @@ class MerlinLivePartition(Partition):
                         origin=(res_wrapped.start,) + (0, 0),
                         shape=tile_shape,
                     )
-                    print(f"yielding tile for {tile_slice}")
+
                     yield DataTile(
                         res_wrapped.buf,
                         tile_slice=tile_slice,

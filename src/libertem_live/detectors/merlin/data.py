@@ -109,7 +109,6 @@ class MerlinDataSocket:
         self._frame_counter = 0
 
     def connect(self):
-        print("connecting")
         self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._socket.connect((self._host, self._port))
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -355,7 +354,6 @@ class MerlinDataSocket:
         return result
 
     def close(self):
-        print("closing")
         self._socket.close()
         self._is_connected = False
 
@@ -445,7 +443,6 @@ class ReaderThread(ErrThreadMixin, threading.Thread):
                 if res_stop - res_start == 0:
                     break
 
-                print(f"creating ResultWrap {res_start}:{res_stop}")
                 wrapped = ResultWrap(res_start, res_stop, res_buffer)
 
                 # retry until there is space in the output queue, or the thread is stopped:
