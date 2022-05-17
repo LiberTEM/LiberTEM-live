@@ -279,7 +279,9 @@ class DataSocketSimulator:
         else:
             print("yielding from single scan")
             roi = np.ones(self._ds.shape.nav, dtype=bool)
-            t = tqdm(total=np.count_nonzero(roi))
+            # Times two since _get_single_scan() returns header
+            # and frame separately
+            t = tqdm(total=np.count_nonzero(roi)*2)
             try:
                 for item in self._get_single_scan(roi):
                     yield item
