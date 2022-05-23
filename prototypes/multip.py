@@ -1,31 +1,34 @@
 import os
+import gc
+import logging
 from contextlib import contextmanager
 from threading import Thread
 from queue import Empty
 import time
 from typing import List, Union
 from typing_extensions import Literal
-import multiprocessing as mp
 
 import numpy as np
 
 from libertem.io.dataset.base.tiling_scheme import TilingScheme
 from libertem.udf.sum import SumUDF
-from libertem.udf.base import UDFPartRunner, UDFRunner, UDFParams, UDF
+from libertem.udf.stddev import StdDevUDF
+from libertem.udf.base import UDFPartRunner, UDFParams, UDF
 from libertem.common import Shape
 from libertem.common.executor import Environment
-from regex import E
 
 from libertem_live.channel import WorkerPool, WorkerQueues
 from libertem_live.detectors.dectris.acquisition import (
     AcquisitionParams, DectrisAcquisition, DetectorConfig, Receiver,
-    TriggerMode, RawFrame
+    RawFrame
 )
 
 try:
     import prctl
 except ImportError:
     prctl = None
+
+logger = logging.getLogger(__name__)
 
 MSG_TYPES = Union[
     Literal['BEGIN_PARTITION'],
@@ -150,22 +153,29 @@ def worker(queues: WorkerQueues, idx: int):
 
     set_thread_name(f"worker-{idx}")
 
+    collect_time = 0.0
+
     while True:
         with queues.request.get() as msg:
             header, payload = msg
             header_type = header["type"]
             if header_type == "START_PARTITION":
                 partition = header["partition"]
-                print(f"processing partition {partition}")
+                logger.debug(f"processing partition {partition}")
                 frames = get_frames(partition, queues.request)
                 result = run_udf_on_frames(partition, frames, udfs, params)
                 queues.response.put({"type": "RESULT", "result": result})
+                t0 = time.time()
+                gc.collect()
+                t1 = time.time()
+                collect_time += t1 - t0
                 continue
             elif header_type == "SET_UDFS_AND_PARAMS":
                 udfs = header["udfs"]
                 params = header["params"]
                 continue
             elif header_type == "SHUTDOWN":
+                logger.debug(f"gc in worker {idx}, time sum {collect_time}s")
                 queues.request.close()
                 queues.response.close()
                 break
@@ -205,28 +215,42 @@ def feed_workers(pool: WorkerPool, aq: DectrisAcquisition):
         print(f"finished feeding workers in {t1 - t0}s")
 
 
+class FFTUDF(UDF):
+    def get_result_buffers(self):
+        return {
+            'sum_of_fft': self.buffer(kind='nav', dtype=np.complex128),
+        }
+
+    def process_frame(self, frame):
+        self.results.sum_of_fft[:] = np.sum(np.fft.fft2(frame))
+
+
 def run_on_acquisition(aq: DectrisAcquisition):
-    pool = WorkerPool(processes=7, worker_fn=worker)
-    from perf_utils import perf
+    pool = WorkerPool(processes=22, worker_fn=worker)
+    from perf_utils import perf  # NOQA
 
     ts = TilingScheme.make_for_shape(
-        tileshape=Shape((24, 512, 512), sig_dims=2),
-        dataset_shape=Shape((128, 128, 512, 512), sig_dims=2),
+        tileshape=Shape((12, 512, 512), sig_dims=2),
+        dataset_shape=aq.shape,
     )
 
+    # XXX move to executor:
     for qs in pool.all_worker_queues():
         qs.request.put({
             "type": "SET_UDFS_AND_PARAMS",
-            "udfs": [SumUDF()],
+            # "udfs": [SumUDF()],
+            "udfs": [SumUDF(), StdDevUDF(), FFTUDF()],
             "params": UDFParams(corrections=None, roi=None, tiling_scheme=ts, kwargs=[{}])
         })
         qs.request.put({
             "type": "WARMUP",
         })
 
-    # if True:
-    with perf("multiprocess-dectris"):
+    # with perf("multiprocess-dectris"):
+    if True:
         for i in range(2):
+            # XXX msg_thread is specific to the dectris
+            # -> move to MainController
             msg_thread = Thread(target=feed_workers, args=(pool, aq))
             msg_thread.name = "feed_workers"
             msg_thread.daemon = True
@@ -248,8 +272,11 @@ def run_on_acquisition(aq: DectrisAcquisition):
                 except Empty:
                     continue
             t1 = time.time()
-            print(t1-t0)
-            print(f"Max SHM usage: {qs.request._psa._used/1024/1024}MiB")
+            print(f"time for this round: {t1-t0} (-> {aq.shape.nav.size/(t1-t0)}fps)")
+            print(
+                f"Max SHM usage: {qs.request._psa._used/1024/1024}MiB "
+                f"of {qs.request._psa._size/1024/1024}MiB"
+            )
 
             # after a while, the msg_thread has sent all partitions and exits:
             msg_thread.join()
@@ -288,6 +315,7 @@ if __name__ == "__main__":
         data_port=9999,
         nav_shape=(128, 128),
         trigger_mode="exte",
+        frames_per_partition=128,
     )
     aq.initialize(None)
     print(aq.shape, aq.dtype)
@@ -304,3 +332,27 @@ if __name__ == "__main__":
 
     if True:
         run_on_acquisition(aq)
+
+
+# Code sketches below:
+class MainController:
+    """
+    A controller that takes care of detector-specific concerns and is
+    instantiated once per acquisition.
+
+    This is used by the `UDFRunner`, and can be swapped out per data source.
+
+    This object can take care of, for example, receiving data from the detector.
+    """
+    pass
+
+
+class PerWorkerController:
+    """
+    A persistent controller object that takes care of detector-specific concerns
+    on the worker processes.
+
+    This is wrapped around the `UDFPartRunner`, and is useful for hanging on to
+    persistent resources, like shared memory, sockets or similar.
+    """
+    pass

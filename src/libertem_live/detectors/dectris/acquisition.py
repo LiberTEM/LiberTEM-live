@@ -179,7 +179,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         api_port: int,
         data_host: str,
         data_port: int,
-        nav_shape: Optional[Tuple[int, ...]],
+        nav_shape: Tuple[int, ...],
         trigger_mode: TriggerMode,
         trigger=lambda aq: None,
         frames_per_partition: int = 128,
