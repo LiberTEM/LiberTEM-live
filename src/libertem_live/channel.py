@@ -3,9 +3,8 @@ import math
 import contextlib
 import multiprocessing as mp
 from multiprocessing import shared_memory
-from multiprocessing.managers import SharedMemoryManager
 from queue import Empty
-from typing import Callable, List, NamedTuple, Optional, Tuple
+from typing import Callable, List, NamedTuple, Optional, Protocol, Tuple
 
 import numpy as np
 
@@ -62,10 +61,20 @@ class PoolShmAllocator:
         self._item_size = item_size
         size = item_size * size_num_items
         size = self.ALIGN_TO * math.ceil(size / self.ALIGN_TO)
+        self._create = create
+        self._name = name
         self._size = size
-        self._shm = shared_memory.SharedMemory(create=create, name=name, size=size)
         self._free = []  # list of byte offsets into `_shm`
         self._used = 0  # byte offset into `_shm`; everything above is free memory
+        self._shm = self._open()
+
+    def _open(self):
+        shm = shared_memory.SharedMemory(
+            create=self._create,
+            name=self._name,
+            size=self._size
+        )
+        return shm
 
     def allocate(self, req_size: int) -> PoolAllocation:
         if req_size > self._item_size:
@@ -121,18 +130,18 @@ class ShmQueue:
         # receive/decode/...  directly into a shared memory segment. Not
         # important now, as zmq doesn't have a `recv_into` anyways...
         if payload is not None:
-            payload_shm = self._copy_to_shm(payload)
+            payload_shm: Optional[PoolAllocation] = self._copy_to_shm(payload)
         else:
             payload_shm = None
         self.q.put((pickle.dumps(header), 'bytes', payload_shm))
 
-    def _copy_to_shm(self, src_buffer: memoryview) -> str:
+    def _copy_to_shm(self, src_buffer: memoryview) -> PoolAllocation:
         """
         Copy the `buffer` to shared memory and return its name
         """
         if self._psa is None:
             # FIXME: config item size, pool size
-            self._psa = PoolShmAllocator(item_size=512*512*4*2, size_num_items=128*128)
+            self._psa = PoolShmAllocator(item_size=512*512*4*2, size_num_items=24*128)
         size = src_buffer.nbytes
         try:
             alloc_handle = self.release_q.get_nowait()
@@ -167,7 +176,7 @@ class ShmQueue:
         try:
             if payload_handle is not None:
                 payload_buf = self._psc.get(payload_handle)
-                payload_memview = memoryview(payload_buf)
+                payload_memview: Optional[memoryview] = memoryview(payload_buf)
             else:
                 payload_buf = None
                 payload_memview = None
@@ -193,15 +202,6 @@ class ShmQueue:
             self._closed = True
 
 
-class ChannelManager:
-    def __init__(self):
-        self._smm = SharedMemoryManager()
-        self._smm.start()
-
-    def shutdown(self):
-        self._smm.shutdown()
-
-
 class WorkerQueues(NamedTuple):
     request: ShmQueue
     response: ShmQueue
@@ -209,7 +209,6 @@ class WorkerQueues(NamedTuple):
 
 class WorkerPool:
     def __init__(self, processes: int, worker_fn: Callable):
-        self._cm = ChannelManager()
         self._workers: List[Tuple[WorkerQueues, mp.Process]] = []
         self._worker_fn = worker_fn
         self._processes = processes
