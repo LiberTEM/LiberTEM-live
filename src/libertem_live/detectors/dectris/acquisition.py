@@ -9,6 +9,7 @@ import bitshuffle
 import lz4.block
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
+from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
@@ -170,6 +171,31 @@ class ZeroMQReceiver(Receiver):
             dtype=dtype_from_frame_header(f_header),
             shape=shape_from_frame_header(f_header),
         )
+
+
+def get_frames(request_queue):
+    """
+    Consume all FRAME messages from the request queue until we get an
+    END_PARTITION message (which we also consume)
+    """
+    while True:
+        with request_queue.get() as msg:
+            header, payload = msg
+            header_type = header["type"]
+            if header_type == "FRAME":
+                raw_frame = RawFrame(
+                    data=payload,
+                    encoding=header['encoding'],
+                    dtype=header['dtype'],
+                    shape=header['shape'],
+                )
+                frame_arr = raw_frame.decode()
+                yield frame_arr
+            elif header_type == "END_PARTITION":
+                # print(f"partition {partition} done")
+                return
+            else:
+                raise RuntimeError(f"invalid header type {header}; FRAME or END_PARTITION expected")
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -349,28 +375,49 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
         slices = BasePartition.make_slices(self.shape, num_partitions)
 
-        # receiver = self.get_receiver()
-        receiver = None
-
         for part_slice, start, stop in slices:
             yield DectrisLivePartition(
                 start_idx=start,
                 end_idx=stop,
                 meta=self._meta,
                 partition_slice=part_slice,
-                receiver=receiver,
             )
+
+    def get_controller(self) -> "DectrisController":
+        return DectrisController(receiver=self.get_receiver())
+
+
+class DectrisController:
+    def __init__(self, receiver: ZeroMQReceiver):
+        self.receiver = receiver
+
+    def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
+        # send the data for this task to the given worker
+        partition = task.get_partition()
+        for frame_idx in range(partition.shape.nav.size):
+            raw_frame = next(self.receiver)
+            queue.put({
+                "type": "FRAME",
+                "shape": raw_frame.shape,
+                "dtype": raw_frame.dtype,
+                "encoding": raw_frame.encoding,
+            }, payload=np.frombuffer(raw_frame.data, dtype=np.uint8))
+
+    def start(self):
+        self.receiver.start()
+
+    def done(self):
+        pass
 
 
 class DectrisLivePartition(Partition):
     def __init__(
         self, start_idx, end_idx, partition_slice,
-        meta, receiver: Optional[Receiver] = None,
+        meta,
     ):
         super().__init__(meta=meta, partition_slice=partition_slice, io_backend=None, decoder=None)
         self._start_idx = start_idx
         self._end_idx = end_idx
-        self._receiver = receiver
 
     def shape_for_roi(self, roi):
         return self.slice.adjust_for_roi(roi).shape
@@ -386,6 +433,9 @@ class DectrisLivePartition(Partition):
     def set_corrections(self, corrections):
         self._corrections = corrections
 
+    def set_worker_context(self, worker_context: WorkerContext):
+        self._worker_context = worker_context
+
     def _preprocess(self, tile_data, tile_slice):
         if self._corrections is None:
             return
@@ -399,14 +449,13 @@ class DectrisLivePartition(Partition):
         buf = np.zeros((depth,) + tiling_scheme[0].shape, dtype=dest_dtype)
         buf_idx = 0
         tile_start = self._start_idx
-        # self._receiver.start()
-        assert self._receiver is not None
+        frames = get_frames(self._worker_context.get_worker_queue())
         while to_read > 0:
             # 1) put frame into tile buffer (including dtype conversion if needed)
             assert buf_idx < depth,\
                     f"buf_idx should be in bounds of buf! ({buf_idx} < ({depth} == {buf.shape[0]}))"
             try:
-                frame = next(self._receiver)
+                frame = next(frames)
                 buf[buf_idx] = frame
                 buf_idx += 1
                 to_read -= 1
