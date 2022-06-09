@@ -7,6 +7,7 @@ from typing_extensions import Literal
 import numpy as np
 import bitshuffle
 import lz4.block
+from opentelemetry import trace
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
 from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue
@@ -19,7 +20,9 @@ import zmq
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 
 
+tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
+
 
 TriggerMode = Union[
     Literal['exte'],  # acquire one image for each trigger, `ntrigger` times
@@ -195,7 +198,38 @@ def get_frames(request_queue):
                 # print(f"partition {partition} done")
                 return
             else:
-                raise RuntimeError(f"invalid header type {header}; FRAME or END_PARTITION expected")
+                raise RuntimeError(
+                    f"invalid header type {header['type']}; FRAME or END_PARTITION expected"
+                )
+
+
+class DectrisController:
+    def __init__(self, receiver: ZeroMQReceiver):
+        self.receiver = receiver
+
+    def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
+        with tracer.start_as_current_span("DectrisController.handle_task") as span:
+            # send the data for this task to the given worker
+            slice_ = task.get_partition().slice
+            span.set_attributes({
+                "libertem.partition.start_idx": slice_.origin[0],
+                "libertem.partition.end_idx": slice_.origin[0] + slice_.shape[0],
+            })
+            partition = task.get_partition()
+            for frame_idx in range(partition.shape.nav.size):
+                raw_frame = next(self.receiver)
+                queue.put({
+                    "type": "FRAME",
+                    "shape": raw_frame.shape,
+                    "dtype": raw_frame.dtype,
+                    "encoding": raw_frame.encoding,
+                }, payload=np.frombuffer(raw_frame.data, dtype=np.uint8))
+
+    def start(self):
+        self.receiver.start()
+
+    def done(self):
+        pass
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -385,29 +419,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     def get_controller(self) -> "DectrisController":
         return DectrisController(receiver=self.get_receiver())
-
-
-class DectrisController:
-    def __init__(self, receiver: ZeroMQReceiver):
-        self.receiver = receiver
-
-    def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
-        # send the data for this task to the given worker
-        partition = task.get_partition()
-        for frame_idx in range(partition.shape.nav.size):
-            raw_frame = next(self.receiver)
-            queue.put({
-                "type": "FRAME",
-                "shape": raw_frame.shape,
-                "dtype": raw_frame.dtype,
-                "encoding": raw_frame.encoding,
-            }, payload=np.frombuffer(raw_frame.data, dtype=np.uint8))
-
-    def start(self):
-        self.receiver.start()
-
-    def done(self):
-        pass
 
 
 class DectrisLivePartition(Partition):
