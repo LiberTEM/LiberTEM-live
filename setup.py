@@ -85,6 +85,7 @@ setup(
         "numba",
         "lz4",
         "bitshuffle @ git+https://github.com/uellue/bitshuffle.git@nohdf5#egg=bitshuffle",
+        "opentelemetry-api",
     ],
     extras_require={
         'pymemfd': 'pymemfd',
