@@ -70,6 +70,8 @@ class ServerThreadMixin(ErrThreadMixin):
                         self.handle_conn(connection)
                 except socket.timeout:
                     continue
+                except BrokenPipeError:
+                    continue  # the other end died, but that doesn't mean we have to die
                 except ConnectionResetError:
                     print(f"{self._name} disconnected")
                 # except BrokenPipeError:
