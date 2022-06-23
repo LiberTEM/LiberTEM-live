@@ -6,8 +6,10 @@ logger = logging.getLogger(__name__)
 
 
 class StoppableThreadMixin:
-    def __init__(self, *args, **kwargs):
-        self._stop_event = threading.Event()
+    def __init__(self, stop_event: threading.Event = None, *args, **kwargs):
+        if stop_event is None:
+            stop_event = threading.Event()
+        self._stop_event = stop_event
         super().__init__(*args, **kwargs)
 
     def stop(self):
