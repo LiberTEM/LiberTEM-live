@@ -319,6 +319,21 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
+class ValidationUDF(UDF):
+    def __init__(self, ref_da):
+        super().__init__(ref_da=ref_da)
+
+    def get_result_buffers(self):
+        return {
+            'nav': self.buffer(kind='nav'),
+        }
+
+    def process_partition(self, partition):
+        ref_tile_data = self.params.ref_da[self.meta.coordinates.reshape((-1,))].compute()
+        # assert False
+        assert np.allclose(partition, ref_tile_data)
+
+
 def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_ptycho_flat):
     merlin_ds = merlin_ds_ptycho_flat
     da, _ = make_dask_array(merlin_ds)
@@ -341,14 +356,7 @@ def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_pty
         dataset_shape=aq.shape
     )
 
-    with ltl_ctx._do_acquisition(aq, None):
-        for p in aq.get_partitions():
-            part_data = da[p.slice.get()].compute()
-            print(f"comparing partition {p}")
-            for tile in p.get_tiles(s):
-                print(f"comparing tile {tile.tile_slice} in partition {p.slice}")
-                tile_data = part_data[tile.tile_slice.shift(p.slice).get()]
-                assert np.allclose(tile, tile_data)
+    ltl_ctx.run_udf(dataset=aq, udf=ValidationUDF(ref_da=da))
 
 
 @pytest.mark.parametrize(
