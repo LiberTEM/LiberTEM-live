@@ -10,7 +10,7 @@ import lz4.block
 from opentelemetry import trace
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
-from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue
+from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
@@ -203,7 +203,7 @@ def get_frames(request_queue):
                 )
 
 
-class DectrisController:
+class DectrisCommHandler(TaskCommHandler):
     def __init__(self, receiver: ZeroMQReceiver):
         self.receiver = receiver
 
@@ -417,8 +417,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 partition_slice=part_slice,
             )
 
-    def get_controller(self) -> "DectrisController":
-        return DectrisController(receiver=self.get_receiver())
+    def get_controller(self) -> "DectrisCommHandler":
+        return DectrisCommHandler(receiver=self.get_receiver())
 
 
 class DectrisLivePartition(Partition):
