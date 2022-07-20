@@ -208,7 +208,7 @@ class DectrisCommHandler(TaskCommHandler):
         self.receiver = receiver
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
-        with tracer.start_as_current_span("DectrisController.handle_task") as span:
+        with tracer.start_as_current_span("DectrisCommHandler.handle_task") as span:
             # send the data for this task to the given worker
             slice_ = task.get_partition().slice
             span.set_attributes({
@@ -417,7 +417,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 partition_slice=part_slice,
             )
 
-    def get_controller(self) -> "DectrisCommHandler":
+    def get_task_comm_handler(self) -> "DectrisCommHandler":
         return DectrisCommHandler(receiver=self.get_receiver())
 
 
