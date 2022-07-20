@@ -150,7 +150,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
                 acq_header=header,
             )
 
-    def get_controller(self) -> TaskCommHandler:
+    def get_task_comm_handler(self) -> TaskCommHandler:
         return MerlinCommHandler(
             socket=self.raw_socket,
             tiling_depth=24,  # FIXME!
@@ -220,7 +220,7 @@ class MerlinCommHandler(TaskCommHandler):
         self._tiling_depth = tiling_depth
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
-        with tracer.start_as_current_span("MerlinController.handle_task") as span:
+        with tracer.start_as_current_span("MerlinCommHandler.handle_task") as span:
             slice_ = task.get_partition().slice
             start_idx = slice_.origin[0]
             end_idx = slice_.origin[0] + slice_.shape[0]
