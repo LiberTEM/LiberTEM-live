@@ -4,7 +4,7 @@ from typing import Callable, Generator, Iterator, Tuple
 import numpy as np
 from libertem.common import Shape, Slice
 from libertem.common.executor import (
-    TaskProtocol, WorkerQueue, MainController, WorkerContext,
+    TaskProtocol, WorkerQueue, TaskCommHandler, WorkerContext,
 )
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
@@ -150,8 +150,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
                 acq_header=header,
             )
 
-    def get_controller(self) -> MainController:
-        return MerlinController(
+    def get_controller(self) -> TaskCommHandler:
+        return MerlinCommHandler(
             socket=self.raw_socket,
             tiling_depth=24,  # FIXME!
         )
@@ -214,7 +214,7 @@ def _accum_partition(
     return out
 
 
-class MerlinController:
+class MerlinCommHandler(TaskCommHandler):
     def __init__(self, socket: MerlinRawSocket, tiling_depth: int):
         self._socket = socket
         self._tiling_depth = tiling_depth
