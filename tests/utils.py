@@ -1,4 +1,5 @@
 import os
+from libertem_live.detectors.common import UndeadException
 
 
 def get_testdata_path():
@@ -8,3 +9,19 @@ def get_testdata_path():
             os.path.join(os.path.dirname(__file__), '..', 'data')
         )
     )
+
+
+def run_camera_sim(*args, cls, **kwargs):
+    server = cls(
+        *args, **kwargs
+    )
+    server.start()
+    server.wait_for_listen()
+    yield server
+    print("cleaning up server thread")
+    server.maybe_raise()
+    print("stopping server thread")
+    try:
+        server.stop()
+    except UndeadException:
+        raise RuntimeError("Server didn't stop gracefully")

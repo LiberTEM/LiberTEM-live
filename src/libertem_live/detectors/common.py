@@ -5,6 +5,10 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
+class UndeadException(Exception):
+    pass
+
+
 class StoppableThreadMixin:
     def __init__(self, stop_event: threading.Event = None, *args, **kwargs):
         if stop_event is None:

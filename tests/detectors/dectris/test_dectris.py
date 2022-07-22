@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 import numpy as np
 
@@ -5,9 +6,37 @@ from libertem.udf.sumsigudf import SumSigUDF
 from libertem.udf.sum import SumUDF
 from libertem.common import Shape
 from libertem.io.dataset.base import TilingScheme
+import pytest
 from libertem_live.detectors.dectris.acquisition import (
     AcquisitionParams, DectrisAcquisition, DetectorConfig, Receiver
 )
+from libertem_live.detectors.dectris.sim import DectrisSim
+
+from utils import get_testdata_path, run_camera_sim
+
+
+DECTRIS_TESTDATA_PATH = os.path.join(
+    get_testdata_path(),
+    'dectris', 'zmqdump.dat.128x128-id34-exte-bslz4'
+)
+HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
+
+
+def run_dectris_sim(*args, path=DECTRIS_TESTDATA_PATH, **kwargs):
+    return run_camera_sim(cls=DectrisSim, path=path, port=0, zmqport=0)
+
+
+@pytest.fixture(scope='module')
+def dectris_runner():
+    yield from run_dectris_sim()
+
+
+@pytest.fixture(scope='module')
+def dectris_sim(dectris_runner):
+    '''
+    port, zmqport tuple of the simulator
+    '''
+    return (dectris_runner.port, dectris_runner.zmqport)
 
 
 class OfflineReceiver(Receiver):
@@ -135,3 +164,20 @@ def test_udf_nav(ltl_ctx):
         res['intensity'].data,
         data.sum(axis=(1, 2)),
     )
+
+
+def test_sum(ltl_ctx, dectris_sim):
+    api_port, data_port = dectris_sim
+    aq = DectrisAcquisition(
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        trigger_mode='exte',
+    )
+    aq.initialize(ltl_ctx.executor)
+    # FIXME verify result
+    _ = ltl_ctx.run_udf(dataset=aq, udf=SumUDF())
