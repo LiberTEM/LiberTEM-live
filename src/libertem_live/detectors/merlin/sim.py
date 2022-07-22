@@ -18,7 +18,7 @@ from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
-from libertem_live.detectors.common import ErrThreadMixin
+from libertem_live.detectors.common import ErrThreadMixin, UndeadException
 
 
 logger = logging.getLogger(__name__)
@@ -675,10 +675,6 @@ class TriggerClient():
 
     def close(self):
         self._socket.close()
-
-
-class UndeadException(Exception):
-    pass
 
 
 class CameraSim:

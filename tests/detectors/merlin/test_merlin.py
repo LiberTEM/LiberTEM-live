@@ -20,10 +20,10 @@ from libertem.common import Shape
 
 from libertem_live.detectors.merlin import MerlinDataSource, MerlinControl
 from libertem_live.detectors.merlin.sim import (
-        CameraSim, ServerThreadMixin, StopException, TriggerClient, UndeadException
+        CameraSim, ServerThreadMixin, StopException, TriggerClient
 )
 
-from utils import get_testdata_path
+from utils import get_testdata_path, run_camera_sim
 
 
 MIB_TESTDATA_PATH = os.path.join(get_testdata_path(), 'default.mib')
@@ -38,20 +38,16 @@ pytestmark = [
 ]
 
 
-def run_camera_sim(*args, **kwargs):
-    server = CameraSim(
-        *args, host='127.0.0.1', data_port=0, control_port=0, trigger_port=0, **kwargs
+def run_merlin_sim(*args, **kwargs):
+    return run_camera_sim(
+        *args,
+        cls=CameraSim,
+        host='127.0.0.1',
+        data_port=0,
+        control_port=0,
+        trigger_port=0,
+        **kwargs
     )
-    server.start()
-    server.wait_for_listen()
-    yield server
-    print("cleaning up server thread")
-    server.maybe_raise()
-    print("stopping server thread")
-    try:
-        server.stop()
-    except UndeadException:
-        raise RuntimeError("Server didn't stop gracefully")
 
 
 @pytest.fixture(scope='module')
@@ -351,7 +347,7 @@ def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_pty
         # partition size to avoid read amplification
         frames_per_partition=p.slice.shape[0]
     )
-    s = TilingScheme.make_for_shape(
+    _ = TilingScheme.make_for_shape(
         tileshape=Shape((7, 256, 256), sig_dims=2),
         dataset_shape=aq.shape
     )
