@@ -166,6 +166,7 @@ def test_udf_nav(ltl_ctx):
     )
 
 
+@pytest.mark.data
 def test_sum(ltl_ctx, dectris_sim):
     api_port, data_port = dectris_sim
     aq = DectrisAcquisition(
