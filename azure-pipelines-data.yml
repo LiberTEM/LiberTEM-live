@@ -223,7 +223,7 @@ stages:
       - bash: pip install -U tox && pip install -r scripts/requirements.txt
         displayName: 'install requirements'
 
-      - bash: tox -e -r docs-build-ci
+      - bash: tox -r -e docs-build-ci
         displayName: 'build docs'
 
       - task: DownloadSecureFile@1
