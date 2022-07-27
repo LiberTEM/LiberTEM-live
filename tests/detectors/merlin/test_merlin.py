@@ -143,8 +143,8 @@ def garbage_sim(merlin_triggered_garbage_threads):
 
 
 @pytest.fixture
-def merlin_ds(ltl_ctx):
-    return ltl_ctx.load('MIB', path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
+def merlin_ds(ctx_pipelined):
+    return ctx_pipelined.load('MIB', path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
 
 
 @pytest.fixture
@@ -173,7 +173,7 @@ def merlin_detector_sim_ptycho(merlin_detector_sim_threads_ptycho):
 
 
 @pytest.mark.with_numba  # Get coverage for decoders
-def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
+def test_acquisition(ctx_pipelined, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -181,7 +181,7 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -192,8 +192,8 @@ def test_acquisition(ltl_ctx, merlin_detector_sim, merlin_ds):
     )
     udf = SumUDF()
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
@@ -208,7 +208,7 @@ class ProcessPartitionUDF(UDF):
         self.results.result[:] = partition.sum(axis=(-1, -2))
 
 
-def test_process_partition(ltl_ctx, merlin_detector_sim, merlin_ds):
+def test_process_partition(ctx_pipelined, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -216,7 +216,7 @@ def test_process_partition(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -227,13 +227,13 @@ def test_process_partition(ltl_ctx, merlin_detector_sim, merlin_ds):
     )
     udf = ProcessPartitionUDF()
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['result'], ref['result'])
 
 
-def test_acquisition_dry_run(ltl_ctx, merlin_detector_sim, merlin_ds):
+def test_acquisition_dry_run(ctx_pipelined, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -241,7 +241,7 @@ def test_acquisition_dry_run(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -252,12 +252,12 @@ def test_acquisition_dry_run(ltl_ctx, merlin_detector_sim, merlin_ds):
     )
     udf = SumUDF()
 
-    runner_cls = ltl_ctx.executor.get_udf_runner()
+    runner_cls = ctx_pipelined.executor.get_udf_runner()
     runner_cls.dry_run([udf], aq, None)
-    ltl_ctx.run_udf(dataset=aq, udf=udf)
+    ctx_pipelined.run_udf(dataset=aq, udf=udf)
 
 
-def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
+def test_acquisition_iter(ctx_pipelined, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -265,7 +265,7 @@ def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -276,16 +276,16 @@ def test_acquisition_iter(ltl_ctx, merlin_detector_sim, merlin_ds):
     )
     udf = SumUDF()
 
-    for res in ltl_ctx.run_udf_iter(dataset=aq, udf=udf, sync=True):
+    for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=udf, sync=True):
         pass
 
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
 @pytest.mark.asyncio
-async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
+async def test_acquisition_async(ctx_pipelined, merlin_detector_sim, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -293,7 +293,7 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -304,12 +304,12 @@ async def test_acquisition_async(ltl_ctx, merlin_detector_sim, merlin_ds):
     )
     udf = SumUDF()
 
-    res = await ltl_ctx.run_udf(dataset=aq, udf=udf, sync=False)
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    res = await ctx_pipelined.run_udf(dataset=aq, udf=udf, sync=False)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
-    async for res in ltl_ctx.run_udf_iter(dataset=aq, udf=udf, sync=False):
+    async for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=udf, sync=False):
         pass
 
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
@@ -330,6 +330,7 @@ class ValidationUDF(UDF):
         assert np.allclose(partition, ref_tile_data)
 
 
+# use inline executor here to not use too much memory
 def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_ptycho_flat):
     merlin_ds = merlin_ds_ptycho_flat
     da, _ = make_dask_array(merlin_ds)
@@ -359,7 +360,7 @@ def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_pty
     # Test matching and mismatching shape
     'sig_shape', ((256, 256), (512, 512))
 )
-def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
+def test_acquisition_shape(ctx_pipelined, merlin_detector_sim, merlin_ds, sig_shape):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -367,7 +368,7 @@ def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_sim
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -381,8 +382,8 @@ def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
     try:
         udf = SumUDF()
 
-        res = ltl_ctx.run_udf(dataset=aq, udf=udf)
-        ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
         assert_allclose(res['intensity'], ref['intensity'])
         assert sig_shape == tuple(merlin_ds.shape.sig)
@@ -391,7 +392,7 @@ def test_acquisition_shape(ltl_ctx, merlin_detector_sim, merlin_ds, sig_shape):
         assert 'received "image_size" header' in e.args[0]
 
 
-def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
+def test_acquisition_cached(ctx_pipelined, merlin_detector_cached, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -399,7 +400,7 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_cached
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -410,15 +411,15 @@ def test_acquisition_cached(ltl_ctx, merlin_detector_cached, merlin_ds):
     )
     udf = SumUDF()
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
 
 @pytest.mark.skipif(platform.system() != 'Linux',
                     reason="MemFD is Linux-only")
-def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
+def test_acquisition_memfd(ctx_pipelined, merlin_detector_memfd, merlin_ds):
     triggered = triggered = np.array((False,))
 
     def trigger(acquisition):
@@ -426,7 +427,7 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
         assert acquisition.shape.nav == merlin_ds.shape.nav
 
     host, port = merlin_detector_memfd
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -437,14 +438,14 @@ def test_acquisition_memfd(ltl_ctx, merlin_detector_memfd, merlin_ds):
     )
     udf = SumUDF()
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_acquisition_triggered_garbage(
-        ltl_ctx, merlin_control_sim, trigger_sim, garbage_sim, merlin_ds):
+        ctx_pipelined, merlin_control_sim, trigger_sim, garbage_sim, merlin_ds):
     sim_host, sim_port = garbage_sim
 
     pool = concurrent.futures.ThreadPoolExecutor(1)
@@ -472,7 +473,7 @@ def test_acquisition_triggered_garbage(
         trig_res[0] = fut
         tr.close()
 
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -482,15 +483,15 @@ def test_acquisition_triggered_garbage(
     )
     udf = SumUDF()
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
     assert trig_res[0].result() is None
 
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
 
-def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim, merlin_ds):
+def test_acquisition_triggered_control(ctx_pipelined, merlin_control_sim, garbage_sim, merlin_ds):
     sim_host, sim_port = garbage_sim
 
     pool = concurrent.futures.ThreadPoolExecutor(1)
@@ -514,7 +515,7 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
         fut = pool.submit(do_scan)
         trig_res[0] = fut
 
-    aq = ltl_ctx.prepare_acquisition(
+    aq = ctx_pipelined.prepare_acquisition(
         'merlin',
         trigger=trigger,
         nav_shape=(32, 32),
@@ -524,10 +525,10 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
     )
     udf = SumUDF()
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
     assert trig_res[0].result() is None
 
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
@@ -539,7 +540,7 @@ def test_acquisition_triggered_control(ltl_ctx, merlin_control_sim, garbage_sim,
     # auto, correct, wrong
     'sig_shape', (None, (256, 256), (512, 512)),
 )
-def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline, sig_shape):
+def test_datasource(ctx_pipelined, merlin_detector_sim, merlin_ds, inline, sig_shape):
     print("Merlin sim:", merlin_detector_sim)
     source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape, pool_size=16)
 
@@ -553,7 +554,7 @@ def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline, sig_shape):
                 for chunk in source.stream(num_frames=32*32):
                     res += chunk.buf.sum(axis=0)
         udf = SumUDF()
-        ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
         assert_allclose(res, ref['intensity'])
         assert (sig_shape is None) or (sig_shape == tuple(merlin_ds.shape.sig))
     except ValueError as e:
@@ -561,7 +562,7 @@ def test_datasource(ltl_ctx, merlin_detector_sim, merlin_ds, inline, sig_shape):
         assert 'received "image_size" header' in e.args[0]
 
 
-def test_datasource_nav(ltl_ctx, merlin_detector_sim, merlin_ds):
+def test_datasource_nav(ctx_pipelined, merlin_detector_sim, merlin_ds):
     source = MerlinDataSource(*merlin_detector_sim, pool_size=16)
 
     res = np.zeros(merlin_ds.shape.nav).reshape((-1,))
@@ -569,7 +570,7 @@ def test_datasource_nav(ltl_ctx, merlin_detector_sim, merlin_ds):
         for chunk in source.stream(num_frames=merlin_ds.shape.nav.size):
             res[chunk.start:chunk.stop] = chunk.buf.sum(axis=(-1, -2))
     udf = SumSigUDF()
-    ref = ltl_ctx.run_udf(dataset=merlin_ds, udf=udf)
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
     assert_allclose(res.reshape(merlin_ds.shape.nav), ref['intensity'])
 
 
