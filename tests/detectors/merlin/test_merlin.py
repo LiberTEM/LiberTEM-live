@@ -55,7 +55,7 @@ def merlin_detector_sim_threads():
     '''
     Untriggered default simulator.
     '''
-    yield from run_camera_sim(
+    yield from run_merlin_sim(
         path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
     )
 
@@ -73,7 +73,7 @@ def merlin_detector_cached_threads():
     '''
     Untriggered default simulator with memory cache.
     '''
-    yield from run_camera_sim(
+    yield from run_merlin_sim(
         path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
         cached='MEM'
     )
@@ -92,7 +92,7 @@ def merlin_detector_memfd_threads():
     '''
     Untriggered default simulator with memfd cache.
     '''
-    yield from run_camera_sim(
+    yield from run_merlin_sim(
         path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
         cached='MEMFD'
     )
@@ -111,7 +111,7 @@ def merlin_triggered_garbage_threads():
     '''
     Triggered simulator with garbage.
     '''
-    yield from run_camera_sim(
+    yield from run_merlin_sim(
         path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
         cached='MEMFD',
         wait_trigger=True, garbage=True,
@@ -159,7 +159,7 @@ def merlin_detector_sim_threads_ptycho():
     '''
     Untriggered default simulator.
     '''
-    yield from run_camera_sim(
+    yield from run_merlin_sim(
         path=PTYCHO_TESTDATA_PATH, nav_shape=(128, 128),
     )
 
