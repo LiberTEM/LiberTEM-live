@@ -9,3 +9,4 @@ pytest-benchmark
 ipykernel
 pymemfd; platform_system=="Linux"
 libertem[bqplot]
+flask
