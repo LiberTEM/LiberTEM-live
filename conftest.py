@@ -3,6 +3,7 @@ Global test configuration. Use this file to define fixtures to use
 in both doctests and regular tests.
 """
 from libertem.executor.inline import InlineJobExecutor
+from libertem.executor.pipelined import PipelinedExecutor
 import pytest
 
 from libertem.viz.base import Dummy2DPlot
@@ -21,6 +22,17 @@ def ltl_ctx():
 def ltl_ctx_fast():
     inline_executor = InlineJobExecutor(debug=False, inline_threads=2)
     return ltl.LiveContext(executor=inline_executor, plot_class=Dummy2DPlot)
+
+
+@pytest.fixture(scope="session")
+def ctx_pipelined():
+    executor = None
+    try:
+        executor = PipelinedExecutor()
+        yield ltl.LiveContext(executor=executor, plot_class=Dummy2DPlot)
+    finally:
+        if executor is not None:
+            executor.close()
 
 
 @pytest.fixture()
