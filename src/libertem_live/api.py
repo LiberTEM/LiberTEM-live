@@ -1,6 +1,6 @@
 import contextlib
 
-from libertem.executor.inline import InlineJobExecutor
+from libertem.executor.pipelined import PipelinedExecutor
 # Avoid having Context in this module to make sure
 # it is not imported by accident instead of LiveContext
 from libertem.api import Context as LiberTEM_Context
@@ -22,9 +22,9 @@ class LiveContext(LiberTEM_Context):
     def _create_local_executor(self):
         '''
         Live acquisition currently requires a suitable executor, for
-        example :class:`~libertem.executor.inline.InlineJobExecutor`.
+        example :class:`~libertem.executor.pipelined.PipelinedExecutor`.
         '''
-        return InlineJobExecutor()
+        return PipelinedExecutor()
 
     @contextlib.contextmanager
     def _do_acquisition(self, acquisition, udf):
@@ -45,6 +45,7 @@ class LiveContext(LiberTEM_Context):
 
         detector_type : str
             - :code:`'merlin'`: Quantum Detectors Merlin camera.
+            - :code:`'dectris'`: DECTRIS camera supporting the SIMPLON API.
             - :code:`'memory'`: Memory-based live data stream.
         trigger : function
             Keyword-only parameter, callback function to trigger an acquisition.
@@ -63,6 +64,9 @@ class LiveContext(LiberTEM_Context):
         if detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinAcquisition
             cls = MerlinAcquisition
+        elif detector_type == 'dectris':
+            from libertem_live.detectors.dectris import DectrisAcquisition
+            cls = DectrisAcquisition
         elif detector_type == 'memory':
             from libertem_live.detectors.memory import MemoryAcquisition
             cls = MemoryAcquisition
