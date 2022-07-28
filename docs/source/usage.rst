@@ -52,8 +52,6 @@ starts a suitable executor by default when it is instantiated, currently the
 
     ctx = LiveContext()
 
-    # close the context when you are done to free up resources:
-    ctx.close()
 
 .. _`trigger`:
 
@@ -161,3 +159,9 @@ This example shows how to access the detector frame stream without using LiberTE
     .. toctree::
 
         lowlevel
+
+
+.. testcleanup::
+
+    # close the context when done to free up resources:
+    ctx.close()
