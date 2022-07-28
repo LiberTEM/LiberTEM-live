@@ -154,6 +154,7 @@ def test_udf_nav(ctx_pipelined):
     )
 
 
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_sum(ctx_pipelined, dectris_sim):
     api_port, data_port = dectris_sim
