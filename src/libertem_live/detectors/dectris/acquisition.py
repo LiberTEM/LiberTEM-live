@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import base64
 import json
 import logging
-from typing import NamedTuple, Optional, Protocol, Tuple, Union
+from typing import NamedTuple, Optional, Tuple, Union
 from typing_extensions import Literal
 import numpy as np
 import bitshuffle
@@ -60,7 +60,7 @@ class RawFrame:
         )
 
 
-class Receiver(Protocol):
+class Receiver:
     def __iter__(self):
         return self
 
