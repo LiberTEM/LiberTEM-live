@@ -44,13 +44,16 @@ Start a :code:`LiveContext`
 A :class:`~libertem_live.api.LiveContext` requires using a compatible executor
 since task scheduling has to be coordinated with the incoming detector data. It
 starts a suitable executor by default when it is instantiated, currently the
-:class:`~libertem.executor.inline.InlineJobExecutor`.
+:class:`~libertem.executor.pipelined.PipelinedExecutor`.
 
 .. testcode::
 
     from libertem_live.api import LiveContext
 
     ctx = LiveContext()
+
+    # close the context when you are done to free up resources:
+    ctx.close()
 
 .. _`trigger`:
 
