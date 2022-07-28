@@ -82,6 +82,9 @@ stages:
           Python39:
             python.version: '3.9'
             TOXENV: 'py39-data'
+          Python310:
+            python.version: '3.10'
+            TOXENV: 'py310-data'
       variables:
         TESTDATA_BASE_PATH: '/data/'
       steps:
@@ -133,6 +136,9 @@ stages:
           Python39:
             python.version: '3.9'
             TOXENV: 'py39'
+          Python310:
+            python.version: '3.10'
+            TOXENV: 'py310'
       variables:
         TOXENV: '$(TOXENV)'
       steps:
@@ -169,8 +175,13 @@ stages:
       - bash: pip install -U tox
         displayName: 'install requirements'
 
-      - bash: tox
-        displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
+      - ${{ if eq(parameters.recreate_tox, true) }}:
+        - bash: tox -r
+          displayName: 'Run tox tests $(TOXENV) $(Agent.OS) (recreating)'
+
+      - ${{ if eq(parameters.recreate_tox, false) }}:
+        - bash: tox
+          displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: bash <(curl -s https://codecov.io/bash) -f coverage.xml
         displayName: 'Submit coverage to codecov.io'
