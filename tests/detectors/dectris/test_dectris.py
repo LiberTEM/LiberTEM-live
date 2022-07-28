@@ -1,11 +1,11 @@
 import os
 from contextlib import contextmanager
+from typing import NamedTuple, Tuple
 import numpy as np
 
 from libertem.udf.sumsigudf import SumSigUDF
 from libertem.udf.sum import SumUDF
 from libertem.common import Shape
-from libertem.io.dataset.base import TilingScheme
 import pytest
 from libertem_live.detectors.dectris.acquisition import (
     AcquisitionParams, DectrisAcquisition, DetectorConfig, Receiver
@@ -39,6 +39,13 @@ def dectris_sim(dectris_runner):
     return (dectris_runner.port, dectris_runner.zmqport)
 
 
+class MockRawFrame(NamedTuple):
+    shape: Tuple
+    dtype: np.dtype
+    encoding: str
+    data: np.ndarray
+
+
 class OfflineReceiver(Receiver):
     """
     Mock Receiver that reads from a numpy array
@@ -51,7 +58,14 @@ class OfflineReceiver(Receiver):
     def __next__(self) -> np.ndarray:
         if self._idx == self.data.shape[0]:
             raise StopIteration
-        data = self.data[self._idx]
+        part = self.data[self._idx]
+        data = MockRawFrame(
+            # the other side uses 'frombuffer', so we can just pass the numpy array:
+            data=part,
+            shape=part.shape,
+            dtype=part.dtype,
+            encoding='<',
+        )
         self._idx += 1
         return data
 
@@ -92,7 +106,7 @@ class OfflineAcquisition(DectrisAcquisition):
             self._acq_state = None
 
 
-def test_dry_run(ltl_ctx):
+def test_udf_sig(ctx_pipelined):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
@@ -105,36 +119,10 @@ def test_dry_run(ltl_ctx):
         data_port=None,
         trigger_mode="exte",
     )
-    aq.initialize(ltl_ctx.executor)
-    tileshape = Shape((7, 512, 512), sig_dims=2)
-    ts = TilingScheme.make_for_shape(tileshape, dataset_shape)
-
-    for p in aq.get_partitions():
-        print(p)
-        for tile in p.get_tiles(tiling_scheme=ts):
-            assert np.allclose(
-                data[tile.tile_slice.get()],
-                tile
-            )
-
-
-def test_udf_sig(ltl_ctx):
-    dataset_shape = Shape((128, 512, 512), sig_dims=2)
-    data = np.random.randn(*dataset_shape).astype(np.uint8)
-    aq = OfflineAcquisition(
-        nav_shape=tuple(dataset_shape.nav),
-        mock_data=data,
-        frames_per_partition=42,  # chosen not to evenly divide `dataset_shape.nav`
-        api_host=None,
-        api_port=None,
-        data_host=None,
-        data_port=None,
-        trigger_mode="exte",
-    )
-    aq.initialize(ltl_ctx.executor)
+    aq.initialize(ctx_pipelined.executor)
 
     udf = SumUDF()
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
 
     assert np.allclose(
         res['intensity'].data,
@@ -142,7 +130,7 @@ def test_udf_sig(ltl_ctx):
     )
 
 
-def test_udf_nav(ltl_ctx):
+def test_udf_nav(ctx_pipelined):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
@@ -155,10 +143,10 @@ def test_udf_nav(ltl_ctx):
         data_port=None,
         trigger_mode="exte",
     )
-    aq.initialize(ltl_ctx.executor)
+    aq.initialize(ctx_pipelined.executor)
 
     udf = SumSigUDF()
-    res = ltl_ctx.run_udf(dataset=aq, udf=udf)
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
 
     assert np.allclose(
         res['intensity'].data,
@@ -167,7 +155,7 @@ def test_udf_nav(ltl_ctx):
 
 
 @pytest.mark.data
-def test_sum(ltl_ctx, dectris_sim):
+def test_sum(ctx_pipelined, dectris_sim):
     api_port, data_port = dectris_sim
     aq = DectrisAcquisition(
         nav_shape=(128, 128),
@@ -179,6 +167,6 @@ def test_sum(ltl_ctx, dectris_sim):
         data_port=data_port,
         trigger_mode='exte',
     )
-    aq.initialize(ltl_ctx.executor)
+    aq.initialize(ctx_pipelined.executor)
     # FIXME verify result
-    _ = ltl_ctx.run_udf(dataset=aq, udf=SumUDF())
+    _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
