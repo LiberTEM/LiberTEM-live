@@ -2,6 +2,7 @@ import sys
 import time
 import threading
 import multiprocessing
+from multiprocessing.synchronize import Event as EventClass
 import json
 import mmap
 from typing import Dict
@@ -23,7 +24,8 @@ class StopException(Exception):
 class ZMQReplay(ErrThreadMixin, threading.Thread):
     def __init__(
             self, uri, random_port, path, name,
-            arm_event: threading.Event, trigger_event: threading.Event,
+            arm_event: EventClass,
+            trigger_event: EventClass,
             *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._uri = uri
