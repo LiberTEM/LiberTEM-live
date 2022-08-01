@@ -6,6 +6,15 @@ from libertem.common.buffers import reshaped_view
 
 
 class RecordUDF(UDF):
+    '''
+    Record input data as NumPy .npy file
+
+    Parameters
+    ----------
+
+    filename : str or path-like
+        Filename where to save. The file will be overwritten if it exists.
+    '''
     def __init__(self, filename, _is_master=True):
         self._is_master = _is_master
         super().__init__(filename=filename, _is_master=False)

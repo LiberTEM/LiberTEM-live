@@ -144,6 +144,39 @@ the provided UDFs. Finally, it closes the camera connection, if applicable.
 
     Triggering!
 
+.. _`recording`:
+
+Recording data
+--------------
+
+The :class:`~libertem_live.udf.record.RecordUDF` allows to record the input data
+as NPY file. Here it is demonstrated with the memory-based acquisition created
+above.
+
+.. note::
+    This feature might be updated in the future to better support recording at high data rate.
+
+.. testsetup::
+
+    import os
+    from tempfile import TemporaryDirectory
+
+    d = TemporaryDirectory()
+    filename = os.path.join(d.name, 'numpyfile.npy')
+
+.. testcode::
+
+    from libertem_live.udf.record import RecordUDF
+
+    ctx.run_udf(dataset=aq, udf=RecordUDF(filename))
+
+    res = np.load(filename)
+    assert np.all(res == data)
+
+.. testoutput::
+
+    Triggering!
+
 Examples
 --------
 
@@ -159,7 +192,6 @@ This example shows how to access the detector frame stream without using LiberTE
     .. toctree::
 
         lowlevel
-
 
 .. testcleanup::
 
