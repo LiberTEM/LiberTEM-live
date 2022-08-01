@@ -71,3 +71,6 @@ UDFs
 
 .. automodule:: libertem_live.udf.monitor
    :members:
+
+.. automodule:: libertem_live.udf.record
+   :members:
