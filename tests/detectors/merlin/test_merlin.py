@@ -87,6 +87,8 @@ def merlin_detector_cached(merlin_detector_cached_threads):
     return merlin_detector_cached_threads.server_t.sockname
 
 
+@pytest.mark.skipif(platform.system() != 'Linux',
+                    reason="MemFD is Linux-only")
 @pytest.fixture(scope='module')
 def merlin_detector_memfd_threads():
     '''
