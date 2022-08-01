@@ -100,6 +100,8 @@ def merlin_detector_memfd_threads():
     )
 
 
+@pytest.mark.skipif(platform.system() != 'Linux',
+                    reason="MemFD is Linux-only")
 @pytest.fixture(scope='module')
 def merlin_detector_memfd(merlin_detector_memfd_threads):
     '''
@@ -113,9 +115,12 @@ def merlin_triggered_garbage_threads():
     '''
     Triggered simulator with garbage.
     '''
+    cached = None
+    if platform.system() == 'Linux':
+        cached = 'MEMFD'
     yield from run_merlin_sim(
         path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
-        cached='MEMFD',
+        cached=cached,
         wait_trigger=True, garbage=True,
     )
 
