@@ -83,13 +83,15 @@ setup(
         "click",
         "tqdm",
         "numba",
-        "lz4",
-        "bitshuffle @ git+https://github.com/uellue/bitshuffle.git@nohdf5#egg=bitshuffle",
         "opentelemetry-api",
     ],
     extras_require={
         'pymemfd': 'pymemfd',
         'pytango': 'pytango',
+        'dectris': [
+            "bitshuffle @ git+https://github.com/uellue/bitshuffle.git@nohdf5#egg=bitshuffle",
+            "lz4",
+        ]
     },
     package_dir={"": "src"},
     packages=find_packages(where='src'),
