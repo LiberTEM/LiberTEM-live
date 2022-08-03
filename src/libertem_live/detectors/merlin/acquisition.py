@@ -255,6 +255,7 @@ class MerlinCommHandler(TaskCommHandler):
                     "end_idx": res.end_idx,
                     "first_frame_header": res.first_frame_header,
                 }, payload=np.frombuffer(res.buffer, dtype=np.uint8))
+            # FIXME: END_PARTITION in finally block?
             queue.put({
                 "type": "END_PARTITION",
             })
