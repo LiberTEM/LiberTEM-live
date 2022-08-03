@@ -338,6 +338,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     @contextmanager
     def acquire(self):
+        span = trace.get_current_span()
         ec = self.get_api_client()
         try:
             self.connect()
@@ -357,6 +358,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 ec.setFileWriterConfig("nimages_per_file", 0)
 
             result = ec.sendDetectorCommand('arm')
+            span.add_event("DectrisAcquisition.acquire:arm")
             sequence_id = result['sequence id']
             # arm result is something like {'sequence id': 18}
 
@@ -368,7 +370,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 )
                 # this triggers, either via API or via HW trigger (in which case we
                 # don't need to do anything in the trigger function):
-                self.trigger()
+                with tracer.start_as_current_span("DectrisAcquisition.trigger"):
+                    self.trigger()
                 yield
             finally:
                 self._acq_state = None
