@@ -5,6 +5,10 @@ from libertem.executor.pipelined import PipelinedExecutor
 # it is not imported by accident instead of LiveContext
 from libertem.api import Context as LiberTEM_Context
 
+from opentelemetry import trace
+
+tracer = trace.get_tracer(__name__)
+
 
 class LiveContext(LiberTEM_Context):
     '''
@@ -28,11 +32,12 @@ class LiveContext(LiberTEM_Context):
 
     @contextlib.contextmanager
     def _do_acquisition(self, acquisition, udf):
-        if hasattr(acquisition, 'acquire'):
-            with acquisition.acquire():
+        with tracer.start_as_current_span("LiveContext._do_acquisition"):
+            if hasattr(acquisition, 'acquire'):
+                with acquisition.acquire():
+                    yield
+            else:
                 yield
-        else:
-            yield
 
     def prepare_acquisition(self, detector_type, *args, trigger=None, **kwargs):
         # FIXME implement similar to LiberTEM datasets once

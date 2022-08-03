@@ -108,7 +108,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
                     })
                 if drained_bytes > 0:
                     logger.info(f"drained {drained_bytes} bytes of garbage")
-            self.trigger()
+            with tracer.start_as_current_span("MerlinAcquisition.trigger"):
+                self.trigger()
             self.raw_socket.read_headers(cancel_timeout=self._timeout)
 
             frame_header = self.raw_socket.get_first_frame_header()
