@@ -23,7 +23,7 @@ HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
 
 
 def run_dectris_sim(*args, path=DECTRIS_TESTDATA_PATH, **kwargs):
-    return run_camera_sim(cls=DectrisSim, path=path, port=0, zmqport=0)
+    return run_camera_sim(cls=DectrisSim, path=path, port=0, zmqport=0, **kwargs)
 
 
 @pytest.fixture(scope='module')
@@ -44,6 +44,33 @@ class MockRawFrame(NamedTuple):
     dtype: np.dtype
     encoding: str
     data: np.ndarray
+
+
+_item_counter = 0
+
+
+@pytest.fixture()
+def skipped_dectris_runner():
+
+    item_counter = {0: 0}
+
+    def skip(data):
+        result = None
+        # print(data[:10])
+        if item_counter[0] not in (10, 11, 12, 13):
+            result = data
+        item_counter[0] += 1
+        return result
+
+    yield from run_dectris_sim(data_filter=skip)
+
+
+@pytest.fixture()
+def skipped_dectris_sim(skipped_dectris_runner):
+    '''
+    port, zmqport tuple of the simulator
+    '''
+    return (skipped_dectris_runner.port, skipped_dectris_runner.zmqport)
 
 
 class OfflineReceiver(Receiver):
@@ -171,3 +198,25 @@ def test_sum(ctx_pipelined, dectris_sim):
     aq.initialize(ctx_pipelined.executor)
     # FIXME verify result
     _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+@pytest.mark.timeout(20)  # May lock up because of executor bug
+def test_frame_skip(ctx_pipelined, skipped_dectris_sim):
+    api_port, data_port = skipped_dectris_sim
+    aq = DectrisAcquisition(
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        trigger_mode='exte',
+    )
+    aq.initialize(ctx_pipelined.executor)
+    # Originally an AssertionError, but may cause downstream issues
+    # in the executor, TODO revisit after some time if executor behavior changed
+    with pytest.raises(Exception):
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
