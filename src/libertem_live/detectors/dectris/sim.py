@@ -26,6 +26,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             self, uri, random_port, path, name,
             arm_event: EventClass,
             trigger_event: EventClass,
+            data_filter=None,
             *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._uri = uri
@@ -36,6 +37,10 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         self._arm_event = arm_event
         self._trigger_event = trigger_event
         self.listen_event = threading.Event()
+        if data_filter is None:
+            def data_filter(data):
+                return data
+        self._data_filter = data_filter
 
     @property
     def port(self):
@@ -68,7 +73,9 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                 res = zmq_socket.poll(100, flags=zmq.POLLOUT)
             # XXX quite bizarrely, for this kind of data stream, using
             # `send(..., copy=True)` is faster than `send(..., copy=False)`.
-            zmq_socket.send(data, copy=True)
+            filtered = self._data_filter(data)
+            if filtered is not None:
+                zmq_socket.send(filtered, copy=True)
             index += len(data)
             return index
 
@@ -311,7 +318,7 @@ def run_api(port, headers, arm_event, trigger_event, listen_event, port_value):
 
 
 class DectrisSim:
-    def __init__(self, path, port, zmqport) -> None:
+    def __init__(self, path, port, zmqport, data_filter=None) -> None:
         headers = read_headers(path)
 
         arm_event = multiprocessing.Event()
@@ -328,6 +335,7 @@ class DectrisSim:
             arm_event=arm_event,
             trigger_event=trigger_event,
             stop_event=self.stop_event,
+            data_filter=data_filter,
         )
 
         self.zmq_replay.daemon = True
