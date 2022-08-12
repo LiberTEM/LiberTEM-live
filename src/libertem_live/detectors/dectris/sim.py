@@ -5,7 +5,7 @@ import multiprocessing
 from multiprocessing.synchronize import Event as EventClass
 import json
 import mmap
-from typing import Dict
+from typing import Dict, Generator, Optional, Tuple
 import urllib
 
 import zmq
@@ -19,6 +19,32 @@ from libertem_live.detectors.common import ErrThreadMixin, UndeadException
 
 class StopException(Exception):
     pass
+
+
+def chunks(mm: mmap.mmap) -> Generator[Tuple[bytes, int], None, None]:
+    """
+    Yield messages from memory map, including the offset to the start of the
+    message (more correctly: the length field of the message).
+    """
+    index = 0
+    while index < len(mm):
+        start_index = index
+        len_field_bytes = mm[index:index+8]
+        len_field = np.frombuffer(len_field_bytes, dtype=np.int64, count=1)
+        index += 8
+        data = mm[index:index+len_field[0]]
+        yield data, start_index
+        index += len(data)
+
+
+def find_start_offset(mm):
+    for chunk, index in chunks(mm):
+        try:
+            data = json.loads(chunk)
+            if data['htype'] == "dheader-1.0":
+                return index
+        except Exception:
+            pass
 
 
 class ZMQReplay(ErrThreadMixin, threading.Thread):
@@ -61,7 +87,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
     def run(self):
         headers = read_headers(self._path)
 
-        def send_line(index, zmq_socket, mm):
+        def send_line(index, zmq_socket, mm, more: Optional[bool] = None):
             len_field_bytes = mm[index:index+8]
             len_field = np.frombuffer(len_field_bytes, dtype=np.int64, count=1)
             index += 8
@@ -74,10 +100,21 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             # XXX quite bizarrely, for this kind of data stream, using
             # `send(..., copy=True)` is faster than `send(..., copy=False)`.
             filtered = self._data_filter(data)
+            flags = 0
+            if more:
+                flags |= zmq.SNDMORE
             if filtered is not None:
-                zmq_socket.send(filtered, copy=True)
+                zmq_socket.send(filtered, copy=True, flags=flags)
             index += len(data)
             return index
+
+        def send_msg(msg, zmq_socket):
+            res = 0
+            while not res:
+                if self.is_stopped():
+                    raise StopException("Server is stopped")
+                res = zmq_socket.poll(100, flags=zmq.POLLOUT)
+            zmq_socket.send(msg, copy=True, flags=0)
 
         try:
             context = zmq.Context()
@@ -88,16 +125,28 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             else:
                 sock = zmq_socket.bind(self._uri)
                 self._port = urllib.parse.urlparse(sock.addr).port
+            zmq_socket.set_hwm(18000)
             print("bound")
             with open(self._path, mode='rb') as f:
                 mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
                 self.listen_event.set()
-                print(f"ZMQReplay {self._name} sending on {self._uri} port {self.port}")
+                start_index = find_start_offset(mm)
+                print(
+                    f"ZMQReplay {self._name} sending on {self._uri} port {self.port},"
+                    f" start_index={start_index}"
+                )
                 try:
                     while True:
-                        index = 0
+                        # offset into the file:
+                        index = start_index
                         count = 0
-                        print("Waiting for arm")
+                        # index of the frame that is currently being sent:
+                        frame_index = 0
+                        if headers[1]['trigger_mode'] in ('exte', 'inte'):
+                            nimages = headers[1]['ntrigger']
+                        elif headers[1]['trigger_mode'] in ('exts', 'ints'):
+                            nimages = headers[1]['nimages']
+                        print(f"Waiting for arm; will send {nimages} frames")
                         while not self._arm_event.wait(timeout=0.1):
                             if self.is_stopped():
                                 raise StopException("Server is stopped")
@@ -114,6 +163,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                             print("waiting for trigger(s)")
 
                         sent_message = False
+                        have_sent_footer = False
                         while not self.is_stopped() and index < len(mm):
                             while not self._trigger_event.wait(timeout=0.1):
                                 if self.is_stopped():
@@ -122,14 +172,32 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                             if not sent_message:
                                 print("sending frame data")
                                 sent_message = True
+                            more = True
                             while count < 4 and not self.is_stopped() and index < len(mm):
-                                index = send_line(index, zmq_socket, mm)
+                                if count == 3:
+                                    more = False
+                                if frame_index >= nimages:
+                                    print("'footer', no longer multi part...")
+                                    more = False
+                                    have_sent_footer = True
+                                index = send_line(index, zmq_socket, mm, more)
                                 count += 1
+                            frame_index += 1
                             # Internal frame trigger: wait for next trigger
                             # in next loop iteration
                             if headers[1]['trigger_mode'] == 'inte':
                                 self._trigger_event.clear()
                         print("finished frame data")
+                        # the file may be missing the footer message;
+                        # we emulate it here:
+                        if not have_sent_footer:
+                            print("did not see footer, emulating")
+                            footer = {
+                                "htype": "dseries_end-1.0",
+                                "series": headers[0]['series'],
+                            }
+                            send_msg(json.dumps(footer).encode("utf8"), zmq_socket)
+
                         # Internal trigger: wait on next repetition
                         if headers[1]['trigger_mode'] == 'ints':
                             self._trigger_event.clear()
@@ -145,18 +213,45 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
 
 
 def read_headers(filename):
+    """
+    Read the header with type 'dheader-1.0'.
+
+    Only the 'header_detail': 'basic' configuration is tested,
+    but 'all' should work, too.
+
+    The header is sent in two parts; first, one JSON-encoded message that looks like
+    this:
+
+        {'header_detail': 'basic', 'htype': 'dheader-1.0', 'series': 34}
+
+    Then, another JSON-encoded message with the detector configuration. Depending
+    on the 'header_detail' field above, this message can include more or less fields.
+
+    This function also ignores superfluous 'dseries_end-1.0' headers that
+    may appear at the beginning of a capture.
+    """
     with open(filename, mode='rb') as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
         result = []
         try:
             index = 0
-            for i in range(2):
+            header_type = None
+            while header_type != 'dimage-1.0':
                 len_field_bytes = mm[index:index+8]
                 len_field = np.frombuffer(len_field_bytes, dtype=np.int64, count=1)
                 index += 8
                 data = mm[index:index+len_field[0]]
-                result.append(json.loads(data))
                 index += len(data)
+                data_decoded = json.loads(data)
+                if 'htype' in data_decoded:
+                    # we expect only the dheader-1.0 and the following detector
+                    # configuration; but there may be other messages. skip the
+                    # series end message from a previous series which might be
+                    # at the beginning:
+                    if data_decoded['htype'] == 'dseries_end-1.0':
+                        continue
+                    header_type = data_decoded['htype']
+                result.append(data_decoded)
         finally:
             mm.close()
         return result
@@ -276,6 +371,10 @@ def get_detector_config(parameter) -> Dict:
     }
     if parameter in defaults:
         res = defaults[parameter]
+        print(current_app.config['headers'])
+        if parameter not in current_app.config['headers'][1]:
+            keys = list(current_app.config['headers'][1])
+            raise ValueError(f'Parameter not found in header, only have: {keys}')
         res['value'] = current_app.config['headers'][1][parameter]
         return res
     else:
@@ -300,11 +399,15 @@ def set_detector_config(parameter):
         raise ValueError(f'Parameter {parameter} not implemented.')
 
 
-def run_api(port, headers, arm_event, trigger_event, listen_event, port_value):
+def run_api(
+    port, headers, arm_event, trigger_event,
+    listen_event, port_value, detector_config=None,
+):
     app = Flask("zmqreplay")
     app.config['headers'] = headers
     app.config['arm_event'] = arm_event
     app.config['trigger_event'] = trigger_event
+    app.config['detector_config'] = detector_config
     app.register_blueprint(api)
 
     sock = prepare_socket('localhost', port)
@@ -348,7 +451,7 @@ class DectrisSim:
                 'arm_event': arm_event,
                 'trigger_event': trigger_event,
                 'listen_event': self.api_listen_event,
-                'port_value': self.api_port
+                'port_value': self.api_port,
             },
             daemon=True,
         )
