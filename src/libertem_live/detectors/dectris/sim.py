@@ -15,6 +15,7 @@ from flask import Flask, request, Blueprint, current_app
 from werkzeug.serving import prepare_socket, make_server
 
 from libertem_live.detectors.common import ErrThreadMixin, UndeadException
+import libertem_dectris
 
 
 class StopException(Exception):
@@ -210,6 +211,90 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         finally:
             print(f"{self._name} exiting")
             zmq_socket.close()
+
+
+class RustedReplay(ZMQReplay):
+    def __init__(self, *args, dwelltime: Optional[int] = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dwelltime = dwelltime
+
+    def run(self):
+        _sim = libertem_dectris.DectrisSim(
+            uri=self._uri,
+            filename=self._path,
+            dwelltime=self.dwelltime,
+        )
+        self.listen_event.set()
+        while True:
+            print("Waiting for arm")
+            while not self._arm_event.wait(timeout=0.1):
+                if self.is_stopped():
+                    raise StopException("Server is stopped")
+            self._arm_event.clear()
+
+            # Different trigger settings:
+            #
+            # INTS: record `nimages` after the first `trigger` command received,
+            #       according to `frame_time` and `count_time`; repeated `ntrigger` times
+            #
+            #       => exposure time is not adjusted and just sent as it is written
+            #       in the input file
+            #
+            # INTE: record one image per trigger, with exposure time taken
+            #       from the `count_time` parameter of `trigger` command
+            #
+            #       => exposure time is not yet taken from the `trigger` command
+            #
+            # EXTS: acquire `nimages` after receiving a single `trigger` command,
+            #       according to `frame_time` and `count_time`
+            #
+            #       => in the sim, we trigger as fast as possible at the beginning
+            #       of the acquisiiton
+            #
+            # EXTE: acquire one image per trigger, exposing as long as the trigger
+            #       signal is high.
+            #
+            #       => in the sim, we assume a constant dwell time, or trigger as
+            #       fast as we can send the data
+            try:
+                print("sending acquisition headers")
+                _sim.send_headers()
+                det_config = _sim.get_detector_config()
+                trigger_mode = det_config.get_trigger_mode()
+                if trigger_mode == libertem_dectris.TriggerMode.INTE:
+                    # FIXME: check stop event from _sim in send_frames
+                    print("sending one frame per trigger")
+                    for _ in range(det_config.ntrigger):
+                        while not self._trigger_event.wait(timeout=0.1):
+                            if self.is_stopped():
+                                raise StopException("Server is stopped")
+                        self._trigger_event.clear()
+                        _sim.send_frames(1)
+                    _sim.send_footer()
+
+                elif trigger_mode == libertem_dectris.TriggerMode.EXTE:
+                    # FIXME: check stop event from _sim in send_frames
+                    print("sending all frames")
+                    _sim.send_frames()
+                    _sim.send_footer()
+                elif trigger_mode in (
+                    libertem_dectris.TriggerMode.EXTS,
+                    libertem_dectris.TriggerMode.INTS
+                ):
+                    for _ in range(det_config.ntrigger):
+                        if trigger_mode == libertem_dectris.TriggerMode.INTS:
+                            while not self._trigger_event.wait(timeout=0.1):
+                                if self.is_stopped():
+                                    raise StopException("Server is stopped")
+                            self._trigger_event.clear()
+                        print("sending next series")
+                        # FIXME: check stop event from _sim in send_frames
+                        _sim.send_frames(det_config.nimages)
+                    _sim.send_footer()
+
+            except libertem_dectris.TimeoutError:
+                print("Timeout, resetting")
+                self._trigger_event.clear()
 
 
 def read_headers(filename):
@@ -421,7 +506,19 @@ def run_api(
 
 
 class DectrisSim:
-    def __init__(self, path, port, zmqport, data_filter=None) -> None:
+    def __init__(self, path: str, port: int, zmqport: int, dwelltime: int, data_filter=None) -> None:
+        """
+        Parameters
+        ----------
+        path : _type_
+            _description_
+        port : _type_
+            _description_
+        zmqport : _type_
+            _description_
+        dwelltime : int
+            In microseconds
+        """
         headers = read_headers(path)
 
         arm_event = multiprocessing.Event()
@@ -429,8 +526,9 @@ class DectrisSim:
         self.stop_event = multiprocessing.Event()
         self.api_listen_event = multiprocessing.Event()
         self.api_port = multiprocessing.Value('l', -1)
+        self.dwelltime = dwelltime
 
-        self.zmq_replay = ZMQReplay(
+        self.zmq_replay = RustedReplay(
             uri=f"tcp://127.0.0.1:{zmqport}" if zmqport else "tcp://127.0.0.1",
             random_port=not bool(zmqport),
             path=path,
@@ -439,6 +537,7 @@ class DectrisSim:
             trigger_event=trigger_event,
             stop_event=self.stop_event,
             data_filter=data_filter,
+            dwelltime=dwelltime,
         )
 
         self.zmq_replay.daemon = True
@@ -508,8 +607,9 @@ class DectrisSim:
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--port', type=int, default=8910)
 @click.option('--zmqport', type=int, default=9999)
-def main(path, port, zmqport):
-    dectris_sim = DectrisSim(path=path, port=port, zmqport=zmqport)
+@click.option('--dwelltime', type=int, default=None)
+def main(path, port, zmqport, dwelltime):
+    dectris_sim = DectrisSim(path=path, port=port, zmqport=zmqport, dwelltime=dwelltime)
     dectris_sim.start()
     dectris_sim.wait_for_listen()
     # This allows us to handle Ctrl-C, and the main program
