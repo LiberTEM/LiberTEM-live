@@ -398,45 +398,45 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     @contextmanager
     def acquire(self):
-        span = trace.get_current_span()
-        ec = self.get_api_client()
-        try:
-            self.connect()
-            nimages = prod(self.shape.nav)
-
-            ec.setDetectorConfig('ntrigger', 1)
-            ec.setDetectorConfig('nimages', 1)
-            ec.setDetectorConfig('trigger_mode', self._trigger_mode)
-            if self._trigger_mode in ('exte', 'inte'):
-                ec.setDetectorConfig('ntrigger', nimages)
-            elif self._trigger_mode in ('exts', 'ints'):
-                ec.setDetectorConfig('nimages', nimages)
-
-            if self._name_pattern is not None:
-                ec.setFileWriterConfig("mode", "enabled")
-                ec.setFileWriterConfig("name_pattern", self._name_pattern)
-                ec.setFileWriterConfig("nimages_per_file", 0)
-
-            result = ec.sendDetectorCommand('arm')
-            span.add_event("DectrisAcquisition.acquire:arm")
-            sequence_id = result['sequence id']
-            # arm result is something like {'sequence id': 18}
-
+        with tracer.start_as_current_span('acquire') as span:
+            ec = self.get_api_client()
             try:
-                self._acq_state = AcquisitionParams(
-                    sequence_id=sequence_id,
-                    nimages=nimages,
-                    trigger_mode=self._trigger_mode,
-                )
-                # this triggers, either via API or via HW trigger (in which case we
-                # don't need to do anything in the trigger function):
-                with tracer.start_as_current_span("DectrisAcquisition.trigger"):
-                    self.trigger()
-                yield
+                self.connect()
+                nimages = prod(self.shape.nav)
+
+                ec.setDetectorConfig('ntrigger', 1)
+                ec.setDetectorConfig('nimages', 1)
+                ec.setDetectorConfig('trigger_mode', self._trigger_mode)
+                if self._trigger_mode in ('exte', 'inte'):
+                    ec.setDetectorConfig('ntrigger', nimages)
+                elif self._trigger_mode in ('exts', 'ints'):
+                    ec.setDetectorConfig('nimages', nimages)
+
+                if self._name_pattern is not None:
+                    ec.setFileWriterConfig("mode", "enabled")
+                    ec.setFileWriterConfig("name_pattern", self._name_pattern)
+                    ec.setFileWriterConfig("nimages_per_file", 0)
+
+                result = ec.sendDetectorCommand('arm')
+                span.add_event("DectrisAcquisition.acquire:arm")
+                sequence_id = result['sequence id']
+                # arm result is something like {'sequence id': 18}
+
+                try:
+                    self._acq_state = AcquisitionParams(
+                        sequence_id=sequence_id,
+                        nimages=nimages,
+                        trigger_mode=self._trigger_mode,
+                    )
+                    # this triggers, either via API or via HW trigger (in which case we
+                    # don't need to do anything in the trigger function):
+                    with tracer.start_as_current_span("DectrisAcquisition.trigger"):
+                        self.trigger()
+                    yield
+                finally:
+                    self._acq_state = None
             finally:
-                self._acq_state = None
-        finally:
-            self.close()
+                self.close()
 
     def check_valid(self):
         pass
