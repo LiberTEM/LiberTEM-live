@@ -2,7 +2,8 @@ from contextlib import contextmanager
 import base64
 import json
 import logging
-from typing import NamedTuple, Optional, Tuple, Union
+import time
+from typing import Iterable, Iterator, NamedTuple, Optional, Tuple, Union
 from typing_extensions import Literal
 import numpy as np
 import bitshuffle
@@ -18,6 +19,7 @@ from libertem.corrections.corrset import CorrectionSet
 import zmq
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
+import libertem_dectris
 
 
 tracer = trace.get_tracer(__name__)
@@ -95,8 +97,9 @@ def shape_from_frame_header(header):
 def decode(data, encoding, shape, dtype):
     size = prod(shape) * dtype.itemsize
     if encoding in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
+        compressed_data = data.get_image_data()
         decompressed = bitshuffle.decompress_lz4(
-            np.frombuffer(data[12:], dtype=np.uint8),
+            np.frombuffer(compressed_data[12:], dtype=np.uint8),
             shape=shape,
             dtype=dtype,
             block_size=0
@@ -109,6 +112,19 @@ def decode(data, encoding, shape, dtype):
     else:
         raise RuntimeError(f'Unsupported encoding {encoding}')
     return decompressed
+
+
+def take(iter: Iterator, n: int):
+    x = n
+    while x > 0:
+        yield next(iter)
+        x -= 1
+
+
+def in_chunks(iterable: Iterable, chunksize: int):
+    it = iter(iterable)
+    while True:
+        yield take(it, chunksize)
 
 
 class ZeroMQReceiver(Receiver):
@@ -129,8 +145,9 @@ class ZeroMQReceiver(Receiver):
     def recv(self):
         res = 0
         while not res:
-            res = self._socket.poll(100)
+            res = self._socket.poll(500)
         msg = self._socket.recv(copy=False)
+        # msg = self._socket.recv()
         return msg.buffer
 
     def receive_acquisition_header(self):
@@ -142,19 +159,24 @@ class ZeroMQReceiver(Receiver):
                 continue
             if ('header_detail' in header_header
                     and header_header['series'] == self._params.sequence_id):
+                print(header_header)
                 break
         header = json.loads(bytes(self.recv()))
         return header_header, header
 
     def receive_frame(self, frame_id):
         assert self._running, "need to be running to receive frames!"
-        header_header = json.loads(bytes(self.recv()))
-        assert header_header['series'] == self._params.sequence_id
-        assert header_header['frame'] == frame_id
-        header = json.loads(bytes(self.recv()))
+        header_header_raw = bytes(self.recv())
+        # header_header = json.loads(header_header_raw)
+        # assert header_header['series'] == self._params.sequence_id
+        # assert header_header['frame'] == frame_id
+        header_raw = bytes(self.recv())
+        # header = json.loads(header_raw)
         data = self.recv()
-        footer = json.loads(bytes(self.recv()))
-        return header_header, header, data, footer
+        footer_raw = bytes(self.recv())
+        # footer = json.loads(footer_raw)
+        return header_header_raw, header_raw, data, footer_raw
+        # return header_header, header, data, footer
 
     def receive_acquisition_footer(self):
         footer = self.recv()
@@ -170,30 +192,32 @@ class ZeroMQReceiver(Receiver):
         self._frame_id += 1
         return RawFrame(
             data=data,
-            encoding=f_header['encoding'],
-            dtype=dtype_from_frame_header(f_header),
-            shape=shape_from_frame_header(f_header),
+            f_header=f_header,
         )
 
 
 def get_frames(request_queue):
     """
-    Consume all FRAME messages from the request queue until we get an
+    Consume all FRAMES messages from the request queue until we get an
     END_PARTITION message (which we also consume)
     """
     while True:
         with request_queue.get() as msg:
             header, payload = msg
             header_type = header["type"]
-            if header_type == "FRAME":
-                raw_frame = RawFrame(
-                    data=payload,
-                    encoding=header['encoding'],
-                    dtype=header['dtype'],
-                    shape=header['shape'],
-                )
-                frame_arr = raw_frame.decode()
-                yield frame_arr
+            if header_type == "FRAMES":
+                frame_stack = libertem_dectris.FrameStack.deserialize(payload)
+                # FIXME: maybe make this a real iterator
+                for i in range(len(frame_stack)):
+                    frame_payload = frame_stack[i]
+                    raw_frame = RawFrame(
+                        data=frame_payload,
+                        dtype=header['dtype'],
+                        shape=header['shape'],
+                        encoding=header['encoding'],
+                    )
+                    frame_arr = raw_frame.decode()
+                    yield frame_arr
             elif header_type == "END_PARTITION":
                 # print(f"partition {partition} done")
                 return
@@ -204,32 +228,66 @@ def get_frames(request_queue):
 
 
 class DectrisCommHandler(TaskCommHandler):
-    def __init__(self, receiver: ZeroMQReceiver):
+    def __init__(self, params: AcquisitionParams, receiver: ZeroMQReceiver = None):
         self.receiver = receiver
+        self.chunk_iterator = libertem_dectris.FrameChunkedIterator()
+        self.params = params
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
         with tracer.start_as_current_span("DectrisCommHandler.handle_task") as span:
+            put_time = 0.0
+            recv_time = 0.0
             # send the data for this task to the given worker
-            slice_ = task.get_partition().slice
-            span.set_attributes({
-                "libertem.partition.start_idx": slice_.origin[0],
-                "libertem.partition.end_idx": slice_.origin[0] + slice_.shape[0],
-            })
             partition = task.get_partition()
-            for frame_idx in range(partition.shape.nav.size):
-                raw_frame = next(self.receiver)
+            slice_ = partition.slice
+            start_idx = slice_.origin[0]
+            end_idx = slice_.origin[0] + slice_.shape[0]
+            span.set_attributes({
+                "libertem.partition.start_idx": start_idx,
+                "libertem.partition.end_idx": end_idx,
+            })
+            chunk_size = 64
+            current_idx = start_idx
+            while current_idx < end_idx:
+                current_chunk_size = min(chunk_size, end_idx - current_idx)
+
+                t0 = time.perf_counter()
+                frame_stack = self.chunk_iterator.get_next_stack(
+                    max_size=current_chunk_size
+                )
+                t1 = time.perf_counter()
+                recv_time += t1 - t0
+                if len(frame_stack) == 0:
+                    if current_idx != end_idx:
+                        raise RuntimeError("premature end of frame iterator")
+                    break
+
+                first_frame = frame_stack[0]
+                # FIXME: adjust dtype_from_frame_header? add endianess
+                dtype = np.dtype(first_frame.get_pixel_type())
+                shape = tuple(reversed(first_frame.get_shape()))
+                t0 = time.perf_counter()
+                serialized = frame_stack.serialize()
                 queue.put({
-                    "type": "FRAME",
-                    "shape": raw_frame.shape,
-                    "dtype": raw_frame.dtype,
-                    "encoding": raw_frame.encoding,
-                }, payload=np.frombuffer(raw_frame.data, dtype=np.uint8))
+                    "type": "FRAMES",
+                    "dtype": dtype,
+                    "shape": shape,
+                    "encoding": first_frame.get_encoding(),
+                }, payload=serialized)
+                t1 = time.perf_counter()
+                put_time += t1 - t0
+
+                current_idx += len(frame_stack)
+            span.set_attributes({
+                "total_put_time": put_time,
+                "total_recv_time": recv_time,
+            })
 
     def start(self):
-        self.receiver.start()
+        self.chunk_iterator.start(self.params.sequence_id)
 
     def done(self):
-        pass
+        self.chunk_iterator.close()
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -256,7 +314,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._acq_state: Optional[AcquisitionParams] = None
         self._zmq_ctx: Optional[zmq.Context] = None
         self._socket: Optional[zmq.Socket] = None
-        self._frames_per_partition = frames_per_partition
+        self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
         self._trigger_mode = trigger_mode
         self._enable_corrections = enable_corrections
         self._name_pattern = name_pattern
@@ -299,17 +357,19 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         """
         Create the zeromq context and PULL socket, and bind it to `data_host`:`data_port`
         """
-        self._zmq_ctx = zmq.Context()
-        self._socket = self._zmq_ctx.socket(socket_type=zmq.PULL)
-        self._socket.connect(f"tcp://{self._data_host}:{self._data_port}")
+        # self._zmq_ctx = zmq.Context()
+        # self._socket = self._zmq_ctx.socket(socket_type=zmq.PULL)
+        # self._socket.connect(f"tcp://{self._data_host}:{self._data_port}")
+        pass
 
     def close(self):
         """
         Close the zeromq context and PULL socket
         """
-        self._zmq_ctx.destroy()
-        self._zmq_ctx = None
-        self._socket = None
+        # self._zmq_ctx.destroy()
+        # self._zmq_ctx = None
+        # self._socket = None
+        pass
 
     @property
     def dtype(self):
@@ -385,14 +445,14 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return True  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape, roi):
-        depth = 24
+        depth = 12
         return (depth, *self.meta.shape.sig)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
         # return 12*256*256*8
         # FIXME magic numbers?
-        return 24*np.prod(self.meta.shape.sig)*8
+        return 12*np.prod(self.meta.shape.sig)*8
 
     def get_base_shape(self, roi):
         return (1, 1, self.meta.shape.sig[-1])
@@ -421,7 +481,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             )
 
     def get_task_comm_handler(self) -> "DectrisCommHandler":
-        return DectrisCommHandler(receiver=self.get_receiver())
+        # return DectrisCommHandler(receiver=self.get_receiver())
+        return DectrisCommHandler(params=self._acq_state)
 
 
 class DectrisLivePartition(Partition):
