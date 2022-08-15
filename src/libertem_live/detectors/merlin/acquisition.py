@@ -2,6 +2,7 @@ from contextlib import contextmanager
 import logging
 from typing import Callable, Generator, Iterator, Tuple
 import numpy as np
+from libertem.common.math import prod
 from libertem.common import Shape, Slice
 from libertem.common.executor import (
     TaskProtocol, WorkerQueue, TaskCommHandler, WorkerContext,
@@ -9,7 +10,6 @@ from libertem.common.executor import (
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
-
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from .data import MerlinRawFrames, MerlinRawSocket, validate_get_sig_shape
 
@@ -63,7 +63,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         self._drain = drain
         self._nav_shape = nav_shape
         self._sig_shape = sig_shape
-        self._frames_per_partition = frames_per_partition
+        self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
         self._timeout = timeout
 
     def initialize(self, executor):
