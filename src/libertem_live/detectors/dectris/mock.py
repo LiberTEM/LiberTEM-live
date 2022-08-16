@@ -6,7 +6,6 @@ from libertem.common.executor import TaskProtocol, WorkerQueue
 from libertem_live.detectors.dectris.acquisition import (
     AcquisitionParams, DectrisAcquisition, DectrisCommHandler, DetectorConfig,
 )
-from libertem_dectris import headers, Frame, FrameStack, PixelType
 
 
 class OfflineCommHandler(DectrisCommHandler):
@@ -21,6 +20,7 @@ class OfflineCommHandler(DectrisCommHandler):
         pass
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
+        from libertem_dectris import headers, Frame, FrameStack, PixelType
         partition = task.get_partition()
         slice_ = partition.slice
         start_idx = slice_.origin[0]
