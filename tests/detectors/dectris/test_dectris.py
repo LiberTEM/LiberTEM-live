@@ -6,11 +6,12 @@ import numpy as np
 from libertem.udf.sumsigudf import SumSigUDF
 from libertem.udf.sum import SumUDF
 from libertem.common import Shape
-from libertem.api import Context
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
+from libertem_live.api import LiveContext
 from libertem_live.detectors.dectris.acquisition import DectrisAcquisition
 from libertem_live.detectors.dectris.mock import OfflineAcquisition
+import libertem
 
 from utils import get_testdata_path, run_camera_sim
 
@@ -147,12 +148,12 @@ def test_sum(ctx_pipelined, dectris_sim):
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 @pytest.mark.timeout(120)  # May lock up because of executor bug
-def test_frame_skip(skipped_dectris_sim):
+def test_frame_skip(skipped_dectris_sim, dectris_sim):
     # uses its own executor to not potentially bring
     # the `ctx_pipelined` executor into a bad state
     try:
         executor = PipelinedExecutor(
-            spec=PipelinedExecutor.make_spec(cpus=range(2), cudas=[]),
+            spec=PipelinedExecutor.make_spec(cpus=range(4), cudas=[]),
             # to prevent issues in already-pinned situations (i.e. containerized
             # environments), don't pin our worker processes in testing:
             pin_workers=False,
@@ -169,12 +170,30 @@ def test_frame_skip(skipped_dectris_sim):
             data_port=data_port,
             trigger_mode='exte',
         )
-        ctx = Context(executor=executor)
+        ctx = LiveContext(executor=executor)
         aq.initialize(ctx.executor)
         # Originally an AssertionError, but may cause downstream issues
         # in the executor, TODO revisit after some time if executor behavior changed
         with pytest.raises(Exception):
             _ = ctx.run_udf(dataset=aq, udf=SumUDF())
+        # Ensure the executor is still alive
+        # Only newer 0.10.0 because of a bug in the PipelinedExecutor
+        _version_bits = libertem.__version__.split('.')
+        version_tuple = tuple(int(b) for b in _version_bits[:3])
+        if version_tuple > (0, 10, 0):
+            api_port, data_port = dectris_sim
+            aq2 = DectrisAcquisition(
+                nav_shape=(128, 128),
+                trigger=lambda x: None,
+                frames_per_partition=32,
+                api_host='127.0.0.1',
+                api_port=api_port,
+                data_host='127.0.0.1',
+                data_port=data_port,
+                trigger_mode='exte',
+            )
+            aq2.initialize(ctx.executor)
+            _ = ctx.run_udf(dataset=aq2, udf=SumUDF())
     finally:
         if executor is not None:
             executor.close()
