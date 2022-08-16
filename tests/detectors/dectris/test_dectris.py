@@ -9,7 +9,6 @@ from libertem.common import Shape
 import pytest
 from libertem_live.detectors.dectris.acquisition import DectrisAcquisition
 from libertem_live.detectors.dectris.mock import OfflineAcquisition
-from libertem_live.detectors.dectris.sim import DectrisSim
 
 from utils import get_testdata_path, run_camera_sim
 
@@ -25,6 +24,7 @@ pytestmark = pytest.mark.skipif(sys.version_info < (3, 7),
 
 
 def run_dectris_sim(*args, path=DECTRIS_TESTDATA_PATH, **kwargs):
+    from libertem_live.detectors.dectris.sim import DectrisSim
     return run_camera_sim(cls=DectrisSim, path=path, port=0, zmqport=0, **kwargs)
 
 
