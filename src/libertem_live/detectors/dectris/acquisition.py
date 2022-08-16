@@ -1,9 +1,8 @@
 from contextlib import contextmanager
 import base64
-import json
 import logging
 import time
-from typing import Iterable, Iterator, NamedTuple, Optional, Tuple, Union
+from typing import NamedTuple, Optional, Tuple, Union
 from typing_extensions import Literal
 import numpy as np
 import bitshuffle
@@ -86,15 +85,18 @@ def get_darray(darray) -> np.ndarray:
     return np.frombuffer(data, dtype=dtype).reshape(shape)
 
 
-def dtype_from_frame_header(header):
-    return np.dtype(header['type']).newbyteorder(header['encoding'][-1])
+def dtype_from_frame(frame):
+    dtype = np.dtype(frame.get_pixel_type()).newbyteorder(
+        frame.get_endianess()
+    )
+    return dtype
 
 
-def shape_from_frame_header(header):
-    return tuple(reversed(header['shape']))
+def shape_from_frame(frame):
+    return tuple(reversed(frame.get_shape()))
 
 
-def decode(data, encoding, shape, dtype):
+def decode(data: libertem_dectris.Frame, encoding, shape, dtype):
     size = prod(shape) * dtype.itemsize
     if encoding in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
         compressed_data = data.get_image_data()
@@ -105,95 +107,13 @@ def decode(data, encoding, shape, dtype):
             block_size=0
         )
     elif encoding == 'lz4<':
-        decompressed = lz4.block.decompress(data, uncompressed_size=size)
+        decompressed = lz4.block.decompress(data.get_image_data(), uncompressed_size=size)
         decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
     elif encoding == '<':
-        decompressed = np.frombuffer(data, dtype=dtype).reshape(shape)
+        decompressed = np.frombuffer(data.get_image_data(), dtype=dtype).reshape(shape)
     else:
         raise RuntimeError(f'Unsupported encoding {encoding}')
     return decompressed
-
-
-def take(iter: Iterator, n: int):
-    x = n
-    while x > 0:
-        yield next(iter)
-        x -= 1
-
-
-def in_chunks(iterable: Iterable, chunksize: int):
-    it = iter(iterable)
-    while True:
-        yield take(it, chunksize)
-
-
-class ZeroMQReceiver(Receiver):
-    def __init__(self, socket: zmq.Socket, params: Optional[AcquisitionParams]):
-        self._socket = socket
-        self._params = params
-        self._frame_id = 0
-        self._running = False
-
-    def start(self):
-        if self._running:
-            return
-        if self._params is None:
-            raise RuntimeError("can't receive frames without acquisition parameters set!")
-        header_header, header = self.receive_acquisition_header()
-        self._running = True
-
-    def recv(self):
-        res = 0
-        while not res:
-            res = self._socket.poll(500)
-        msg = self._socket.recv(copy=False)
-        # msg = self._socket.recv()
-        return msg.buffer
-
-    def receive_acquisition_header(self):
-        while True:
-            data = self.recv()
-            try:
-                header_header = json.loads(bytes(data))
-            except (json.JSONDecodeError, UnicodeDecodeError):
-                continue
-            if ('header_detail' in header_header
-                    and header_header['series'] == self._params.sequence_id):
-                print(header_header)
-                break
-        header = json.loads(bytes(self.recv()))
-        return header_header, header
-
-    def receive_frame(self, frame_id):
-        assert self._running, "need to be running to receive frames!"
-        header_header_raw = bytes(self.recv())
-        # header_header = json.loads(header_header_raw)
-        # assert header_header['series'] == self._params.sequence_id
-        # assert header_header['frame'] == frame_id
-        header_raw = bytes(self.recv())
-        # header = json.loads(header_raw)
-        data = self.recv()
-        footer_raw = bytes(self.recv())
-        # footer = json.loads(footer_raw)
-        return header_header_raw, header_raw, data, footer_raw
-        # return header_header, header, data, footer
-
-    def receive_acquisition_footer(self):
-        footer = self.recv()
-        return footer
-
-    def __next__(self) -> RawFrame:
-        assert self._params is not None
-        if self._frame_id >= self._params.nimages:
-            self.receive_acquisition_footer()
-            self._running = False
-            raise StopIteration()
-        f_header_header, f_header, data, f_footer = self.receive_frame(self._frame_id)
-        self._frame_id += 1
-        return RawFrame(
-            data=data,
-            f_header=f_header,
-        )
 
 
 def get_frames(request_queue):
@@ -210,6 +130,7 @@ def get_frames(request_queue):
                 # FIXME: maybe make this a real iterator
                 for i in range(len(frame_stack)):
                     frame_payload = frame_stack[i]
+                    assert isinstance(frame_payload, libertem_dectris.Frame)
                     raw_frame = RawFrame(
                         data=frame_payload,
                         dtype=header['dtype'],
@@ -228,9 +149,9 @@ def get_frames(request_queue):
 
 
 class DectrisCommHandler(TaskCommHandler):
-    def __init__(self, params: AcquisitionParams, receiver: ZeroMQReceiver = None):
-        self.receiver = receiver
-        self.chunk_iterator = libertem_dectris.FrameChunkedIterator()
+    def __init__(self, params: AcquisitionParams, uri: str):
+        self.chunk_iterator = libertem_dectris.FrameChunkedIterator(uri=uri)
+        self._uri = uri
         self.params = params
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
@@ -263,9 +184,8 @@ class DectrisCommHandler(TaskCommHandler):
                     break
 
                 first_frame = frame_stack[0]
-                # FIXME: adjust dtype_from_frame_header? add endianess
-                dtype = np.dtype(first_frame.get_pixel_type())
-                shape = tuple(reversed(first_frame.get_shape()))
+                dtype = dtype_from_frame(first_frame)
+                shape = shape_from_frame(first_frame)
                 t0 = time.perf_counter()
                 serialized = frame_stack.serialize()
                 queue.put({
@@ -353,24 +273,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         )
         return self
 
-    def connect(self):
-        """
-        Create the zeromq context and PULL socket, and bind it to `data_host`:`data_port`
-        """
-        # self._zmq_ctx = zmq.Context()
-        # self._socket = self._zmq_ctx.socket(socket_type=zmq.PULL)
-        # self._socket.connect(f"tcp://{self._data_host}:{self._data_port}")
-        pass
-
-    def close(self):
-        """
-        Close the zeromq context and PULL socket
-        """
-        # self._zmq_ctx.destroy()
-        # self._zmq_ctx = None
-        # self._socket = None
-        pass
-
     @property
     def dtype(self):
         return self._meta.dtype
@@ -401,7 +303,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         with tracer.start_as_current_span('acquire') as span:
             ec = self.get_api_client()
             try:
-                self.connect()
                 nimages = prod(self.shape.nav)
 
                 ec.setDetectorConfig('ntrigger', 1)
@@ -436,7 +337,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 finally:
                     self._acq_state = None
             finally:
-                self.close()
+                pass
 
     def check_valid(self):
         pass
@@ -461,9 +362,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     def acquisition_state(self):
         return self._acq_state
 
-    def get_receiver(self):
-        return ZeroMQReceiver(self._socket, params=self._acq_state)
-
     def get_partitions(self):
         # FIXME: only works for inline executor or similar, as we are using a zeromq socket
         # which is not safe to be passed to other threads
@@ -481,8 +379,11 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             )
 
     def get_task_comm_handler(self) -> "DectrisCommHandler":
-        # return DectrisCommHandler(receiver=self.get_receiver())
-        return DectrisCommHandler(params=self._acq_state)
+        assert self._acq_state is not None
+        return DectrisCommHandler(
+            params=self._acq_state,
+            uri=f"tcp://{self._data_host}:{self._data_port}"
+        )
 
 
 class DectrisLivePartition(Partition):
