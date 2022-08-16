@@ -22,6 +22,22 @@ class StopException(Exception):
     pass
 
 
+def set_thread_name(name: str):
+    """
+    Set a thread name; mostly useful for using system tools for profiling
+
+    Parameters
+    ----------
+    name : str
+        The thread name
+    """
+    try:
+        import prctl
+        prctl.set_name(name)
+    except ImportError:
+        pass
+
+
 def chunks(mm: mmap.mmap) -> Generator[Tuple[bytes, int], None, None]:
     """
     Yield messages from memory map, including the offset to the start of the
@@ -100,6 +116,8 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                 res = zmq_socket.poll(100, flags=zmq.POLLOUT)
             # XXX quite bizarrely, for this kind of data stream, using
             # `send(..., copy=True)` is faster than `send(..., copy=False)`.
+            # -> possibly because message sizes are on average quite small,
+            # see the discussion here: http://aosabook.org/en/zeromq.html
             filtered = self._data_filter(data)
             flags = 0
             if more:
@@ -219,11 +237,18 @@ class RustedReplay(ZMQReplay):
         self.dwelltime = dwelltime
 
     def run(self):
+        set_thread_name("RustedReplay")
         _sim = libertem_dectris.DectrisSim(
             uri=self._uri,
             filename=self._path,
             dwelltime=self.dwelltime,
+            random_port=self._random_port,
         )
+
+        real_uri = _sim.get_uri()
+        self._port = urllib.parse.urlparse(real_uri).port
+        print(f"RustedReplay listening on {real_uri}")
+
         self.listen_event.set()
         while True:
             print("Waiting for arm")
@@ -259,6 +284,7 @@ class RustedReplay(ZMQReplay):
             try:
                 print("sending acquisition headers")
                 _sim.send_headers()
+                print("headers sent")
                 det_config = _sim.get_detector_config()
                 trigger_mode = det_config.get_trigger_mode()
                 if trigger_mode == libertem_dectris.TriggerMode.INTE:
@@ -506,18 +532,25 @@ def run_api(
 
 
 class DectrisSim:
-    def __init__(self, path: str, port: int, zmqport: int, dwelltime: int, data_filter=None) -> None:
+    def __init__(
+        self,
+        path: str,
+        port: int,
+        zmqport: int,
+        dwelltime: Optional[int] = None,
+        data_filter=None,
+    ) -> None:
         """
         Parameters
         ----------
-        path : _type_
+        path
             _description_
-        port : _type_
-            _description_
-        zmqport : _type_
-            _description_
+        port
+            HTTP REST API port
+        zmqport
+            ZeroMQ port we should bind to
         dwelltime : int
-            In microseconds
+            Take at least this much time for sending each frame, in microseconds
         """
         headers = read_headers(path)
 
@@ -528,17 +561,29 @@ class DectrisSim:
         self.api_port = multiprocessing.Value('l', -1)
         self.dwelltime = dwelltime
 
-        self.zmq_replay = RustedReplay(
-            uri=f"tcp://127.0.0.1:{zmqport}" if zmqport else "tcp://127.0.0.1",
-            random_port=not bool(zmqport),
-            path=path,
-            name='zmq_replay',
-            arm_event=arm_event,
-            trigger_event=trigger_event,
-            stop_event=self.stop_event,
-            data_filter=data_filter,
-            dwelltime=dwelltime,
-        )
+        if data_filter is None:
+            self.zmq_replay = RustedReplay(
+                uri=f"tcp://127.0.0.1:{zmqport}" if zmqport else "tcp://127.0.0.1",
+                random_port=not bool(zmqport),
+                path=path,
+                name='zmq_replay',
+                arm_event=arm_event,
+                trigger_event=trigger_event,
+                stop_event=self.stop_event,
+                data_filter=data_filter,
+                dwelltime=dwelltime,
+            )
+        else:
+            self.zmq_replay = ZMQReplay(
+                uri=f"tcp://127.0.0.1:{zmqport}" if zmqport else "tcp://127.0.0.1",
+                random_port=not bool(zmqport),
+                path=path,
+                name='zmq_replay',
+                arm_event=arm_event,
+                trigger_event=trigger_event,
+                stop_event=self.stop_event,
+                data_filter=data_filter,
+            )
 
         self.zmq_replay.daemon = True
 

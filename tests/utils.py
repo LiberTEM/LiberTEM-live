@@ -17,6 +17,7 @@ def run_camera_sim(*args, cls, **kwargs):
     )
     server.start()
     server.wait_for_listen()
+    print("camera sim started")
     yield server
     print("cleaning up server thread")
     server.maybe_raise()
