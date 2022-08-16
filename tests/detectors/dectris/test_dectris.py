@@ -1,4 +1,5 @@
 import os
+import sys
 from typing import NamedTuple, Tuple
 import numpy as np
 
@@ -18,6 +19,9 @@ DECTRIS_TESTDATA_PATH = os.path.join(
     'dectris', 'zmqdump.dat.128x128-id34-exte-bslz4'
 )
 HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
+
+pytestmark = pytest.mark.skipif(sys.version_info < (3, 7),
+                                reason="DECTRIS support requires Python 3.7")
 
 
 def run_dectris_sim(*args, path=DECTRIS_TESTDATA_PATH, **kwargs):
