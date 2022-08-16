@@ -123,7 +123,6 @@ def test_udf_nav(ctx_pipelined):
 @pytest.mark.data
 def test_sum(ctx_pipelined, dectris_sim):
     api_port, data_port = dectris_sim
-    print(f"{api_port=} {data_port=}")
     aq = DectrisAcquisition(
         nav_shape=(128, 128),
         trigger=lambda x: None,
