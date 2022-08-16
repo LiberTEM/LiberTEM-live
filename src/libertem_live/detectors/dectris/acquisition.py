@@ -1,13 +1,15 @@
 from contextlib import contextmanager
+import sys
 import base64
 import logging
 import time
 from typing import NamedTuple, Optional, Tuple, Union
+import typing
+
 from typing_extensions import Literal
 import numpy as np
-import bitshuffle
-import lz4.block
 from opentelemetry import trace
+
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
 from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler
@@ -15,11 +17,11 @@ from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
-import zmq
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
-import libertem_dectris
 
+if typing.TYPE_CHECKING:
+    import libertem_dectris
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
@@ -96,9 +98,10 @@ def shape_from_frame(frame):
     return tuple(reversed(frame.get_shape()))
 
 
-def decode(data: libertem_dectris.Frame, encoding, shape, dtype):
+def decode(data: "libertem_dectris.Frame", encoding, shape, dtype):
     size = prod(shape) * dtype.itemsize
     if encoding in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
+        import bitshuffle
         compressed_data = data.get_image_data()
         decompressed = bitshuffle.decompress_lz4(
             np.frombuffer(compressed_data[12:], dtype=np.uint8),
@@ -107,6 +110,8 @@ def decode(data: libertem_dectris.Frame, encoding, shape, dtype):
             block_size=0
         )
     elif encoding == 'lz4<':
+        import lz4.block
+        import bitshuffle
         decompressed = lz4.block.decompress(data.get_image_data(), uncompressed_size=size)
         decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
     elif encoding == '<':
@@ -121,6 +126,7 @@ def get_frames(request_queue):
     Consume all FRAMES messages from the request queue until we get an
     END_PARTITION message (which we also consume)
     """
+    import libertem_dectris
     while True:
         with request_queue.get() as msg:
             header, payload = msg
@@ -150,6 +156,7 @@ def get_frames(request_queue):
 
 class DectrisCommHandler(TaskCommHandler):
     def __init__(self, params: AcquisitionParams, uri: str):
+        import libertem_dectris
         self.chunk_iterator = libertem_dectris.FrameChunkedIterator(uri=uri)
         self._uri = uri
         self.params = params
@@ -225,6 +232,21 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         name_pattern: Optional[str] = None,
     ):
         super().__init__(trigger=trigger)
+        try:
+            import libertem_dectris  # NOQA
+            import lz4.block  # NOQA
+            import bitshuffle  # NOQA
+        except ImportError:
+            if sys.version_info < (3, 7):
+                raise RuntimeError(
+                    "DectrisAcquisition needs at least Python 3.7"
+                )
+            else:
+                raise RuntimeError(
+                    "DectrisAcquisition has additional dependencies; "
+                    "please run `pip install libertem-live[dectris]` "
+                    "to install them."
+                )
         self._api_host = api_host
         self._api_port = api_port
         self._data_host = data_host
@@ -232,8 +254,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._nav_shape = nav_shape
         self._sig_shape: Tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None
-        self._zmq_ctx: Optional[zmq.Context] = None
-        self._socket: Optional[zmq.Socket] = None
         self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
         self._trigger_mode = trigger_mode
         self._enable_corrections = enable_corrections
