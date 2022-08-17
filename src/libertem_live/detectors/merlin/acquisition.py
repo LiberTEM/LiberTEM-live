@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import logging
 from typing import Callable, Generator, Iterator, Tuple
+import warnings
 import numpy as np
 from libertem.common.math import prod
 from libertem.common import Shape, Slice
@@ -41,8 +42,6 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     frames_per_partition : int
         Number of frames to process before performing a merge operation. Decreasing this number
         increases the update rate, but can decrease performance.
-    pool_size : int
-        Number of decoding threads. Defaults to 2
     '''
     def __init__(
         self,
@@ -53,7 +52,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         port: int = 6342,
         drain: bool = True,
         frames_per_partition: int = 256,
-        pool_size: int = 2,
+        pool_size: int = None,
         timeout: float = 5,
     ):
         # This will also call the DataSet constructor, additional arguments
@@ -65,6 +64,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         self._sig_shape = sig_shape
         self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
         self._timeout = timeout
+        if pool_size is not None:
+            warnings.warn('`pool_size` parameter is no longer used and ignored', UserWarning)
 
     def initialize(self, executor):
         # FIXME: possibly need to have an "acquisition plan" object
@@ -348,34 +349,6 @@ class MerlinLivePartition(Partition):
 
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None):
         yield from self._get_tiles_fullframe(tiling_scheme, dest_dtype, roi)
-        return
-        # # assert len(tiling_scheme) == 1
-        # print(tiling_scheme)
-        # pool = self._data_source.pool.get_impl(
-        #     read_upto_frame=self._end_idx,
-        #     chunk_size=tiling_scheme.depth,
-        # )
-        # to_read = int(self._end_idx - self._start_idx)
-        # nav_slices_raw = [
-        #     (...,) + slice_.get(sig_only=True)
-        #     for idx, slice_ in tiling_scheme.slices
-        # ]
-        # with pool:
-        #     while to_read > 0:
-        #         with pool.get_result() as res_wrapped:
-        #             frames_in_tile = res_wrapped.stop - res_wrapped.start
-        #             for (idx, slice_), nav_slice_raw in zip(tiling_scheme.slices, nav_slices_raw):
-        #                 tile_shape = Shape(
-        #                     (frames_in_tile,) + tuple(slice_.shape),
-        #                     sig_dims=2
-        #                 )
-        #                 tile_slice = Slice(
-        #                     origin=(res_wrapped.start,) + tuple(slice_.origin),
-        #                     shape=tile_shape,
-        #                 )
-        #                 sliced_res = res_wrapped.buf[nav_slice_raw]
-        #                 yield DataTile(sliced_res, tile_slice=tile_slice, scheme_idx=idx)
-        #             to_read -= frames_in_tile
 
     def __repr__(self):
         return f"<MerlinLivePartition {self._start_idx}:{self._end_idx}>"
