@@ -5,7 +5,7 @@ import multiprocessing
 from multiprocessing.synchronize import Event as EventClass
 import json
 import mmap
-from typing import Dict, Generator, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Generator, Optional, Tuple
 import urllib
 
 import zmq
@@ -15,12 +15,14 @@ from flask import Flask, request, Blueprint, current_app
 from werkzeug.serving import make_server
 
 from libertem_live.detectors.common import ErrThreadMixin, UndeadException
-import libertem_dectris
+
+if TYPE_CHECKING:
+    import socket
 
 try:
     from werkzeug.serving import prepare_socket
 except ImportError:
-    def prepare_socket(hostname: str, port: int):
+    def prepare_socket(hostname: str, port: int) -> "socket.socket":
         import socket
         from werkzeug.serving import (
             select_address_family, get_sockaddr, LISTEN_QUEUE,
@@ -254,6 +256,7 @@ class RustedReplay(ZMQReplay):
         self.dwelltime = dwelltime
 
     def run(self):
+        import libertem_dectris
         set_thread_name("RustedReplay")
         _sim = libertem_dectris.DectrisSim(
             uri=self._uri,

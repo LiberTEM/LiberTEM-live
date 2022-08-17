@@ -35,7 +35,7 @@ class ServerThreadMixin(ErrThreadMixin):
             listen_event = threading.Event()
         self.listen_event = listen_event
 
-    def wait_for_listen(self, timeout=10):
+    def wait_for_listen(self, timeout=30):
         """
         To be called from the main thread
         """
