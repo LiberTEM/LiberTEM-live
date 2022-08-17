@@ -12,10 +12,27 @@ import zmq
 import click
 import numpy as np
 from flask import Flask, request, Blueprint, current_app
-from werkzeug.serving import prepare_socket, make_server
+from werkzeug.serving import make_server
 
 from libertem_live.detectors.common import ErrThreadMixin, UndeadException
 import libertem_dectris
+
+try:
+    from werkzeug.serving import prepare_socket
+except ImportError:
+    def prepare_socket(hostname: str, port: int):
+        import socket
+        from werkzeug.serving import (
+            select_address_family, get_sockaddr, LISTEN_QUEUE,
+        )
+        address_family = select_address_family(hostname, port)
+        server_address = get_sockaddr(hostname, port, address_family)
+        s = socket.socket(address_family, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.set_inheritable(True)
+        s.bind(server_address)
+        s.listen(LISTEN_QUEUE)
+        return s
 
 
 class StopException(Exception):
