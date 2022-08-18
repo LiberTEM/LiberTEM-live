@@ -89,6 +89,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             arm_event: EventClass,
             trigger_event: EventClass,
             data_filter=None,
+            verbose=True,
             *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._uri = uri
@@ -103,6 +104,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             def data_filter(data):
                 return data
         self._data_filter = data_filter
+        self._verbose = verbose
 
     @property
     def port(self):
@@ -256,91 +258,102 @@ class RustedReplay(ZMQReplay):
         self.dwelltime = dwelltime
 
     def run(self):
-        import libertem_dectris
-        set_thread_name("RustedReplay")
-        _sim = libertem_dectris.DectrisSim(
-            uri=self._uri,
-            filename=self._path,
-            dwelltime=self.dwelltime,
-            random_port=self._random_port,
-        )
+        try:
+            import libertem_dectris
+            set_thread_name("RustedReplay")
+            _sim = libertem_dectris.DectrisSim(
+                uri=self._uri,
+                filename=self._path,
+                dwelltime=self.dwelltime,
+                random_port=self._random_port,
+            )
 
-        real_uri = _sim.get_uri()
-        self._port = urllib.parse.urlparse(real_uri).port
-        print(f"RustedReplay listening on {real_uri}")
+            real_uri = _sim.get_uri()
+            self._port = urllib.parse.urlparse(real_uri).port
+            if self._verbose:
+                print(f"RustedReplay listening on {real_uri}")
 
-        self.listen_event.set()
-        while True:
-            print("Waiting for arm")
-            while not self._arm_event.wait(timeout=0.1):
-                if self.is_stopped():
-                    raise StopException("Server is stopped")
-            self._arm_event.clear()
+            self.listen_event.set()
+            while True:
+                if self._verbose:
+                    print("Waiting for arm")
+                while not self._arm_event.wait(timeout=0.1):
+                    if self.is_stopped():
+                        raise StopException("Server is stopped")
+                self._arm_event.clear()
 
-            # Different trigger settings:
-            #
-            # INTS: record `nimages` after the first `trigger` command received,
-            #       according to `frame_time` and `count_time`; repeated `ntrigger` times
-            #
-            #       => exposure time is not adjusted and just sent as it is written
-            #       in the input file
-            #
-            # INTE: record one image per trigger, with exposure time taken
-            #       from the `count_time` parameter of `trigger` command
-            #
-            #       => exposure time is not yet taken from the `trigger` command
-            #
-            # EXTS: acquire `nimages` after receiving a single `trigger` command,
-            #       according to `frame_time` and `count_time`
-            #
-            #       => in the sim, we trigger as fast as possible at the beginning
-            #       of the acquisiiton
-            #
-            # EXTE: acquire one image per trigger, exposing as long as the trigger
-            #       signal is high.
-            #
-            #       => in the sim, we assume a constant dwell time, or trigger as
-            #       fast as we can send the data
-            try:
-                print("sending acquisition headers")
-                _sim.send_headers()
-                print("headers sent")
-                det_config = _sim.get_detector_config()
-                trigger_mode = det_config.get_trigger_mode()
-                if trigger_mode == libertem_dectris.TriggerMode.INTE:
-                    # FIXME: check stop event from _sim in send_frames
-                    print("sending one frame per trigger")
-                    for _ in range(det_config.ntrigger):
-                        while not self._trigger_event.wait(timeout=0.1):
-                            if self.is_stopped():
-                                raise StopException("Server is stopped")
-                        self._trigger_event.clear()
-                        _sim.send_frames(1)
-                    _sim.send_footer()
-
-                elif trigger_mode == libertem_dectris.TriggerMode.EXTE:
-                    # FIXME: check stop event from _sim in send_frames
-                    print("sending all frames")
-                    _sim.send_frames()
-                    _sim.send_footer()
-                elif trigger_mode in (
-                    libertem_dectris.TriggerMode.EXTS,
-                    libertem_dectris.TriggerMode.INTS
-                ):
-                    for _ in range(det_config.ntrigger):
-                        if trigger_mode == libertem_dectris.TriggerMode.INTS:
+                # Different trigger settings:
+                #
+                # INTS: record `nimages` after the first `trigger` command received,
+                #       according to `frame_time` and `count_time`; repeated `ntrigger` times
+                #
+                #       => exposure time is not adjusted and just sent as it is written
+                #       in the input file
+                #
+                # INTE: record one image per trigger, with exposure time taken
+                #       from the `count_time` parameter of `trigger` command
+                #
+                #       => exposure time is not yet taken from the `trigger` command
+                #
+                # EXTS: acquire `nimages` after receiving a single `trigger` command,
+                #       according to `frame_time` and `count_time`
+                #
+                #       => in the sim, we trigger as fast as possible at the beginning
+                #       of the acquisiiton
+                #
+                # EXTE: acquire one image per trigger, exposing as long as the trigger
+                #       signal is high.
+                #
+                #       => in the sim, we assume a constant dwell time, or trigger as
+                #       fast as we can send the data
+                try:
+                    if self._verbose:
+                        print("sending acquisition headers")
+                    _sim.send_headers()
+                    if self._verbose:
+                        print("headers sent")
+                    det_config = _sim.get_detector_config()
+                    trigger_mode = det_config.get_trigger_mode()
+                    if trigger_mode == libertem_dectris.TriggerMode.INTE:
+                        # FIXME: check stop event from _sim in send_frames
+                        if self._verbose:
+                            print("sending one frame per trigger")
+                        for _ in range(det_config.ntrigger):
                             while not self._trigger_event.wait(timeout=0.1):
                                 if self.is_stopped():
                                     raise StopException("Server is stopped")
                             self._trigger_event.clear()
-                        print("sending next series")
-                        # FIXME: check stop event from _sim in send_frames
-                        _sim.send_frames(det_config.nimages)
-                    _sim.send_footer()
+                            _sim.send_frames(1)
+                        _sim.send_footer()
 
-            except libertem_dectris.TimeoutError:
-                print("Timeout, resetting")
-                self._trigger_event.clear()
+                    elif trigger_mode == libertem_dectris.TriggerMode.EXTE:
+                        # FIXME: check stop event from _sim in send_frames
+                        if self._verbose:
+                            print("sending all frames")
+                        _sim.send_frames()
+                        _sim.send_footer()
+                    elif trigger_mode in (
+                        libertem_dectris.TriggerMode.EXTS,
+                        libertem_dectris.TriggerMode.INTS
+                    ):
+                        for _ in range(det_config.ntrigger):
+                            if trigger_mode == libertem_dectris.TriggerMode.INTS:
+                                while not self._trigger_event.wait(timeout=0.1):
+                                    if self.is_stopped():
+                                        raise StopException("Server is stopped")
+                                self._trigger_event.clear()
+                            if self._verbose:
+                                print("sending next series")
+                            # FIXME: check stop event from _sim in send_frames
+                            _sim.send_frames(det_config.nimages)
+                        _sim.send_footer()
+
+                except libertem_dectris.TimeoutError:
+                    if self._verbose:
+                        print("Timeout, resetting")
+                    self._trigger_event.clear()
+        except StopException:
+            pass
 
 
 def read_headers(filename):
@@ -559,6 +572,7 @@ class DectrisSim:
         zmqport: int,
         dwelltime: Optional[int] = None,
         data_filter=None,
+        verbose: bool = True,
     ) -> None:
         """
         Parameters
@@ -571,6 +585,8 @@ class DectrisSim:
             ZeroMQ port we should bind to
         dwelltime : int
             Take at least this much time for sending each frame, in microseconds
+        verbose
+            Print progress messages to stdout
         """
         headers = read_headers(path)
 
@@ -580,6 +596,7 @@ class DectrisSim:
         self.api_listen_event = multiprocessing.Event()
         self.api_port = multiprocessing.Value('l', -1)
         self.dwelltime = dwelltime
+        self.verbose = verbose
 
         if data_filter is None:
             self.zmq_replay = RustedReplay(
@@ -592,6 +609,7 @@ class DectrisSim:
                 stop_event=self.stop_event,
                 data_filter=data_filter,
                 dwelltime=dwelltime,
+                verbose=verbose,
             )
         else:
             self.zmq_replay = ZMQReplay(
@@ -603,6 +621,7 @@ class DectrisSim:
                 trigger_event=trigger_event,
                 stop_event=self.stop_event,
                 data_filter=data_filter,
+                verbose=verbose,
             )
 
         self.zmq_replay.daemon = True
@@ -648,7 +667,8 @@ class DectrisSim:
             raise RuntimeError(f'API server exit code {self.api_server.exitcode}')
 
     def stop(self):
-        print("Stopping...")
+        if self.verbose:
+            print("Stopping...")
         self.stop_event.set()
         self.api_server.terminate()
         timeout = 2
@@ -673,8 +693,11 @@ class DectrisSim:
 @click.option('--port', type=int, default=8910)
 @click.option('--zmqport', type=int, default=9999)
 @click.option('--dwelltime', type=int, default=None)
-def main(path, port, zmqport, dwelltime):
-    dectris_sim = DectrisSim(path=path, port=port, zmqport=zmqport, dwelltime=dwelltime)
+@click.option('--verbose', type=bool, default=True)
+def main(path, port, zmqport, dwelltime, verbose):
+    dectris_sim = DectrisSim(
+        path=path, port=port, zmqport=zmqport, dwelltime=dwelltime, verbose=verbose,
+    )
     dectris_sim.start()
     dectris_sim.wait_for_listen()
     # This allows us to handle Ctrl-C, and the main program

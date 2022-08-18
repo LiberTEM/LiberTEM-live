@@ -218,6 +218,35 @@ class DectrisCommHandler(TaskCommHandler):
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
+    '''
+    Acquisition from a DECTRIS detector
+
+    Parameters
+    ----------
+    api_host
+        The hostname or IP address of the DECTRIS DCU for the REST API
+    api_port
+        The port of the REST API
+    data_host
+        The hostname or IP address of the DECTRIS DCU for the zeromq data stream
+    nav_shape
+        The number of scan positions as a 2-tuple :code:`(height, width)`
+    trigger_mode
+        The strings 'exte', 'inte', 'exts', 'ints', as defined in the manual
+    trigger : function
+        See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
+        and :ref:`trigger` for details!
+    frames_per_partition
+        A tunable for configuring the feedback rate - more frames per partition
+        means slower feedback, but less computational overhead. Might need to be tuned
+        to adapt to the dwell time.
+    enable_corrections
+        Automatically correct defect pixels, downloading the pixel mask from the
+        detector configuration.
+    name_pattern
+        If given, file writing is enabled and the name pattern is set to the
+        given string. Please see the DECTRIS documentation for details!
+    '''
     def __init__(
         self,
         api_host: str,

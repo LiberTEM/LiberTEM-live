@@ -19,10 +19,10 @@ Documentation
    :caption: Contents:
 
    usage
+   detectors
+   reference
    changelog
    acknowledgments
-   reference
-
 
 Indices and tables
 ------------------
