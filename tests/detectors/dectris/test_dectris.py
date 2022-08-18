@@ -78,7 +78,7 @@ def skipped_dectris_sim(skipped_dectris_runner):
     return (skipped_dectris_runner.port, skipped_dectris_runner.zmqport)
 
 
-def test_udf_sig(ctx_pipelined):
+def test_udf_sig_mock(ctx_pipelined):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
@@ -102,7 +102,7 @@ def test_udf_sig(ctx_pipelined):
     )
 
 
-def test_udf_nav(ctx_pipelined):
+def test_udf_nav_mock(ctx_pipelined):
     dataset_shape = Shape((128, 512, 512), sig_dims=2)
     data = np.random.randn(*dataset_shape).astype(np.uint8)
     aq = OfflineAcquisition(
@@ -124,6 +124,45 @@ def test_udf_nav(ctx_pipelined):
         res['intensity'].data,
         data.sum(axis=(1, 2)),
     )
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_udf_sig(ctx_pipelined, dectris_sim):
+    api_port, data_port = dectris_sim
+    aq = DectrisAcquisition(
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        trigger_mode='exte',
+    )
+    aq.initialize(ctx_pipelined.executor)
+
+    udf = SumUDF()
+    ctx_pipelined.run_udf(dataset=aq, udf=udf)
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_udf_nav(ctx_pipelined, dectris_sim):
+    api_port, data_port = dectris_sim
+    aq = DectrisAcquisition(
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        trigger_mode='exte',
+    )
+    aq.initialize(ctx_pipelined.executor)
+    udf = SumSigUDF()
+    ctx_pipelined.run_udf(dataset=aq, udf=udf)
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
