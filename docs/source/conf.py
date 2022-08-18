@@ -66,6 +66,7 @@ extensions = [
     'nbsphinx_link',
     'IPython.sphinxext.ipython_console_highlighting',
     'sphinx_issues',
+    'sphinx_rtd_theme',
 ]
 
 bibtex_bibfiles = ['references-libertem_live.bib']
@@ -87,7 +88,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = 'en'
+language = "en"
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -103,7 +104,9 @@ pygments_style = 'sphinx'
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'sphinx_rtd_theme'
+
+html_logo = '_static/logo.png'
 
 html_favicon = '../../corporatedesign/logo/favicon.ico'
 
@@ -112,7 +115,6 @@ html_favicon = '../../corporatedesign/logo/favicon.ico'
 # documentation.
 #
 html_theme_options = {
-    'logo': 'logo.png'
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
@@ -207,7 +209,7 @@ todo_include_todos = True
 
 intersphinx_mapping = {
     'numpy': ('http://docs.scipy.org/doc/numpy/', None),
-    'python': ('https://docs.python.org/3.7', None),
+    'python': ('https://docs.python.org/3.10', None),
     'libertem': ('https://libertem.github.io/LiberTEM/', None),
 }
 
@@ -220,3 +222,19 @@ linkcheck_ignore = [
     # Freezes the link checker for unknown reasons within CI, hard to reproduce
     r'http://quantumdetectors.com/wp-content/uploads/2017/01/1532-Merlin-for-EM-Technical-Datasheet-v2.pdf',  # NOQA:E501
 ]
+
+doctest_global_setup = '''
+import os
+def get_testdata_path():
+    return os.environ.get(
+        'TESTDATA_BASE_PATH',
+        os.path.normpath(
+            os.path.join(os.getcwd(), 'data')
+        )
+    )
+DECTRIS_TESTDATA_PATH = os.path.join(
+    get_testdata_path(),
+    'dectris', 'zmqdump.dat.128x128-id34-exte-bslz4'
+)
+HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
+'''

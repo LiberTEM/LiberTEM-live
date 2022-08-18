@@ -17,6 +17,11 @@ It differs in only a few aspects:
   adapted to acquiring data from a detector instead of reading
   from a file.
 
+We currently support the following detectors:
+
+* :ref:`Merlin Medipix <merlin detector>`, including 2x2 quad configuration
+* :ref:`DECTRIS EIGER2-based detectors <dectris detectors>`, like ARINA or QUADRO
+
 Simulating a detector
 ---------------------
 

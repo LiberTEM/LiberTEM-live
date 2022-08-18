@@ -1,3 +1,3 @@
 from .acquisition import DectrisAcquisition
 
-__all__ = [DectrisAcquisition]
+__all__ = ["DectrisAcquisition"]
