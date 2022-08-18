@@ -204,6 +204,7 @@ stages:
             TOXENV: 'docs-check'
       variables:
         TOXENV: '$(TOXENV)'
+        TESTDATA_BASE_PATH: '/data/'
       steps:
       - task: UsePythonVersion@0
         displayName: 'Use Python 3.9'
