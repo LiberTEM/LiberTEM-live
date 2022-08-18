@@ -15,7 +15,7 @@ including QUADRO and ARINA.
 .. note::
     Python 3.7+ is required to use the DECTRIS-related features of
     LiberTEM-live, and we recommend to use Python 3.10. Currently, Windows and
-    Linux on x86_64 are supported. 
+    Linux on x86_64 are supported.
 
 Installation
 ............
