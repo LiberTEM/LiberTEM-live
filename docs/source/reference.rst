@@ -30,6 +30,13 @@ DECTRIS detectors
     :members:
     :undoc-members:
 
+X-Spectrum detectors
+....................
+
+.. automodule:: libertem_live.detectors.xspectrum
+    :members:
+    :undoc-members:
+
 .. _`memory detector`:
 
 Memory
