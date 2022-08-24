@@ -14,7 +14,7 @@ class LiveContext(LiberTEM_Context):
     '''
     A :class:`LiveContext` behaves like a :class:`~libertem.api.Context` in most
     circumstances. Notable differences are that it currently starts an
-    :class:`~libertem.executor.inline.InlineJobExecutor` instead of a
+    :class:`~libertem.executor.pipelined.PipelinedExecutor` instead of a
     :class:`~libertem.executor.dask.DaskJobExecutor` if no executor is passed in
     the constructor, and that it can prepare and run acquisitions on top of
     loading offline datasets.

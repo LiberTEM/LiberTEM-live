@@ -14,15 +14,19 @@ class RecordUDF(UDF):
 
     filename : str or path-like
         Filename where to save. The file will be overwritten if it exists.
+    _is_master : bool
+        Internal flag, keep at default value.
     '''
     def __init__(self, filename, _is_master=True):
         self._is_master = _is_master
         super().__init__(filename=filename, _is_master=False)
 
     def get_preferred_input_dtype(self):
+        ''
         return self.USE_NATIVE_DTYPE
 
     def preprocess(self):
+        ''
         if self.meta.roi is not None:
             raise RuntimeError('Recording with ROI is not supported.')
         # create the file once in the preprocess method on the master node
@@ -35,9 +39,11 @@ class RecordUDF(UDF):
             )
 
     def get_result_buffers(self):
+        ''
         return {}
 
     def get_task_data(self):
+        ''
         flat_shape = (prod(self.meta.dataset_shape.nav), *self.meta.dataset_shape.sig)
         m = np.lib.format.open_memmap(
                 self.params.filename,
@@ -50,4 +56,5 @@ class RecordUDF(UDF):
         }
 
     def process_tile(self, tile):
+        ''
         self.meta.slice.get(self.task_data.memmap)[:] = tile

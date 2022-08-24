@@ -27,8 +27,9 @@ install them using:
 
     (libertem) $ python -m pip install "libertem-live[dectris]"
 
-Currently, at least LiberTEM 0.10 is required, and using LiberTEM master is
-recommended for improved stability.
+Currently, at least LiberTEM 0.10 is required. Using LiberTEM master is
+recommended until a number of stability fixes for the pipelined executor are
+released in LiberTEM.
 
 Usage example
 .............
@@ -117,7 +118,7 @@ hardware trigger setup that matches the given instrument is required. See the
 MerlinEM User Manual from Quantum Detectors for details!
 
 A simple simulator for testing live acquisition without the actual hardware is
-included in LiberTEM-Live. It replays an MIB dataset and accepts the following
+included in LiberTEM-live. It replays an MIB dataset and accepts the following
 parameters:
 
 .. code-block:: shell

@@ -56,9 +56,11 @@ Detectors
 ---------
 
 * `Quantum Detectors Merlin
-  <https://libertem.github.io/LiberTEM-live/reference.html#quantum-detectors-merlin>`_
+  <https://libertem.github.io/LiberTEM-live/detectors.html#merlin-detector>`_
+* `DECTRIS EIGER2-based
+  <https://libertem.github.io/LiberTEM-live/detectors.html#dectris-detectors>`_
 
-Support for the Gatan K2 IS is currently under development.
+Support for the Gatan K2 IS and X-Spectrum cameras is currently under development.
 
 License
 -------
