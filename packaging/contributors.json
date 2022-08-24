@@ -13,6 +13,36 @@
         "orcid": "0000-0002-2588-7993"
     },
     {
+        "displayname": "Lucas Brauch",
+        "authorname": "Brauch, Lucas",
+        "affiliation": "KIT, Electron Microscopy and Spectroscopy Laboratory",
+        "contribution": "Help with implementing and testing DECTRIS support"
+    },
+    {
+        "displayname": "Matthias Meffert",
+        "authorname": "Meffert, Matthias",
+        "affiliation": "DECTRIS",
+        "contribution": "Help with implementing and testing DECTRIS support"
+    },
+    {
+        "displayname": "Xiaoke Mu",
+        "authorname": "Mu, Xiaoke",
+        "affiliation": "KIT, Electron Microscopy and Spectroscopy Laboratory",
+        "contribution": "Help with implementing and testing DECTRIS support"
+    },
+    {
+        "displayname": "Daniel Stroppa",
+        "authorname": "Stroppa, Daniel",
+        "affiliation": "DECTRIS",
+        "contribution": "Help with implementing and testing DECTRIS support"
+    },
+    {
+        "displayname": "Maximilian Töllner",
+        "authorname": "Töllner, Maximilian",
+        "affiliation": "KIT, Electron Microscopy and Spectroscopy Laboratory",
+        "contribution": "Help with implementing and testing DECTRIS support"
+    },
+    {
         "displayname": "Rafal E. Dunin-Borkowski",
         "authorname": "Dunin-Borkowski, Rafal E.",
         "affiliation": "Jülich Research Centre, Ernst Ruska Centre",
