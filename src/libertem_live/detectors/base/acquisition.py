@@ -2,7 +2,6 @@ from contextlib import contextmanager
 import logging
 
 import numpy as np
-from opentelemetry import trace
 
 from libertem.common import Shape, Slice
 from libertem.common.executor import WorkerContext
