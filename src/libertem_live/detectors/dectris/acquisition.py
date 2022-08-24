@@ -48,7 +48,7 @@ class DetectorConfig(NamedTuple):
 
 
 class RawFrame:
-    def __init__(self, data, encoding, dtype, shape):
+    def __init__(self, data: "libertem_dectris.Frame", encoding, dtype, shape):
         self.data = data
         self.dtype = dtype
         self.shape = shape
@@ -101,17 +101,10 @@ def shape_from_frame(frame):
 def decode(data: "libertem_dectris.Frame", encoding, shape, dtype):
     size = prod(shape) * dtype.itemsize
     if encoding in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
-        import bitshuffle
-        compressed_data = data.get_image_data()
-        decompressed = bitshuffle.decompress_lz4(
-            np.frombuffer(compressed_data[12:], dtype=np.uint8),
-            shape=shape,
-            dtype=dtype,
-            block_size=0
-        )
+        decompressed = np.zeros(shape, dtype=dtype)
+        data.decompress_into(decompressed)
     elif encoding == 'lz4<':
         import lz4.block
-        import bitshuffle
         decompressed = lz4.block.decompress(data.get_image_data(), uncompressed_size=size)
         decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
     elif encoding == '<':
@@ -264,7 +257,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         try:
             import libertem_dectris  # NOQA
             import lz4.block  # NOQA
-            import bitshuffle  # NOQA
         except ImportError:
             if sys.version_info < (3, 7):
                 raise RuntimeError(
