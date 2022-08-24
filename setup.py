@@ -90,7 +90,6 @@ setup(
         'pytango': 'pytango',
         'dectris': [
             "libertem-dectris>=0.2; python_version>='3.7'",
-            "bitshuffle @ git+https://github.com/uellue/bitshuffle.git@nohdf5#egg=bitshuffle",
             "lz4",
         ]
     },
