@@ -8,6 +8,12 @@
         "orcid": "0000-0002-9555-7455"
     },
     {
+        "displayname": "Volker Pilipp",
+        "authorname": "Pilipp, Volker",
+        "affiliation": "DECTRIS Ltd",
+        "contribution": "DEigerClient.py for DECTRIS support"
+    },
+    {
         "displayname": "Dieter Weber",
         "authorname": "Weber, Dieter",
         "affiliation": "Jülich Research Centre, Ernst Ruska Centre",
