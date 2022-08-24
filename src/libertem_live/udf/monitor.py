@@ -14,17 +14,21 @@ class SignalMonitorUDF(UDF):
     '''
 
     def get_preferred_input_dtype(self):
+        ''
         return self.USE_NATIVE_DTYPE
 
     def get_result_buffers(self):
+        ''
         return {
             "intensity": self.buffer(kind='sig', dtype=self.meta.input_dtype)
         }
 
     def process_tile(self, tile):
+        ''
         # Assign the portion from the last frame within the tile
         # to the result buffer
         self.results.intensity[:] = tile[-1]
 
     def merge(self, dest, src):
+        ''
         dest.intensity[:] = src.intensity
