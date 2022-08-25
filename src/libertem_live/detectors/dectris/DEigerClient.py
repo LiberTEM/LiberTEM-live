@@ -4,9 +4,27 @@ class DEigerClient provides an interface to the EIGER API
 
 Author: Volker Pilipp, mod SasG
 Contact: support@dectris.com
-Version: 2.0
-Date: 3/3/2019
-Copyright See General Terms and Conditions (GTC) on http://www.dectris.com
+
+
+Copyright (c) 2022 DECTRIS Ltd.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 """
 
@@ -15,11 +33,11 @@ import os.path
 
 import json
 import re
+import sys
+import socket
 import fnmatch
 import shutil
 
-#import http.client
-#import urllib.request, urllib.error, urllib.parse
 
 """
 Bad but working python3 backwards compability
@@ -34,11 +52,6 @@ try:
 except ImportError:
     import urllib2 as urllibRequest
 
-
-from opentelemetry import trace
-
-
-tracer = trace.get_tracer(__name__)
 
 Version = '1.8.0'
 
@@ -496,69 +509,59 @@ class DEigerClient:
         return None
 
     def _request(self, url, method, mimeType, data = None, fileId = None):
-        with tracer.start_as_current_span('DEigerClient._request') as span:
-            if data is None:
-                body = ''
-            else:
-                body = data
-            headers = {}
-            if method == 'GET':
-                headers['Accept'] = mimeType
-            elif method == 'PUT':
-                headers['Content-type'] = mimeType
-            if not self._user is None:
-                headers["Authorization"] = f"Basic {self._user}"
-            span.add_event('log request')
-            self._log(f'sending request to {url}')
-            numberOfTries = 0
-            response = None
-            while response is None:
-                span.add_event('attempt', {'tries': numberOfTries})
-                try:
-                    span.add_event('connect...')
-                    self._connection.request(method,url, body = data, headers = headers)
-                    span.add_event('connected')
-                    response = self._connection.getresponse()
-                    span.add_event('got response')
-                except Exception as e:
-                    span.add_event('got exception', {'e': str(e)})
-                    numberOfTries += 1
-                    if numberOfTries == 50:
-                        self._log(f"Terminate after {numberOfTries} tries\n")
-                        raise e
-                    self._log("Failed to connect to host. Retrying\n")
-                    span.add_event('reconnect...')
-                    self._connection = httplibClient.HTTPConnection(self._host,self._port, timeout = self._connectionTimeout)
-                    span.add_event('reconnected')
-                    continue
+        if data is None:
+            body = ''
+        else:
+            body = data
+        headers = {}
+        if method == 'GET':
+            headers['Accept'] = mimeType
+        elif method == 'PUT':
+            headers['Content-type'] = mimeType
+        if not self._user is None:
+            headers["Authorization"] = f"Basic {self._user}"
+
+        self._log(f'sending request to {url}')
+        numberOfTries = 0
+        response = None
+        while response is None:
+            try:
+                self._connection.request(method,url, body = data, headers = headers)
+                response = self._connection.getresponse()
+            except Exception as e:
+                numberOfTries += 1
+                if numberOfTries == 50:
+                    self._log(f"Terminate after {numberOfTries} tries\n")
+                    raise e
+                self._log("Failed to connect to host. Retrying\n")
+                self._connection = httplibClient.HTTPConnection(self._host,self._port, timeout = self._connectionTimeout)
+                continue
 
 
-            status = response.status
-            reason = response.reason
-            span.add_event('read response...')
-            if fileId is None:
-                data = response.read()
-            else:
-                bufferSize = 8*1024
-                while True:
-                    data = response.read(bufferSize)
-                    if len(data) > 0:
-                        fileId.write(data)
-                    else:
-                        break
-            span.add_event('response read')
-            mimeType = response.getheader('content-type','text/plain')
-            self._log('Return status: ', status, reason)
-            if not response.status in range(200,300):
-                raise RuntimeError((reason,data))
-            span.add_event('return decoded response')
-            if 'json' in mimeType:
-                if self._serializer is None:
-                    return json.loads(data)
+        status = response.status
+        reason = response.reason
+        if fileId is None:
+            data = response.read()
+        else:
+            bufferSize = 8*1024
+            while True:
+                data = response.read(bufferSize)
+                if len(data) > 0:
+                    fileId.write(data)
                 else:
-                    return self._serializer.loads(data)
+                    break
+
+        mimeType = response.getheader('content-type','text/plain')
+        self._log('Return status: ', status, reason)
+        if not response.status in range(200,300):
+            raise RuntimeError((reason,data))
+        if 'json' in mimeType:
+            if self._serializer is None:
+                return json.loads(data)
             else:
-                return data
+                return self._serializer.loads(data)
+        else:
+            return data
 
     def _prepareData(self,data, dataType):
         if data is None:
