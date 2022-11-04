@@ -1,6 +1,20 @@
 Supported Detectors
 ===================
 
+.. _`xspectrum detectors`:
+
+X-Spectrum detectors
+....................
+
+The :class:`~libertem_live.detectors.xspectrum.XSpectrumAcquisition` offers
+experimental support for all X-Spectrum cameras that can be controlled with
+their :code:`pyxsp` API.
+
+.. note::
+   This feature is work in progress. Only basic features are curently implemented.
+   That includes setups with a single detector and a single receiver per detector
+   returning a single frame per :code:`receiver.get_frame()` call.
+
 .. _`dectris detectors`:
 
 DECTRIS EIGER2-based

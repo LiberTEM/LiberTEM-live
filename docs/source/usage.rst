@@ -49,7 +49,9 @@ Start a :code:`LiveContext`
 A :class:`~libertem_live.api.LiveContext` requires using a compatible executor
 since task scheduling has to be coordinated with the incoming detector data. It
 starts a suitable executor by default when it is instantiated, currently the
-:class:`~libertem.executor.pipelined.PipelinedExecutor`.
+:class:`~libertem.executor.pipelined.PipelinedExecutor`. The
+:class:`~libertem.executor.inline.InlineJobExecutor` is suitable for testing and
+debugging.
 
 .. testcode::
 
