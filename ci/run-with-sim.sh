@@ -11,11 +11,11 @@ MERLIN_SIM_PID=$!
 DECTRIS_SIM_PID=$!
 
 cleanup() {
-    kill "$MERLIN_SIM_PID"
-    kill "$DECTRIS_SIM_PID"
+    kill "$MERLIN_SIM_PID" || true
+    kill "$DECTRIS_SIM_PID" || true
     sleep 5
-    kill -9 "$MERLIN_SIM_PID"
-    kill -9 "$DECTRIS_SIM_PID"
+    kill -9 "$MERLIN_SIM_PID" || true
+    kill -9 "$DECTRIS_SIM_PID" || true
 }
 
 trap cleanup EXIT
