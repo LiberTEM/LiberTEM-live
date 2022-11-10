@@ -186,7 +186,7 @@ def test_sum(ctx_pipelined, dectris_sim):
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-@pytest.mark.timeout(120)  # May lock up because of executor bug
+@pytest.mark.timeout(120)  # May lock up because of an executor bug
 def test_frame_skip(skipped_dectris_sim, dectris_sim):
     # Only newer 0.10.0 because of a bug in the PipelinedExecutor
     _version_bits = libertem.__version__.split('.')
