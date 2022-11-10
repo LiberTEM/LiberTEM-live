@@ -1,6 +1,7 @@
 import sys
 import time
 import threading
+import signal
 import multiprocessing
 from multiprocessing.synchronize import Event as EventClass
 import json
@@ -699,6 +700,12 @@ def main(path, port, zmqport, dwelltime, verbose):
         path=path, port=port, zmqport=zmqport, dwelltime=dwelltime, verbose=verbose,
     )
     dectris_sim.start()
+
+    def handler_term(signum, frame):
+        dectris_sim.stop()
+
+    signal.signal(signal.SIGTERM, handler_term)
+
     dectris_sim.wait_for_listen()
     # This allows us to handle Ctrl-C, and the main program
     # stops in a timely fashion when continuous scanning stops.
