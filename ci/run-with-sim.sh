@@ -2,6 +2,8 @@
 # run both nbval and libertem-live-mib-sim
 # assumes default ports are usable (i.e. isolated environment)
 
+set -eu
+
 .tox/notebooks/bin/libertem-live-mib-sim --host 127.0.0.1 "$TESTDATA_BASE_PATH/20200518 165148/default.hdr" --cached=MEMFD --wait-trigger&
 MERLIN_SIM_PID=$!
 
@@ -11,6 +13,9 @@ DECTRIS_SIM_PID=$!
 cleanup() {
     kill "$MERLIN_SIM_PID"
     kill "$DECTRIS_SIM_PID"
+    sleep 5
+    kill -9 "$MERLIN_SIM_PID"
+    kill -9 "$DECTRIS_SIM_PID"
 }
 
 trap cleanup EXIT
