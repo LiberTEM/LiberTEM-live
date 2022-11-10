@@ -76,7 +76,9 @@ class LiveContext(LiberTEM_Context):
             from libertem_live.detectors.memory import MemoryAcquisition
             cls = MemoryAcquisition
         else:
-            raise ValueError(f"Unknown detector type '{detector_type}', supported is 'merlin'")
+            raise ValueError(
+                f"Unknown detector type '{detector_type}', supported is 'merlin' or 'dectris'"
+            )
         return cls(*args, trigger=trigger, **kwargs).initialize(self.executor)
 
     def _run_sync(self, dataset, udf, iterate=False, *args, **kwargs):
