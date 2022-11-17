@@ -2,6 +2,7 @@ import os
 import sys
 from typing import NamedTuple, Tuple
 import numpy as np
+import sparse
 
 from libertem.udf.sumsigudf import SumSigUDF
 from libertem.udf.sum import SumUDF
@@ -11,6 +12,7 @@ import pytest
 from libertem_live.api import LiveContext
 from libertem_live.detectors.dectris.acquisition import DectrisAcquisition
 from libertem_live.detectors.dectris.mock import OfflineAcquisition
+from libertem.io.corrections import CorrectionSet
 import libertem
 
 from utils import get_testdata_path, run_camera_sim
@@ -142,8 +144,19 @@ def test_udf_sig(ctx_pipelined, dectris_sim):
     )
     aq.initialize(ctx_pipelined.executor)
 
+    bad_y = (168, 291, 326, 301, 343, 292,   0,   0,   0,   0,   0, 511)
+    bad_x = (496, 458, 250, 162, 426, 458, 393, 396, 413, 414, 342, 491)
+
+    corr = CorrectionSet(
+        excluded_pixels=sparse.COO(
+            coords=(bad_y, bad_x),
+            data=1,
+            shape=aq.shape.sig
+        )
+    )
+
     udf = SumUDF()
-    ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    ctx_pipelined.run_udf(dataset=aq, udf=udf, corrections=corr)
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")

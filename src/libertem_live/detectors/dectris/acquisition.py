@@ -397,7 +397,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return 12*np.prod(self.meta.shape.sig)*8
 
     def get_base_shape(self, roi):
-        return (1, 1, self.meta.shape.sig[-1])
+        return (1, *self.meta.shape.sig)
 
     @property
     def acquisition_state(self):
