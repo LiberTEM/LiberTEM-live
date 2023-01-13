@@ -259,16 +259,11 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             import libertem_dectris  # NOQA
             import lz4.block  # NOQA
         except ImportError:
-            if sys.version_info < (3, 7):
-                raise RuntimeError(
-                    "DectrisAcquisition needs at least Python 3.7"
-                )
-            else:
-                raise RuntimeError(
-                    "DectrisAcquisition has additional dependencies; "
-                    "please run `pip install libertem-live[dectris]` "
-                    "to install them."
-                )
+            raise RuntimeError(
+                "DectrisAcquisition has additional dependencies; "
+                "please run `pip install libertem-live[dectris]` "
+                "to install them."
+            )
         self._api_host = api_host
         self._api_port = api_port
         self._data_host = data_host
