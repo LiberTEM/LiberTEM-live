@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import logging
-from typing import Callable, Generator, Iterator, Tuple, Optional, TYPE_CHECKING
+from typing import Callable, Generator, Iterator, Tuple, Optional
 import warnings
 import numpy as np
 from libertem.common.math import prod
@@ -11,15 +11,12 @@ from libertem.common.executor import (
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
-from libertem.common.udf import UDFProtocol
+from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from .data import MerlinRawFrames, MerlinRawSocket, validate_get_sig_shape
 
 from opentelemetry import trace
-
-if TYPE_CHECKING:
-    from sparseconverter import ArrayBackend
 
 
 tracer = trace.get_tracer(__name__)
@@ -58,7 +55,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         port: int = 6342,
         drain: bool = True,
         frames_per_partition: int = 256,
-        pool_size: int = None,
+        pool_size: Optional[int] = None,
         timeout: float = 5,
     ):
         # This will also call the DataSet constructor, additional arguments
@@ -303,7 +300,7 @@ class MerlinLivePartition(Partition):
 
     def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None,
             array_backend: Optional["ArrayBackend"] = None):
-        assert array_backend in (None, UDFProtocol.BACKEND_NUMPY, UDFProtocol.BACKEND_CUDA)
+        assert array_backend in (None, NUMPY, CUDA)
         # assert len(tiling_scheme) == 1
         tiling_scheme = tiling_scheme.adjust_for_partition(self)
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)

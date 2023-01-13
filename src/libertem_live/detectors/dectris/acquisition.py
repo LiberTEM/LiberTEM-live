@@ -17,13 +17,12 @@ from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
-from libertem.common.udf import UDFProtocol
+from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 
 if typing.TYPE_CHECKING:
     import libertem_dectris
-    from sparseconverter import ArrayBackend
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
@@ -462,7 +461,7 @@ class DectrisLivePartition(Partition):
 
     def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None,
             array_backend: Optional["ArrayBackend"] = None):
-        assert array_backend in (None, UDFProtocol.BACKEND_NUMPY, UDFProtocol.BACKEND_CUDA)
+        assert array_backend in (None, NUMPY, CUDA)
         assert len(tiling_scheme) == 1
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
