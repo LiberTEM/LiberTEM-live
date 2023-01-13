@@ -1,5 +1,4 @@
 from contextlib import contextmanager
-import sys
 import base64
 import logging
 import time
