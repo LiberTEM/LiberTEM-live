@@ -17,11 +17,13 @@ from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
+from libertem.common.udf import UDFProtocol
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 
 if typing.TYPE_CHECKING:
     import libertem_dectris
+    from sparseconverter import ArrayBackend
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
@@ -458,7 +460,9 @@ class DectrisLivePartition(Partition):
             return
         self._corrections.apply(tile_data, tile_slice)
 
-    def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None):
+    def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None,
+            array_backend: Optional["ArrayBackend"] = None):
+        assert array_backend in (None, UDFProtocol.BACKEND_NUMPY, UDFProtocol.BACKEND_CUDA)
         assert len(tiling_scheme) == 1
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
@@ -511,8 +515,12 @@ class DectrisLivePartition(Partition):
                 buf_idx = 0
         logger.debug("LivePartition.get_tiles: end of method")
 
-    def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None):
-        yield from self._get_tiles_fullframe(tiling_scheme, dest_dtype, roi)
+    def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None,
+            array_backend: Optional["ArrayBackend"] = None):
+        yield from self._get_tiles_fullframe(
+            tiling_scheme, dest_dtype, roi,
+            array_backend=array_backend
+        )
 
     def __repr__(self):
         return f"<DectrisLivePartition {self._start_idx}:{self._end_idx}>"
