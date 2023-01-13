@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import logging
-from typing import Callable, Generator, Iterator, Tuple
+from typing import Callable, Generator, Iterator, Tuple, Optional, TYPE_CHECKING
 import warnings
 import numpy as np
 from libertem.common.math import prod
@@ -11,10 +11,16 @@ from libertem.common.executor import (
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
+from libertem.common.udf import UDFProtocol
+
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from .data import MerlinRawFrames, MerlinRawSocket, validate_get_sig_shape
 
 from opentelemetry import trace
+
+if TYPE_CHECKING:
+    from sparseconverter import ArrayBackend
+
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
@@ -295,7 +301,9 @@ class MerlinLivePartition(Partition):
     def set_worker_context(self, worker_context: WorkerContext):
         self._worker_context = worker_context
 
-    def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None):
+    def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None,
+            array_backend: Optional["ArrayBackend"] = None):
+        assert array_backend in (None, UDFProtocol.BACKEND_NUMPY, UDFProtocol.BACKEND_CUDA)
         # assert len(tiling_scheme) == 1
         tiling_scheme = tiling_scheme.adjust_for_partition(self)
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
@@ -347,8 +355,11 @@ class MerlinLivePartition(Partition):
                 scheme_idx=0,
             )
 
-    def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None):
-        yield from self._get_tiles_fullframe(tiling_scheme, dest_dtype, roi)
+    def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None,
+            array_backend: Optional["ArrayBackend"] = None):
+        yield from self._get_tiles_fullframe(
+            tiling_scheme, dest_dtype, roi, array_backend=array_backend
+        )
 
     def __repr__(self):
         return f"<MerlinLivePartition {self._start_idx}:{self._end_idx}>"
