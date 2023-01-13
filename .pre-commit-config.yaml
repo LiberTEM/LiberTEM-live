@@ -22,7 +22,7 @@ repos:
   rev: v3.3.1
   hooks:
     - id: pyupgrade
-      args: ["--py36-plus"]
+      args: ["--py37-plus"]
 - repo: https://github.com/miki725/pre-commit-twine-check
   rev: '0.1'
   hooks:
