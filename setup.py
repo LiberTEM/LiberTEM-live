@@ -84,6 +84,7 @@ setup(
         "tqdm",
         "numba",
         "opentelemetry-api",
+        "sparseconverter",
     ],
     extras_require={
         'pymemfd': 'pymemfd',
