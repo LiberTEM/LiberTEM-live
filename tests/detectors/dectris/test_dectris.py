@@ -135,7 +135,7 @@ def test_udf_sig(ctx_pipelined, dectris_sim):
     aq = DectrisAcquisition(
         nav_shape=(128, 128),
         trigger=lambda x: None,
-        frames_per_partition=32,
+        frames_per_partition=512,
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -166,7 +166,7 @@ def test_udf_nav(ctx_pipelined, dectris_sim):
     aq = DectrisAcquisition(
         nav_shape=(128, 128),
         trigger=lambda x: None,
-        frames_per_partition=32,
+        frames_per_partition=512,
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -176,6 +176,29 @@ def test_udf_nav(ctx_pipelined, dectris_sim):
     aq.initialize(ctx_pipelined.executor)
     udf = SumSigUDF()
     ctx_pipelined.run_udf(dataset=aq, udf=udf)
+
+
+# TODO: pytest.mark.slow? this test is mostly useful for debugging
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_udf_nav_inline(ltl_ctx, dectris_sim):
+    api_port, data_port = dectris_sim
+    from libertem.common.tracing import maybe_setup_tracing
+    maybe_setup_tracing("test_udf_nav_inline")
+
+    aq = DectrisAcquisition(
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        trigger_mode='exte',
+    )
+    aq.initialize(ltl_ctx.executor)
+    udf = SumSigUDF()
+    ltl_ctx.run_udf(dataset=aq, udf=udf)
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
