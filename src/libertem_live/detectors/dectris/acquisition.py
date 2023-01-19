@@ -157,12 +157,12 @@ def get_frames(request_queue):
 class DectrisCommHandler(TaskCommHandler):
     def __init__(self, params: AcquisitionParams, uri: str):
         import libertem_dectris
-        # FIXME: hmm - `frame_stack_size` should match tiling depth
+        # FIXME: hmm - `frame_stack_size` should approx. match tiling depth
         self.chunk_iterator = libertem_dectris.FrameChunkedIterator(
             uri=uri,
             frame_stack_size=12,  # FIXME: determine based on FPS?
             num_slots=2000,
-            bytes_per_frame=512*512,
+            bytes_per_frame=int(134*512/4),  # FIXME: can vary depending on detector settings
             huge=True,
         )
         self._uri = uri
@@ -192,7 +192,7 @@ class DectrisCommHandler(TaskCommHandler):
                 "libertem.partition.start_idx": start_idx,
                 "libertem.partition.end_idx": end_idx,
             })
-            chunk_size = 64
+            chunk_size = 128
             current_idx = start_idx
             while current_idx < end_idx:
                 current_chunk_size = min(chunk_size, end_idx - current_idx)
@@ -482,14 +482,20 @@ class DectrisLivePartition(Partition):
             return
         self._corrections.apply(tile_data, tile_slice)
 
-    def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None,
-            array_backend: Optional["ArrayBackend"] = None):
+    def _get_tiles_fullframe(
+        self,
+        tiling_scheme: TilingScheme,
+        dest_dtype="float32",
+        roi=None,
+        array_backend: Optional["ArrayBackend"] = None
+    ):
         assert array_backend in (None, NUMPY, CUDA)
-        assert len(tiling_scheme) == 1
+        assert len(tiling_scheme) == 1, "only supports full frames tiling scheme for now"
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
         depth = tiling_scheme.depth
-        buf = np.zeros((depth,) + tiling_scheme[0].shape, dtype=dest_dtype)
+        # over-allocate buffer by a bit so we can handle larger incoming raw tiles
+        buf = np.zeros((2 * depth,) + tiling_scheme[0].shape, dtype=dest_dtype)
         tile_start = self._start_idx
         frames = get_frames(self._worker_context.get_worker_queue())
         while to_read > 0:
@@ -497,6 +503,8 @@ class DectrisLivePartition(Partition):
             try:
                 raw_tile = next(frames)
                 frames_in_tile = raw_tile.shape[0]
+                if frames_in_tile > buf.shape[0]:
+                    buf = np.zeros((frames_in_tile,) + tiling_scheme[0].shape, dtype=dest_dtype)
                 # FIXME: make copy optional if dtype already matches
                 buf[:frames_in_tile] = raw_tile
                 to_read -= frames_in_tile
