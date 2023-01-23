@@ -201,7 +201,8 @@ class DectrisCommHandler(TaskCommHandler):
                 frame_stack = self.chunk_iterator.get_next_stack(
                     max_size=current_chunk_size
                 )
-                assert len(frame_stack) <= current_chunk_size
+                assert len(frame_stack) <= current_chunk_size,\
+                    f"{len(frame_stack)} <= {current_chunk_size}"
                 t1 = time.perf_counter()
                 recv_time += t1 - t0
                 if len(frame_stack) == 0:
@@ -373,9 +374,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 ec.setDetectorConfig('ntrigger', 1)
                 ec.setDetectorConfig('nimages', 1)
                 ec.setDetectorConfig('trigger_mode', self._trigger_mode)
-                if self._trigger_mode in ('exte', 'inte'):
+                if self._trigger_mode in ('exte', 'exts'):
                     ec.setDetectorConfig('ntrigger', nimages)
-                elif self._trigger_mode in ('exts', 'ints'):
+                elif self._trigger_mode in ('ints',):
                     ec.setDetectorConfig('nimages', nimages)
 
                 if self._name_pattern is not None:
