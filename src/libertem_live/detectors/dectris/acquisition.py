@@ -157,19 +157,9 @@ def get_frames(request_queue):
 
 
 class DectrisCommHandler(TaskCommHandler):
-    def __init__(self, params: AcquisitionParams, uri: str):
-        import libertem_dectris
-        # FIXME: hmm - `frame_stack_size` should approx. match tiling depth
-        self.chunk_iterator = libertem_dectris.FrameChunkedIterator(
-            uri=uri,
-            frame_stack_size=12,  # FIXME: determine based on FPS?
-            num_slots=2000,
-            bytes_per_frame=int(134*512/4),  # FIXME: can vary depending on detector settings
-            huge=True,
-        )
-        self._uri = uri
+    def __init__(self, params: AcquisitionParams, conn: "libertem_dectris.DectrisConnection"):
         self.params = params
-        self.shm_socket_path = self._make_socket_path()
+        self.conn = conn
 
     @classmethod
     def _make_socket_path(cls):
@@ -178,10 +168,10 @@ class DectrisCommHandler(TaskCommHandler):
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
         with tracer.start_as_current_span("DectrisCommHandler.handle_task") as span:
-            span.set_attribute("libertem_live.detectors.dectris:socket", self.shm_socket_path)
+            span.set_attribute("libertem_live.detectors.dectris:socket", self.conn.get_socket_path())
             queue.put({
                 "type": "BEGIN_TASK",
-                "socket": self.shm_socket_path,
+                "socket": self.conn.get_socket_path(),
             })
             put_time = 0.0
             recv_time = 0.0
@@ -200,7 +190,7 @@ class DectrisCommHandler(TaskCommHandler):
                 current_chunk_size = min(chunk_size, end_idx - current_idx)
 
                 t0 = time.perf_counter()
-                frame_stack = self.chunk_iterator.get_next_stack(
+                frame_stack = self.conn.get_next_stack(
                     max_size=current_chunk_size
                 )
                 assert len(frame_stack) <= current_chunk_size,\
@@ -233,13 +223,13 @@ class DectrisCommHandler(TaskCommHandler):
 
     def start(self):
         print(f"arming for acquisition with id={self.params.sequence_id}")
-        self.chunk_iterator.start(self.params.sequence_id)
-        self.chunk_iterator.serve_shm(self.shm_socket_path)
+        pass  # FIXME: what do we need to do in active vs. passive mode here?
+        # self.chunk_iterator.start(self.params.sequence_id)
+        # self.chunk_iterator.serve_shm(self.shm_socket_path)
 
     def done(self):
-        # background thread needs to be kept alive until this explicit close? isn't it already?
-        print("closing chunked iterator")
-        self.chunk_iterator.close()
+        # self.chunk_iterator.close()
+        pass  # FIXME: what do we need to do in active vs. passive mode here?
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -274,10 +264,19 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     '''
     def __init__(
         self,
+
+        # in passive mode, we get these:
+        conn: "libertem_dectris.DectrisConnection",
+        detector_config: "libertem_dectris.DetectorConfig",
+        series: int,
+
         api_host: str,
         api_port: int,
+
+        # FIXME: get rid of these? 
         data_host: str,
         data_port: int,
+
         nav_shape: Tuple[int, ...],
         trigger_mode: TriggerMode,
         trigger=lambda aq: None,
@@ -306,6 +305,11 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._trigger_mode = trigger_mode
         self._enable_corrections = enable_corrections
         self._name_pattern = name_pattern
+
+        # XXX these were added for "passive mode" - maybe consolidate somehow?
+        self._conn = conn
+        self._detector_config = detector_config
+        self._series = series
 
     def get_api_client(self):
         from .DEigerClient import DEigerClient
@@ -367,12 +371,11 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return CorrectionSet(excluded_pixels=excluded_pixels)
 
     @contextmanager
-    def acquire(self):
-        with tracer.start_as_current_span('acquire') as span:
+    def _acquire_active(self):
+        with tracer.start_as_current_span('_acquire_active') as span:
             ec = self.get_api_client()
             try:
                 nimages = prod(self.shape.nav)
-
                 ec.setDetectorConfig('ntrigger', 1)
                 ec.setDetectorConfig('nimages', 1)
                 ec.setDetectorConfig('trigger_mode', self._trigger_mode)
@@ -406,6 +409,33 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                     self._acq_state = None
             finally:
                 pass
+
+    @contextmanager
+    def _acquire_passive(self):
+        with tracer.start_as_current_span('_acquire_passive') as span:
+            ec = self.get_api_client()
+            try:
+                # the only detector configuration we perform in passive mode:
+                # make sure streaming is enabled
+                ec.setStreamConfig('mode', 'enabled')
+
+                self._acq_state = AcquisitionParams(
+                    sequence_id=self._series,
+                    nimages=self._detector_config.get_num_frames(),
+                    trigger_mode=self._trigger_mode,
+                )
+                # this triggers, either via API or via HW trigger (in which case we
+                # don't need to do anything in the trigger function):
+                with tracer.start_as_current_span("DectrisAcquisition.trigger"):
+                    self.trigger()
+                yield
+            finally:
+                self._acq_state = None
+
+    @contextmanager
+    def acquire(self):
+        with tracer.start_as_current_span('acquire') as span, self._acquire_passive():
+            yield
 
     def check_valid(self):
         pass
@@ -450,7 +480,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         assert self._acq_state is not None
         return DectrisCommHandler(
             params=self._acq_state,
-            uri=f"tcp://{self._data_host}:{self._data_port}"
+            conn=self._conn,
         )
 
 
