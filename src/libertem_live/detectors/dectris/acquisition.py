@@ -141,8 +141,10 @@ def get_frames(request_queue):
                         buf = np.zeros((depth,) + header['shape'], header['dtype'])
                     cam_client.decompress_frame_stack(frame_stack, out=buf)
                     buf_reshaped = buf.reshape((depth,) + tuple(header['shape']))
-                    yield buf_reshaped[:len(frame_stack)]
-                    cam_client.done(frame_stack)
+                    try:
+                        yield buf_reshaped[:len(frame_stack)]
+                    finally:
+                        cam_client.done(frame_stack)
                 elif header_type == "END_PARTITION":
                     # print(f"partition {partition} done")
                     return
