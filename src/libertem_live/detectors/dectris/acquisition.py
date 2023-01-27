@@ -4,7 +4,6 @@ import base64
 import logging
 import time
 from typing import NamedTuple, Optional, Tuple, Union
-import typing
 import tempfile
 
 from typing_extensions import Literal
@@ -21,9 +20,12 @@ from libertem.corrections.corrset import CorrectionSet
 from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.detectors.base.connection import (
+    PendingAcquisition, DetectorConnection,
+)
+from .DEigerClient import DEigerClient
 
-if typing.TYPE_CHECKING:
-    import libertem_dectris
+import libertem_dectris
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
@@ -40,40 +42,12 @@ TriggerMode = Union[
 class AcquisitionParams(NamedTuple):
     sequence_id: int
     nimages: int
-    trigger_mode: TriggerMode
 
 
 class DetectorConfig(NamedTuple):
     x_pixels_in_detector: int
     y_pixels_in_detector: int
     bit_depth: int
-
-
-class RawFrame:
-    def __init__(self, data: "libertem_dectris.Frame", encoding, dtype, shape):
-        self.data = data
-        self.dtype = dtype
-        self.shape = shape
-        self.encoding = encoding
-
-    def decode(self):
-        return decode(
-            data=self.data,
-            encoding=self.encoding,
-            shape=self.shape,
-            dtype=self.dtype
-        )
-
-
-class Receiver:
-    def __iter__(self):
-        return self
-
-    def start(self):
-        pass
-
-    def __next__(self) -> RawFrame:
-        raise NotImplementedError(f"{self.__class__.__name__}.__next__ is not implemented")
 
 
 def get_darray(darray) -> np.ndarray:
@@ -100,28 +74,11 @@ def shape_from_frame(frame):
     return tuple(reversed(frame.get_shape()))
 
 
-def decode(data: "libertem_dectris.Frame", encoding, shape, dtype):
-    size = prod(shape) * dtype.itemsize
-    if encoding in ('bs32-lz4<', 'bs16-lz4<', 'bs8-lz4<'):
-        decompressed = np.zeros(shape, dtype=dtype)
-        data.decompress_into(decompressed)
-    elif encoding == 'lz4<':
-        import lz4.block
-        decompressed = lz4.block.decompress(data.get_image_data(), uncompressed_size=size)
-        decompressed = np.frombuffer(decompressed, dtype=dtype).reshape(shape)
-    elif encoding == '<':
-        decompressed = np.frombuffer(data.get_image_data(), dtype=dtype).reshape(shape)
-    else:
-        raise RuntimeError(f'Unsupported encoding {encoding}')
-    return decompressed
-
-
 def get_frames(request_queue):
     """
     Consume all FRAMES messages from the request queue until we get an
     END_PARTITION message (which we also consume)
     """
-    import libertem_dectris
     buf = None
     with request_queue.get() as msg:
         header, _ = msg
@@ -157,9 +114,15 @@ def get_frames(request_queue):
 
 
 class DectrisCommHandler(TaskCommHandler):
-    def __init__(self, params: AcquisitionParams, conn: "libertem_dectris.DectrisConnection"):
+    def __init__(
+        self,
+        params: AcquisitionParams,
+        conn: "DectrisDetectorConnection",
+        controller: "Optional[DectrisActiveController]",
+    ):
         self.params = params
-        self.conn = conn
+        self.conn = conn.get_conn_impl()
+        self.controller = controller
 
     @classmethod
     def _make_socket_path(cls):
@@ -168,7 +131,10 @@ class DectrisCommHandler(TaskCommHandler):
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
         with tracer.start_as_current_span("DectrisCommHandler.handle_task") as span:
-            span.set_attribute("libertem_live.detectors.dectris:socket", self.conn.get_socket_path())
+            span.set_attribute(
+                "libertem_live.detectors.dectris:socket",
+                self.conn.get_socket_path(),
+            )
             queue.put({
                 "type": "BEGIN_TASK",
                 "socket": self.conn.get_socket_path(),
@@ -222,14 +188,219 @@ class DectrisCommHandler(TaskCommHandler):
             })
 
     def start(self):
-        print(f"arming for acquisition with id={self.params.sequence_id}")
-        pass  # FIXME: what do we need to do in active vs. passive mode here?
-        # self.chunk_iterator.start(self.params.sequence_id)
-        # self.chunk_iterator.serve_shm(self.shm_socket_path)
+        if self.controller is not None:
+            print(f"arming for acquisition with id={self.params.sequence_id}")
+            self.controller.handle_start(self.conn, self.params.sequence_id)
 
     def done(self):
-        # self.chunk_iterator.close()
-        pass  # FIXME: what do we need to do in active vs. passive mode here?
+        if self.controller is not None:
+            self.controller.handle_stop(self.conn)
+
+
+class DectrisPendingAcquisition(PendingAcquisition):
+    def __init__(self, detector_config, series):
+        self._detector_config = detector_config
+        self._series = series
+
+    @property
+    def detector_config(self):
+        return self._detector_config
+
+    @property
+    def series(self):
+        return self._series
+
+    def create_acquisition(self, *args, **kwargs):
+        aq = DectrisAcquisition(*args, **kwargs)
+        return aq
+
+    def __repr__(self):
+        return f"<DectrisPendingAcquisition series={self.series} config={self.detector_config}>"
+
+
+class DectrisActiveController:
+    """
+    Detector settings. If you leave them out of set them to None, they
+    will not be set.
+
+    Parameters
+    ----------
+    """
+    def __init__(
+        self,
+        api_host: str,
+        api_port: int,
+        trigger_mode: Optional[TriggerMode] = None,
+        count_time: Optional[float] = None,
+        frame_time: Optional[float] = None,
+        roi_mode: Optional[str] = None,  # disabled, merge2x2 etc.
+        enable_file_writing: Optional[bool] = None,
+        compression: Optional[str] = None,  # bslz4, lz4
+        name_pattern: Optional[str] = None,
+        nimages_per_file: Optional[int] = 0,
+    ):
+        self._api_host = api_host
+        self._api_port = api_port
+        self._trigger_mode = trigger_mode
+        self._enable_file_writing = enable_file_writing
+        self._name_pattern = name_pattern
+        self._nimages_per_file = nimages_per_file
+        self._count_time = count_time
+        self._frame_time = frame_time
+        self._compression = compression
+        self._roi_mode = roi_mode
+
+    def get_api_client(self) -> DEigerClient:
+        ec = DEigerClient(self._api_host, port=self._api_port)
+        return ec
+
+    def ensure_streaming_enabled(self):
+        ec = self.get_api_client()
+        ec.setStreamConfig('mode', 'enabled')
+
+    def apply_scan_settings(self, nav_shape: Tuple[int, ...]):
+        ec = self.get_api_client()
+        nimages = prod(nav_shape)
+        if self._trigger_mode is not None:
+            ec.setDetectorConfig('ntrigger', 1)
+            ec.setDetectorConfig('nimages', 1)
+            ec.setDetectorConfig('trigger_mode', self._trigger_mode)
+        if self._trigger_mode in ('exte', 'exts'):
+            ec.setDetectorConfig('ntrigger', nimages)
+        elif self._trigger_mode in ('ints',):
+            ec.setDetectorConfig('nimages', nimages)
+
+    def apply_misc_settings(self):
+        ec = self.get_api_client()
+        if self._count_time is not None:
+            ec.setDetectorConfig('count_time', self._count_time)
+        if self._frame_time is not None:
+            ec.setDetectorConfig('frame_time', self._frame_time)
+        if self._compression is not None:
+            ec.setDetectorConfig('compression', self._compression)
+        if self._roi_mode is not None:
+            ec.setDetectorConfig('roi_mode', self._roi_mode)
+
+    def apply_file_writing(self):
+        """
+        Enable/disable file writing etc.
+        """
+        ec = self.get_api_client()
+        if self._enable_file_writing:
+            ec.setFileWriterConfig("mode", "enabled")
+            if self._name_pattern is not None:
+                ec.setFileWriterConfig("name_pattern", self._name_pattern)
+            ec.setFileWriterConfig("nimages_per_file", self._nimages_per_file)
+        elif self._enable_file_writing is False:
+            ec.setFileWriterConfig("mode", "disabled")
+
+    def arm(self) -> int:
+        ec = self.get_api_client()
+        result = ec.sendDetectorCommand('arm')
+        return result['sequence id']
+
+    def handle_start(self, conn: "DectrisDetectorConnection", series: int):
+        """
+        This is called from the `TaskCommHandler` before the first task
+        """
+        conn.start(series)
+
+    def handle_stop(self, conn: "DectrisDetectorConnection"):
+        """
+        This is called from the `TaskCommHandler` after the last task result has
+        arrived, or an error has occured.
+        """
+        # conn.stop_series()
+        pass  # FIXME: do we have to do anything here?
+
+
+# FIXME: naming: native `DetectorConnection` vs this is confusing?
+class DectrisDetectorConnection(DetectorConnection):
+    def __init__(
+        self,
+        api_host: str,
+        api_port: int,
+        data_host: str,
+        data_port: int,
+        num_slots: int,
+        bytes_per_frame: int,
+        frame_stack_size: int = 24,
+        huge_pages: bool = False,
+    ):
+        import libertem_dectris
+        self._conn = libertem_dectris.DectrisConnection(
+            uri=f"tcp://{data_host}:{data_port}",
+            frame_stack_size=frame_stack_size,
+            num_slots=num_slots,
+            bytes_per_frame=bytes_per_frame,
+            huge=huge_pages,
+        )
+        self._passive_started = False
+        self._conn.serve_shm(self._make_socket_path())
+
+        self._api_host = api_host
+        self._api_port = api_port
+
+    def wait_for_acquisition(
+        self, timeout: Optional[float] = None
+    ) -> Optional[DectrisPendingAcquisition]:
+        if not self._passive_started:
+            self._conn.start_passive()
+            self._passive_started = True
+        self._ensure_streaming_enabled()
+        config_series = self._conn.wait_for_arm(timeout)
+        if config_series is None:
+            return None
+        config, series = config_series
+        return DectrisPendingAcquisition(
+            detector_config=config,
+            series=series,
+        )
+
+    def get_active_controller(self, *args, **kwargs):
+        return DectrisActiveController(
+            api_host=self._api_host,
+            api_port=self._api_port,
+            *args,
+            **kwargs,
+        )
+
+    def get_api_client(self):
+        ec = DEigerClient(self._api_host, port=self._api_port)
+        return ec
+
+    def _ensure_streaming_enabled(self):
+        ec = self.get_api_client()
+        ec.setStreamConfig('mode', 'enabled')
+
+    def start_series(self, series: int):
+        if self._passive_started:
+            raise RuntimeError(
+                f"Cannot start acquisition for series {series}, "
+                "already in passive mode"
+            )
+        self._ensure_streaming_enabled()
+        self._conn.start(series)
+
+    def get_conn_impl(self):
+        return self._conn
+
+    @classmethod
+    def _make_socket_path(cls):
+        temp_path = tempfile.mkdtemp()
+        return os.path.join(temp_path, 'dectris-shm-socket')
+
+    def stop_series(self):
+        pass  # TODO: what to do?
+
+    def close(self):
+        self._conn.close()
+
+    def reconnect(self):
+        raise NotImplementedError()
+
+    def log_stats(self):
+        self._conn.log_shm_stats()
 
 
 class DectrisAcquisition(AcquisitionMixin, DataSet):
@@ -238,12 +409,16 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     Parameters
     ----------
+    conn
+        An existing `DectrisDetectorConnection` instance
     api_host
         The hostname or IP address of the DECTRIS DCU for the REST API
     api_port
         The port of the REST API
     data_host
         The hostname or IP address of the DECTRIS DCU for the zeromq data stream
+    data_port
+        The zeromq port to use
     nav_shape
         The number of scan positions as a 2-tuple :code:`(height, width)`
     trigger_mode
@@ -265,24 +440,19 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     def __init__(
         self,
 
-        # in passive mode, we get these:
-        conn: "libertem_dectris.DectrisConnection",
-        detector_config: "libertem_dectris.DetectorConfig",
-        series: int,
-
-        api_host: str,
-        api_port: int,
-
-        # FIXME: get rid of these? 
-        data_host: str,
-        data_port: int,
+        # this replaces the {api,data}_{host,port} parameters:
+        conn: DectrisDetectorConnection,
 
         nav_shape: Tuple[int, ...],
-        trigger_mode: TriggerMode,
         trigger=lambda aq: None,
         frames_per_partition: int = 128,
         enable_corrections: bool = False,
-        name_pattern: Optional[str] = None,
+
+        # in passive mode, we get this:
+        pending_aq: Optional[DectrisPendingAcquisition] = None,
+
+        # in passive mode, we don't pass the controller:
+        controller: Optional[DectrisActiveController] = None,
     ):
         super().__init__(trigger=trigger)
         try:
@@ -302,22 +472,23 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._sig_shape: Tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None
         self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
-        self._trigger_mode = trigger_mode
         self._enable_corrections = enable_corrections
-        self._name_pattern = name_pattern
 
-        # XXX these were added for "passive mode" - maybe consolidate somehow?
         self._conn = conn
-        self._detector_config = detector_config
-        self._series = series
+        self._controller = controller
+
+        if pending_aq is not None:
+            self._detector_config = pending_aq.detector_config
+            self._series = pending_aq.series
+        else:
+            self._detector_config = None
+            self._series = None
 
     def get_api_client(self):
-        from .DEigerClient import DEigerClient
-        ec = DEigerClient(self._api_host, port=self._api_port)
-        return ec
+        return self._conn.get_api_client()
 
     def get_detector_config(self) -> DetectorConfig:
-        ec = self.get_api_client()
+        ec = self._conn.get_api_client()
         # FIXME: initialize detector here, if not already initialized?
         shape_x = ec.detectorConfig("x_pixels_in_detector")['value']
         shape_y = ec.detectorConfig("y_pixels_in_detector")['value']
@@ -364,7 +535,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     def get_correction_data(self):
         if not self._enable_corrections:
             return CorrectionSet()
-        ec = self.get_api_client()
+        ec = self._conn.get_api_client()
         mask = ec.detectorConfig("pixel_mask")
         mask_arr = get_darray(mask)
         excluded_pixels = mask_arr > 0
@@ -373,7 +544,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     @contextmanager
     def _acquire_active(self):
         with tracer.start_as_current_span('_acquire_active') as span:
-            ec = self.get_api_client()
+            ec = self._conn.get_api_client()
             try:
                 nimages = prod(self.shape.nav)
                 ec.setDetectorConfig('ntrigger', 1)
@@ -411,30 +582,22 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 pass
 
     @contextmanager
-    def _acquire_passive(self):
-        with tracer.start_as_current_span('_acquire_passive') as span:
-            ec = self.get_api_client()
-            try:
-                # the only detector configuration we perform in passive mode:
-                # make sure streaming is enabled
-                ec.setStreamConfig('mode', 'enabled')
-
-                self._acq_state = AcquisitionParams(
-                    sequence_id=self._series,
-                    nimages=self._detector_config.get_num_frames(),
-                    trigger_mode=self._trigger_mode,
-                )
-                # this triggers, either via API or via HW trigger (in which case we
-                # don't need to do anything in the trigger function):
-                with tracer.start_as_current_span("DectrisAcquisition.trigger"):
-                    self.trigger()
-                yield
-            finally:
-                self._acq_state = None
-
-    @contextmanager
     def acquire(self):
-        with tracer.start_as_current_span('acquire') as span, self._acquire_passive():
+        with tracer.start_as_current_span('acquire'):
+            with tracer.start_as_current_span("DectrisAcquisition.trigger"):
+                if self._controller is not None:
+                    self._controller.apply_file_writing()
+                    self._controller.apply_scan_settings(self._nav_shape)
+                    self._controller.apply_misc_settings()
+                    sequence_id = self._controller.arm()
+                    if self._series is None:
+                        self._series = sequence_id
+                    nimages = prod(self.shape.nav)
+                    self._acq_state = AcquisitionParams(
+                        sequence_id=sequence_id,
+                        nimages=nimages,
+                    )
+                    self.trigger()
             yield
 
     def check_valid(self):
@@ -477,10 +640,10 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             )
 
     def get_task_comm_handler(self) -> "DectrisCommHandler":
-        assert self._acq_state is not None
         return DectrisCommHandler(
             params=self._acq_state,
             conn=self._conn,
+            controller=self._controller,
         )
 
 
