@@ -347,7 +347,7 @@ class DectrisDetectorConnection(DetectorConnection):
         if not self._passive_started:
             self._conn.start_passive()
             self._passive_started = True
-        self._ensure_streaming_enabled()
+        self._ensure_basic_settings()
         config_series = self._conn.wait_for_arm(timeout)
         if config_series is None:
             return None
@@ -369,9 +369,10 @@ class DectrisDetectorConnection(DetectorConnection):
         ec = DEigerClient(self._api_host, port=self._api_port)
         return ec
 
-    def _ensure_streaming_enabled(self):
+    def _ensure_basic_settings(self):
         ec = self.get_api_client()
         ec.setStreamConfig('mode', 'enabled')
+        ec.setStreamConfig('header_detail', 'basic')
 
     def start_series(self, series: int):
         if self._passive_started:
@@ -379,7 +380,7 @@ class DectrisDetectorConnection(DetectorConnection):
                 f"Cannot start acquisition for series {series}, "
                 "already in passive mode"
             )
-        self._ensure_streaming_enabled()
+        self._ensure_basic_settings()
         self._conn.start(series)
 
     def get_conn_impl(self):
