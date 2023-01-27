@@ -1,4 +1,5 @@
 import contextlib
+from typing import Optional, TYPE_CHECKING
 
 from libertem.executor.pipelined import PipelinedExecutor
 # Avoid having Context in this module to make sure
@@ -6,6 +7,9 @@ from libertem.executor.pipelined import PipelinedExecutor
 from libertem.api import Context as LiberTEM_Context
 
 from opentelemetry import trace
+
+if TYPE_CHECKING:
+    from libertem_live.detectors.base import DetectorConnection
 
 tracer = trace.get_tracer(__name__)
 
@@ -38,6 +42,12 @@ class LiveContext(LiberTEM_Context):
                     yield
             else:
                 yield
+
+    def connect(self, detector_type, *args, **kwargs) -> "DetectorConnection":
+        """
+        Connect to a detector system.
+        """
+        raise NotImplementedError()
 
     def prepare_acquisition(self, detector_type, *args, trigger=None, **kwargs):
         # FIXME implement similar to LiberTEM datasets once
@@ -80,6 +90,11 @@ class LiveContext(LiberTEM_Context):
                 f"Unknown detector type '{detector_type}', supported is 'merlin' or 'dectris'"
             )
         return cls(*args, trigger=trigger, **kwargs).initialize(self.executor)
+
+    def prepare_from_pending(self, pending_acquisition, *args, **kwargs):
+        aq = pending_acquisition.create_acquisition(*args, **kwargs)
+        aq = aq.initialize(self.executor)
+        return aq
 
     def _run_sync(self, dataset, udf, iterate=False, *args, **kwargs):
         def _run_sync_iterate():
