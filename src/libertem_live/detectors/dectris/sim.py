@@ -337,7 +337,7 @@ class RustedReplay(ZMQReplay):
                         libertem_dectris.TriggerMode.EXTS,
                         libertem_dectris.TriggerMode.INTS
                     ):
-                        for _ in range(det_config.ntrigger):
+                        for _ in range(det_config.get_num_frames()):
                             if trigger_mode == libertem_dectris.TriggerMode.INTS:
                                 while not self._trigger_event.wait(timeout=0.1):
                                     if self.is_stopped():
@@ -346,7 +346,7 @@ class RustedReplay(ZMQReplay):
                             if self._verbose:
                                 print("sending next series")
                             # FIXME: check stop event from _sim in send_frames
-                            _sim.send_frames(det_config.nimages)
+                            _sim.send_frames(det_config.get_num_frames())
                         _sim.send_footer()
 
                 except libertem_dectris.TimeoutError:
@@ -440,6 +440,13 @@ def get_stream_config(parameter) -> Dict:
             'value': 'enabled',
             'value_type': 'string'
         }
+    elif parameter == 'header_detail':
+        return {
+            'access_mode': 'rw',
+            'allowed_values': ['all', 'basic', 'none'],
+            'value': 'basic',
+            'value_type': 'string'
+        }
     else:
         raise ValueError(f'Parameter {parameter} not implemented.')
 
@@ -449,6 +456,8 @@ def set_stream_config(parameter):
     request_data = request.json
     if parameter == 'mode':
         assert request_data['value'] in ('enabled', )
+    elif parameter == 'header_detail':
+        assert request_data['value'] in ('basic', )
     else:
         raise ValueError(f'Parameter {parameter} not implemented.')
     return ""
