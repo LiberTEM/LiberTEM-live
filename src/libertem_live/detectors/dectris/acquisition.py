@@ -327,19 +327,28 @@ class DectrisDetectorConnection(DetectorConnection):
         frame_stack_size: int = 24,
         huge_pages: bool = False,
     ):
-        import libertem_dectris
-        self._conn = libertem_dectris.DectrisConnection(
-            uri=f"tcp://{data_host}:{data_port}",
-            frame_stack_size=frame_stack_size,
-            num_slots=num_slots,
-            bytes_per_frame=bytes_per_frame,
-            huge=huge_pages,
-        )
         self._passive_started = False
-        self._conn.serve_shm(self._make_socket_path())
 
         self._api_host = api_host
         self._api_port = api_port
+        self._data_host = data_host
+        self._data_port = data_port
+        self._num_slots = num_slots
+        self._bytes_per_frame = bytes_per_frame
+        self._huge_pages = huge_pages
+        self._frame_stack_size = frame_stack_size
+
+        self._conn = self._connect()
+        self._conn.serve_shm(self._make_socket_path())
+
+    def _connect(self):
+        return libertem_dectris.DectrisConnection(
+            uri=f"tcp://{self._data_host}:{self._data_port}",
+            frame_stack_size=self._frame_stack_size,
+            num_slots=self._num_slots,
+            bytes_per_frame=self._bytes_per_frame,
+            huge=self._huge_pages,
+        )
 
     def wait_for_acquisition(
         self, timeout: Optional[float] = None
@@ -396,9 +405,12 @@ class DectrisDetectorConnection(DetectorConnection):
 
     def close(self):
         self._conn.close()
+        self._conn = None
 
     def reconnect(self):
-        raise NotImplementedError()
+        if self._conn is not None:
+            self.close()
+        self._conn = self._connect()
 
     def log_stats(self):
         self._conn.log_shm_stats()
