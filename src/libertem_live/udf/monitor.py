@@ -16,14 +16,14 @@ class SignalMonitorUDF(UDF):
     '''
 
     def get_backends(self):
-        return (
+        return [
             backend for backend in self.BACKEND_ALL
             if backend not in {self.BACKEND_CUPY_SCIPY_COO, self.BACKEND_SCIPY_COO}
-        )
+        ]
 
-    def get_preferred_input_dtype(self):
-        ''
-        return self.USE_NATIVE_DTYPE
+    # def get_preferred_input_dtype(self):
+    #     ''
+    #     return self.USE_NATIVE_DTYPE
 
     def get_result_buffers(self):
         ''
