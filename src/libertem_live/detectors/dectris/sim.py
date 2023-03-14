@@ -327,15 +327,17 @@ class RustedReplay(ZMQReplay):
                             _sim.send_frames(1)
                         _sim.send_footer()
 
-                    elif trigger_mode == libertem_dectris.TriggerMode.EXTE:
+                    elif trigger_mode in (
+                        libertem_dectris.TriggerMode.EXTE,
+                        libertem_dectris.TriggerMode.EXTS,
+                    ):
                         # FIXME: check stop event from _sim in send_frames
                         if self._verbose:
                             print("sending all frames")
                         _sim.send_frames()
                         _sim.send_footer()
                     elif trigger_mode in (
-                        libertem_dectris.TriggerMode.EXTS,
-                        libertem_dectris.TriggerMode.INTS
+                        libertem_dectris.TriggerMode.INTS,
                     ):
                         for _ in range(det_config.get_num_frames()):
                             if trigger_mode == libertem_dectris.TriggerMode.INTS:
