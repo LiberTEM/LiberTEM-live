@@ -339,7 +339,6 @@ class DectrisDetectorConnection(DetectorConnection):
         self._frame_stack_size = frame_stack_size
 
         self._conn = self._connect()
-        self._conn.serve_shm(self._make_socket_path())
 
     def _connect(self):
         return libertem_dectris.DectrisConnection(
@@ -348,6 +347,7 @@ class DectrisDetectorConnection(DetectorConnection):
             num_slots=self._num_slots,
             bytes_per_frame=self._bytes_per_frame,
             huge=self._huge_pages,
+            handle_path=self._make_socket_path(),
         )
 
     def wait_for_acquisition(
@@ -477,10 +477,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 "please run `pip install libertem-live[dectris]` "
                 "to install them."
             )
-        self._api_host = api_host
-        self._api_port = api_port
-        self._data_host = data_host
-        self._data_port = data_port
         self._nav_shape = nav_shape
         self._sig_shape: Tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None

@@ -10,8 +10,9 @@ from libertem.common import Shape
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
 from libertem_live.api import LiveContext
-from libertem_live.detectors.dectris.acquisition import DectrisAcquisition
-from libertem_live.detectors.dectris.mock import OfflineAcquisition
+from libertem_live.detectors.dectris.acquisition import (
+    DectrisAcquisition, DectrisDetectorConnection,
+)
 from libertem.io.corrections import CorrectionSet
 import libertem
 
@@ -46,16 +47,6 @@ def dectris_sim(dectris_runner):
     return (dectris_runner.port, dectris_runner.zmqport)
 
 
-class MockRawFrame(NamedTuple):
-    shape: Tuple
-    dtype: np.dtype
-    encoding: str
-    data: np.ndarray
-
-
-_item_counter = 0
-
-
 @pytest.fixture()
 def skipped_dectris_runner():
 
@@ -80,67 +71,26 @@ def skipped_dectris_sim(skipped_dectris_runner):
     return (skipped_dectris_runner.port, skipped_dectris_runner.zmqport)
 
 
-def test_udf_sig_mock(ctx_pipelined):
-    dataset_shape = Shape((128, 512, 512), sig_dims=2)
-    data = np.random.randn(*dataset_shape).astype(np.uint8)
-    aq = OfflineAcquisition(
-        nav_shape=tuple(dataset_shape.nav),
-        mock_data=data,
-        frames_per_partition=42,  # chosen not to evenly divide `dataset_shape.nav`
-        api_host=None,
-        api_port=None,
-        data_host=None,
-        data_port=None,
-        trigger_mode="exte",
-    )
-    aq.initialize(ctx_pipelined.executor)
-
-    udf = SumUDF()
-    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-
-    assert np.allclose(
-        res['intensity'].data,
-        data.astype(np.float32).sum(axis=0),
-    )
-
-
-def test_udf_nav_mock(ctx_pipelined):
-    dataset_shape = Shape((128, 512, 512), sig_dims=2)
-    data = np.random.randn(*dataset_shape).astype(np.uint8)
-    aq = OfflineAcquisition(
-        nav_shape=tuple(dataset_shape.nav),
-        mock_data=data,
-        frames_per_partition=42,  # chosen not to evenly divide `dataset_shape.nav`
-        api_host=None,
-        api_port=None,
-        data_host=None,
-        data_port=None,
-        trigger_mode="exte",
-    )
-    aq.initialize(ctx_pipelined.executor)
-
-    udf = SumSigUDF()
-    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-
-    assert np.allclose(
-        res['intensity'].data,
-        data.sum(axis=(1, 2)),
-    )
-
-
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_udf_sig(ctx_pipelined, dectris_sim):
     api_port, data_port = dectris_sim
-    aq = DectrisAcquisition(
-        nav_shape=(128, 128),
-        trigger=lambda x: None,
-        frames_per_partition=512,
+
+    conn = DectrisDetectorConnection(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        trigger_mode='exte',
+        num_slots=2000,
+        bytes_per_frame=512*512,
+    )
+
+    aq = DectrisAcquisition(
+        conn=conn,
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=512,
+        controller=conn.get_active_controller(trigger_mode='exte'),
     )
     aq.initialize(ctx_pipelined.executor)
 
@@ -158,24 +108,32 @@ def test_udf_sig(ctx_pipelined, dectris_sim):
     udf = SumUDF()
     ctx_pipelined.run_udf(dataset=aq, udf=udf, corrections=corr)
 
+    conn.close()
+
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_udf_nav(ctx_pipelined, dectris_sim):
     api_port, data_port = dectris_sim
-    aq = DectrisAcquisition(
-        nav_shape=(128, 128),
-        trigger=lambda x: None,
-        frames_per_partition=512,
+    conn = DectrisDetectorConnection(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        trigger_mode='exte',
+        num_slots=2000,
+        bytes_per_frame=512*512,
+    )
+    aq = DectrisAcquisition(
+        conn=conn,
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=512,
+        controller=conn.get_active_controller(trigger_mode='exte'),
     )
     aq.initialize(ctx_pipelined.executor)
     udf = SumSigUDF()
     ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    conn.close()
 
 
 # TODO: pytest.mark.slow? this test is mostly useful for debugging
@@ -185,39 +143,50 @@ def test_udf_nav_inline(ltl_ctx, dectris_sim):
     api_port, data_port = dectris_sim
     from libertem.common.tracing import maybe_setup_tracing
     maybe_setup_tracing("test_udf_nav_inline")
-
-    aq = DectrisAcquisition(
-        nav_shape=(128, 128),
-        trigger=lambda x: None,
-        frames_per_partition=32,
+    conn = DectrisDetectorConnection(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        trigger_mode='exte',
+        num_slots=2000,
+        bytes_per_frame=512*512,
+    )
+    aq = DectrisAcquisition(
+        conn=conn,
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        controller=conn.get_active_controller(trigger_mode='exte'),
     )
     aq.initialize(ltl_ctx.executor)
     udf = SumSigUDF()
     ltl_ctx.run_udf(dataset=aq, udf=udf)
+    conn.close()
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_sum(ctx_pipelined, dectris_sim):
     api_port, data_port = dectris_sim
-    aq = DectrisAcquisition(
-        nav_shape=(128, 128),
-        trigger=lambda x: None,
-        frames_per_partition=32,
+    conn = DectrisDetectorConnection(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        trigger_mode='exte',
+        num_slots=2000,
+        bytes_per_frame=512*512,
+    )
+    aq = DectrisAcquisition(
+        conn=conn,
+        nav_shape=(128, 128),
+        trigger=lambda x: None,
+        frames_per_partition=32,
+        controller=conn.get_active_controller(trigger_mode='exte'),
     )
     aq.initialize(ctx_pipelined.executor)
     # FIXME verify result
     _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    conn.close()
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
@@ -232,7 +201,18 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
 
     # uses its own executor to not potentially bring
     # the `ctx_pipelined` executor into a bad state
+    executor = None
+    conn = None
     try:
+        api_port, data_port = skipped_dectris_sim
+        conn = DectrisDetectorConnection(
+            api_host='127.0.0.1',
+            api_port=api_port,
+            data_host='127.0.0.1',
+            data_port=data_port,
+            num_slots=2000,
+            bytes_per_frame=512*512,
+        )
         executor = PipelinedExecutor(
             spec=PipelinedExecutor.make_spec(cpus=range(4), cudas=[]),
             # to prevent issues in already-pinned situations (i.e. containerized
@@ -240,16 +220,12 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
             pin_workers=False,
             cleanup_timeout=0.5,
         )
-        api_port, data_port = skipped_dectris_sim
         aq = DectrisAcquisition(
+            conn=conn,
             nav_shape=(128, 128),
             trigger=lambda x: None,
             frames_per_partition=32,
-            api_host='127.0.0.1',
-            api_port=api_port,
-            data_host='127.0.0.1',
-            data_port=data_port,
-            trigger_mode='exte',
+            controller=conn.get_active_controller(trigger_mode='exte'),
         )
         ctx = LiveContext(executor=executor)
         aq.initialize(ctx.executor)
@@ -260,17 +236,16 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
         # Ensure the executor is still alive
         api_port, data_port = dectris_sim
         aq2 = DectrisAcquisition(
+            conn=conn,
             nav_shape=(128, 128),
             trigger=lambda x: None,
             frames_per_partition=32,
-            api_host='127.0.0.1',
-            api_port=api_port,
-            data_host='127.0.0.1',
-            data_port=data_port,
-            trigger_mode='exte',
+            controller=conn.get_active_controller(trigger_mode='exte'),
         )
         aq2.initialize(ctx.executor)
         _ = ctx.run_udf(dataset=aq2, udf=SumUDF())
     finally:
         if executor is not None:
             executor.close()
+        if conn is not None:
+            conn.close()
