@@ -86,7 +86,6 @@ setup(
         "opentelemetry-api",
         "sparseconverter",
         "libertem-dectris",
-        "lz4",
     ],
     extras_require={
         'pymemfd': 'pymemfd',

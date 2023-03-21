@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 class DectrisActiveController:
     """
-    Detector settings. If you leave them out of set them to None, they
+    Detector settings. If you leave them out or set them to None, they
     will not be set.
 
     Parameters
