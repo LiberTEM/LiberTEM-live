@@ -7,9 +7,6 @@ from libertem.udf.sum import SumUDF
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
 from libertem_live.api import LiveContext
-from libertem_live.detectors.dectris.acquisition import (
-    DectrisAcquisition, DectrisDetectorConnection,
-)
 from libertem.io.corrections import CorrectionSet
 import libertem
 
@@ -70,10 +67,11 @@ def skipped_dectris_sim(skipped_dectris_runner):
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-def test_udf_sig(ctx_pipelined, dectris_sim):
+def test_udf_sig(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
 
-    conn = DectrisDetectorConnection(
+    conn = ctx_pipelined.connect(
+        'dectris',
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -82,14 +80,14 @@ def test_udf_sig(ctx_pipelined, dectris_sim):
         bytes_per_frame=512*512,
     )
 
-    aq = DectrisAcquisition(
+    aq = ctx_pipelined.prepare_acquisition(
+        'dectris',
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
         frames_per_partition=512,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
-    aq.initialize(ctx_pipelined.executor)
 
     bad_y = (168, 291, 326, 301, 343, 292,   0,   0,   0,   0,   0, 511)
     bad_x = (496, 458, 250, 162, 426, 458, 393, 396, 413, 414, 342, 491)
@@ -110,9 +108,11 @@ def test_udf_sig(ctx_pipelined, dectris_sim):
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-def test_udf_nav(ctx_pipelined, dectris_sim):
+def test_udf_nav(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
-    conn = DectrisDetectorConnection(
+
+    conn = ctx_pipelined.connect(
+        'dectris',
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -120,14 +120,16 @@ def test_udf_nav(ctx_pipelined, dectris_sim):
         num_slots=2000,
         bytes_per_frame=512*512,
     )
-    aq = DectrisAcquisition(
+
+    aq = ctx_pipelined.prepare_acquisition(
+        'dectris',
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
         frames_per_partition=512,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
-    aq.initialize(ctx_pipelined.executor)
+
     udf = SumSigUDF()
     ctx_pipelined.run_udf(dataset=aq, udf=udf)
     conn.close()
@@ -136,11 +138,12 @@ def test_udf_nav(ctx_pipelined, dectris_sim):
 # TODO: pytest.mark.slow? this test is mostly useful for debugging
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-def test_udf_nav_inline(ltl_ctx, dectris_sim):
+def test_udf_nav_inline(ltl_ctx: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
     from libertem.common.tracing import maybe_setup_tracing
     maybe_setup_tracing("test_udf_nav_inline")
-    conn = DectrisDetectorConnection(
+    conn = ltl_ctx.connect(
+        'dectris',
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -148,14 +151,14 @@ def test_udf_nav_inline(ltl_ctx, dectris_sim):
         num_slots=2000,
         bytes_per_frame=512*512,
     )
-    aq = DectrisAcquisition(
+    aq = ltl_ctx.prepare_acquisition(
+        'dectris',
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
         frames_per_partition=32,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
-    aq.initialize(ltl_ctx.executor)
     udf = SumSigUDF()
     ltl_ctx.run_udf(dataset=aq, udf=udf)
     conn.close()
@@ -163,9 +166,10 @@ def test_udf_nav_inline(ltl_ctx, dectris_sim):
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-def test_sum(ctx_pipelined, dectris_sim):
+def test_sum(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
-    conn = DectrisDetectorConnection(
+    conn = ctx_pipelined.connect(
+        'dectris',
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -188,9 +192,10 @@ def test_sum(ctx_pipelined, dectris_sim):
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-def test_passive_acquisition(ctx_pipelined, dectris_sim):
+def test_passive_acquisition(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
-    conn = DectrisDetectorConnection(
+    conn = ctx_pipelined.connect(
+        'dectris',
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
@@ -229,6 +234,7 @@ def test_passive_acquisition(ctx_pipelined, dectris_sim):
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_passive_timeout(dectris_sim):
+    from libertem_live.detectors.dectris.acquisition import DectrisDetectorConnection
     api_port, data_port = dectris_sim
     conn = DectrisDetectorConnection(
         api_host='127.0.0.1',
@@ -261,14 +267,6 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
     conn = None
     try:
         api_port, data_port = skipped_dectris_sim
-        conn = DectrisDetectorConnection(
-            api_host='127.0.0.1',
-            api_port=api_port,
-            data_host='127.0.0.1',
-            data_port=data_port,
-            num_slots=2000,
-            bytes_per_frame=512*512,
-        )
         executor = PipelinedExecutor(
             spec=PipelinedExecutor.make_spec(cpus=range(4), cudas=[]),
             # to prevent issues in already-pinned situations (i.e. containerized
@@ -276,29 +274,38 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
             pin_workers=False,
             cleanup_timeout=0.5,
         )
-        aq = DectrisAcquisition(
+        ctx = LiveContext(executor=executor)
+        conn = ctx.connect(
+            'dectris',
+            api_host='127.0.0.1',
+            api_port=api_port,
+            data_host='127.0.0.1',
+            data_port=data_port,
+            num_slots=2000,
+            bytes_per_frame=512*512,
+        )
+        aq = ctx.prepare_acquisition(
+            'dectris',
             conn=conn,
             nav_shape=(128, 128),
             trigger=lambda aq: None,
             frames_per_partition=32,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
-        ctx = LiveContext(executor=executor)
-        aq.initialize(ctx.executor)
         # Originally an AssertionError, but may cause downstream issues
         # in the executor, TODO revisit after some time if executor behavior changed
         with pytest.raises(Exception):
             _ = ctx.run_udf(dataset=aq, udf=SumUDF())
         # Ensure the executor is still alive
         api_port, data_port = dectris_sim
-        aq2 = DectrisAcquisition(
+        aq2 = ctx.prepare_acquisition(
+            'dectris',
             conn=conn,
             nav_shape=(128, 128),
             trigger=lambda aq: None,
             frames_per_partition=32,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
-        aq2.initialize(ctx.executor)
         _ = ctx.run_udf(dataset=aq2, udf=SumUDF())
     finally:
         if executor is not None:

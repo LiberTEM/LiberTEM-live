@@ -24,3 +24,6 @@ class DetectorConnection:
             Timeout in seconds. If `None`, wait indefinitely.
         """
         raise NotImplementedError()
+
+    def close(self):
+        raise NotImplementedError()
