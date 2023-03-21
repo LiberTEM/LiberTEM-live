@@ -14,6 +14,10 @@ if TYPE_CHECKING:
 tracer = trace.get_tracer(__name__)
 
 
+def _noop(aq):
+    return None
+
+
 class LiveContext(LiberTEM_Context):
     '''
     A :class:`LiveContext` behaves like a :class:`~libertem.api.Context` in most
@@ -83,7 +87,7 @@ class LiveContext(LiberTEM_Context):
 
         '''
         if trigger is None:
-            trigger = lambda aq: None
+            trigger = _noop
         detector_type = str(detector_type).lower()
         if detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinAcquisition

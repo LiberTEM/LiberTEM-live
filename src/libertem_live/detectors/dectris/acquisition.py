@@ -3,10 +3,9 @@ import os
 import base64
 import logging
 import time
-from typing import NamedTuple, Optional, Tuple, Union
+from typing import Optional, Tuple
 import tempfile
 
-from typing_extensions import Literal
 import numpy as np
 from opentelemetry import trace
 
