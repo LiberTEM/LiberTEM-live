@@ -1,12 +1,9 @@
 import os
 import sys
-from typing import NamedTuple, Tuple
-import numpy as np
 import sparse
 
 from libertem.udf.sumsigudf import SumSigUDF
 from libertem.udf.sum import SumUDF
-from libertem.common import Shape
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
 from libertem_live.api import LiveContext
@@ -88,7 +85,7 @@ def test_udf_sig(ctx_pipelined, dectris_sim):
     aq = DectrisAcquisition(
         conn=conn,
         nav_shape=(128, 128),
-        trigger=lambda x: None,
+        trigger=lambda aq: None,
         frames_per_partition=512,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
@@ -126,7 +123,7 @@ def test_udf_nav(ctx_pipelined, dectris_sim):
     aq = DectrisAcquisition(
         conn=conn,
         nav_shape=(128, 128),
-        trigger=lambda x: None,
+        trigger=lambda aq: None,
         frames_per_partition=512,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
@@ -154,7 +151,7 @@ def test_udf_nav_inline(ltl_ctx, dectris_sim):
     aq = DectrisAcquisition(
         conn=conn,
         nav_shape=(128, 128),
-        trigger=lambda x: None,
+        trigger=lambda aq: None,
         frames_per_partition=32,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
@@ -176,17 +173,76 @@ def test_sum(ctx_pipelined, dectris_sim):
         num_slots=2000,
         bytes_per_frame=512*512,
     )
-    aq = DectrisAcquisition(
+    aq = ctx_pipelined.prepare_acquisition(
+        'dectris',
         conn=conn,
         nav_shape=(128, 128),
-        trigger=lambda x: None,
+        trigger=lambda aq: None,
         frames_per_partition=32,
         controller=conn.get_active_controller(trigger_mode='exte'),
     )
-    aq.initialize(ctx_pipelined.executor)
     # FIXME verify result
     _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
     conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_passive_acquisition(ctx_pipelined, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = DectrisDetectorConnection(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        num_slots=2000,
+        bytes_per_frame=512*512,
+    )
+
+    # this can happen wherever, maybe from another computer in the network:
+    ec = conn.get_api_client()
+    ec.sendDetectorCommand('arm')
+
+    pending_aq = conn.wait_for_acquisition(10.0)
+    assert pending_aq is not None
+    assert pending_aq.series == 34
+    assert pending_aq.detector_config is not None
+    # assert pending_aq.detector_config.nimages == 1
+    # assert pending_aq.detector_config.ntrigger == 128 * 128
+    # assert pending_aq.detector_config.x_pixels_in_detector == 512
+    # assert pending_aq.detector_config.y_pixels_in_detector == 512
+    # assert pending_aq.detector_config.bit_depth_image == 16
+
+    aq = ctx_pipelined.prepare_from_pending(
+        conn=conn,
+        nav_shape=(128, 128),
+        trigger=lambda aq: None,
+        frames_per_partition=32,
+        pending_acquisition=pending_aq,
+    )
+
+    # FIXME verify result
+    _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_passive_timeout(dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = DectrisDetectorConnection(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        num_slots=2000,
+        bytes_per_frame=512*512,
+    )
+
+    # if we don't arm the detector externally, nothing happens
+    # and we run into a timeout:
+    pending_aq = conn.wait_for_acquisition(1.0)
+    assert pending_aq is None
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
@@ -223,7 +279,7 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
         aq = DectrisAcquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda x: None,
+            trigger=lambda aq: None,
             frames_per_partition=32,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
@@ -238,7 +294,7 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
         aq2 = DectrisAcquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda x: None,
+            trigger=lambda aq: None,
             frames_per_partition=32,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
