@@ -1,4 +1,4 @@
-from typing import NamedTuple, Optional, Tuple, Union, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from libertem.common.math import prod
 from .common import TriggerMode
