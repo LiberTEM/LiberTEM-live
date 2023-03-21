@@ -19,5 +19,3 @@ class DetectorConfig(NamedTuple):
     x_pixels_in_detector: int
     y_pixels_in_detector: int
     bit_depth: int
-
-

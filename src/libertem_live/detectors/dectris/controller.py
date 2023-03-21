@@ -98,5 +98,3 @@ class DectrisActiveController:
         """
         # conn.stop_series()
         pass  # FIXME: do we have to do anything here?
-
-
