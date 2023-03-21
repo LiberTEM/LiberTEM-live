@@ -279,3 +279,8 @@ monitoring utility like :code:`htop`, and try to identify the individual process
   of the UDFs you are trying to run, or maybe adding additional resources.
   In some cases it can help to run the UDF on your GPU, in addition to having
   CPU workers.
+- It may make sense to actually *reduce* the number of workers a bit below the number
+  of cores of your system, as there may be some other processes competing for
+  CPU time. The workers might compete with the receiving thread(s) that run
+  in the background, and keeping some resources for other system processes
+  might make sense.
