@@ -1,5 +1,5 @@
 import contextlib
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from libertem.executor.pipelined import PipelinedExecutor
 # Avoid having Context in this module to make sure
@@ -47,7 +47,14 @@ class LiveContext(LiberTEM_Context):
         """
         Connect to a detector system.
         """
-        raise NotImplementedError()
+        if detector_type == 'dectris':
+            from libertem_live.detectors.dectris import DectrisDetectorConnection
+            cls = DectrisDetectorConnection
+        else:
+            raise NotImplementedError(
+                "detector type doesn't support this API"
+            )
+        return cls(*args, **kwargs)
 
     def prepare_acquisition(self, detector_type, *args, trigger=None, **kwargs):
         # FIXME implement similar to LiberTEM datasets once
@@ -75,6 +82,8 @@ class LiveContext(LiberTEM_Context):
         See :ref:`usage` in the documentation!
 
         '''
+        if trigger is None:
+            trigger = lambda aq: None
         detector_type = str(detector_type).lower()
         if detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinAcquisition

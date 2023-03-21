@@ -7,7 +7,7 @@ class PendingAcquisition:
 
 
 class DetectorConnection:
-    def wait_for_acquisition(self, timeout: Optional[float] = None) -> PendingAcquisition:
+    def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
         """
         Wait for at most `timeout` seconds for an acquisition to start. This
         does not perform any triggering itself and expects something external
