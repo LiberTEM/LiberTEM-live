@@ -11,10 +11,10 @@ if TYPE_CHECKING:
 class DectrisActiveController:
     """
     Detector settings. If you leave them out or set them to None, they
-    will not be set.
+    will not be changed.
 
-    Parameters
-    ----------
+    Users should call :meth:`DectrisDetectorConnection.get_active_controller`
+    instead of manually constructing an instance of this class.
     """
     def __init__(
         self,
@@ -24,6 +24,8 @@ class DectrisActiveController:
         count_time: Optional[float] = None,
         frame_time: Optional[float] = None,
         roi_mode: Optional[str] = None,  # disabled, merge2x2 etc.
+        roi_y_size: Optional[int] = None,
+        roi_bit_depth: Optional[int] = None,
         enable_file_writing: Optional[bool] = None,
         compression: Optional[str] = None,  # bslz4, lz4
         name_pattern: Optional[str] = None,
@@ -39,6 +41,8 @@ class DectrisActiveController:
         self._frame_time = frame_time
         self._compression = compression
         self._roi_mode = roi_mode
+        self._roi_y_size = roi_y_size
+        self._roi_bit_depth = roi_bit_depth
 
     def get_api_client(self) -> DEigerClient:
         ec = DEigerClient(self._api_host, port=self._api_port)
@@ -66,6 +70,10 @@ class DectrisActiveController:
             ec.setDetectorConfig('compression', self._compression)
         if self._roi_mode is not None:
             ec.setDetectorConfig('roi_mode', self._roi_mode)
+        if self._roi_y_size is not None:
+            ec.setDetectorConfig('roi_y_size', self._roi_y_size)
+        if self._roi_bit_depth is not None:
+            ec.setDetectorConfig('roi_bit_depth', self._roi_bit_depth)
 
     def apply_file_writing(self):
         """
