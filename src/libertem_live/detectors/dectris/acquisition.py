@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import math
 import os
 import base64
 import logging
@@ -24,7 +25,7 @@ from libertem_live.detectors.base.connection import (
 )
 from .DEigerClient import DEigerClient
 from .controller import DectrisActiveController
-from .common import AcquisitionParams, DetectorConfig
+from .common import AcquisitionParams, DetectorConfig, TriggerMode
 
 import libertem_dectris
 
@@ -62,6 +63,7 @@ def get_frames(request_queue):
     END_PARTITION message (which we also consume)
     """
     buf = None
+    depth = 0
     with request_queue.get() as msg:
         header, _ = msg
         header_type = header["type"]
@@ -98,7 +100,7 @@ def get_frames(request_queue):
 class DectrisCommHandler(TaskCommHandler):
     def __init__(
         self,
-        params: AcquisitionParams,
+        params: Optional[AcquisitionParams],
         conn: "DectrisDetectorConnection",
         controller: "Optional[DectrisActiveController]",
     ):
@@ -166,7 +168,7 @@ class DectrisCommHandler(TaskCommHandler):
             })
 
     def start(self):
-        if self.controller is not None:
+        if self.controller is not None and self.params is not None:
             print(f"arming for acquisition with id={self.params.sequence_id}")
             self.controller.handle_start(self.conn, self.params.sequence_id)
 
@@ -198,28 +200,85 @@ class DectrisPendingAcquisition(PendingAcquisition):
 
 # FIXME: naming: native `DetectorConnection` vs this is confusing?
 class DectrisDetectorConnection(DetectorConnection):
+    '''
+    Connect to a DECTRIS DCU, both for detector configuration and for accessing
+    the data stream.
+
+    Parameters
+    ----------
+    api_host
+        The hostname or IP address of the DECTRIS DCU for the REST API
+    api_port
+        The port of the REST API
+    data_host
+        The hostname or IP address of the DECTRIS DCU for the zeromq data stream
+    data_port
+        The zeromq port to use
+    buffer_size
+        The total receive buffer in MiB that is used to stream data to worker
+        processes.
+    bytes_per_frame
+        Roughtly how many bytes should be reserved per frame
+
+        If this is None, a rough guess will be calculated from the detector size.
+        You can check the :py:attr:`~bytes_per_frame` property to see if the guess
+        matches reality, and adjust this parameter if it doesn't.
+    frame_stack_size
+        How many frames should be stacked together and put into a shared memory slot?
+        If this is chosen too small, it might cause slowdowns because of having
+        to handle many small objects; if it is chosen too large, it again may be
+        slower due to having to split frame stacks more often in boundary conditions.
+        When in doubt, leave this value at it's default.
+    huge_pages
+        Set to True to allocate shared memory in huge pages. This can improve performance
+        by reducing the page fault cost. Currently only available on Linux. Enabling this
+        requires reserving huge pages, either at system start, or before connecting.
+
+        For example, to reserve 10000 huge pages, you can run:
+
+        :code:`echo 10000 | sudo tee /proc/sys/vm/nr_hugepages`
+
+        See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`
+        can be useful to check your configuration.
+    '''
     def __init__(
         self,
         api_host: str,
         api_port: int,
         data_host: str,
         data_port: int,
-        num_slots: int,
-        bytes_per_frame: int,
+        buffer_size: int = 1024,
+        bytes_per_frame: Optional[int] = None,
         frame_stack_size: int = 24,
         huge_pages: bool = False,
     ):
         self._passive_started = False
-
         self._api_host = api_host
         self._api_port = api_port
         self._data_host = data_host
         self._data_port = data_port
-        self._num_slots = num_slots
-        self._bytes_per_frame = bytes_per_frame
         self._huge_pages = huge_pages
         self._frame_stack_size = frame_stack_size
 
+        if bytes_per_frame is None:
+            # estimate based on detector size:
+            ec = self.get_api_client()
+            shape_x = ec.detectorConfig("x_pixels_in_detector")['value']
+            shape_y = ec.detectorConfig("y_pixels_in_detector")['value']
+            bit_depth = ec.detectorConfig("bit_depth_image")['value']
+
+            bpp = bit_depth // 8
+            bytes_per_frame_uncompressed = bpp * shape_x * shape_y
+
+            # rough guess, doesn't have to be exact:
+            bytes_per_frame = bytes_per_frame_uncompressed // 8
+
+        assert bytes_per_frame is not None, "should be set automatically if None"
+        self._bytes_per_frame = bytes_per_frame
+
+        buffer_size_bytes = buffer_size * 1024 * 1024
+        num_slots = int(math.floor(buffer_size_bytes / (bytes_per_frame * frame_stack_size)))
+        self._num_slots = num_slots
         self._conn: libertem_dectris.DectrisConnection = self._connect()
 
     def _connect(self):
@@ -248,13 +307,74 @@ class DectrisDetectorConnection(DetectorConnection):
             series=series,
         )
 
-    def get_active_controller(self, *args, **kwargs):
+    def get_active_controller(
+        self,
+        trigger_mode: Optional[TriggerMode] = None,
+        count_time: Optional[float] = None,
+        frame_time: Optional[float] = None,
+        roi_mode: Optional[str] = None,  # disabled, merge2x2 etc.
+        roi_y_size: Optional[int] = None,
+        roi_bit_depth: Optional[int] = None,
+        enable_file_writing: Optional[bool] = None,
+        compression: Optional[str] = None,  # bslz4, lz4
+        name_pattern: Optional[str] = None,
+        nimages_per_file: Optional[int] = 0,
+    ):
+        '''
+        Create a controller object that knows about the detector settings
+        to apply when the acquisition starts.
+
+        Any settings left out or set to None will be left unchanged.
+
+        Parameters
+        ----------
+        trigger_mode
+            The strings 'exte', 'inte', 'exts', 'ints', as defined in the manual
+        count_time
+            Exposure time per image in seconds
+        frame_time
+            The interval between start of image acquisitions in seconds
+        roi_mode
+            Configure ROI mode. Set to the string 'disabled' to disable ROI mode.
+            The allowed values depend on the detector.
+
+            For example, for ARINA, to bin to frames of 96x96,
+            set `roi_mode` to 'merge2x2'.
+
+            For QUADRO, to select a subset of lines as active, set `roi_mode` to
+            'lines'. Then, additionally set `roi_y_size` to one of the supported values.
+        roi_bit_depth
+            For QUADRO, this can be either 8 or 16. Setting to 8 bit is required
+            to reach the highest frame rates.
+        roi_y_size
+            Select a subset of lines. For QUADRO, this has to be 64, 128, or 256.
+            Note that the image size is then two times this value, plus two pixels,
+            for example if you select 64 lines, it will result in images with 130
+            pixels height and the full width.
+        name_pattern
+            If given, file writing is enabled and the name pattern is set to the
+            given string. Please see the DECTRIS documentation for details!
+        '''
         return DectrisActiveController(
+            # these two don't need to be repeated:
             api_host=self._api_host,
             api_port=self._api_port,
-            *args,
-            **kwargs,
+
+            trigger_mode=trigger_mode,
+            count_time=count_time,
+            frame_time=frame_time,
+            roi_mode=roi_mode,
+            roi_y_size=roi_y_size,
+            roi_bit_depth=roi_bit_depth,
+            enable_file_writing=enable_file_writing,
+            compression=compression,
+            name_pattern=name_pattern,
+            nimages_per_file=nimages_per_file,
         )
+
+    @property
+    def bytes_per_frame(self) -> int:
+        return self._bytes_per_frame
 
     def get_api_client(self):
         ec = DEigerClient(self._api_host, port=self._api_port)
@@ -306,18 +426,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     ----------
     conn
         An existing `DectrisDetectorConnection` instance
-    api_host
-        The hostname or IP address of the DECTRIS DCU for the REST API
-    api_port
-        The port of the REST API
-    data_host
-        The hostname or IP address of the DECTRIS DCU for the zeromq data stream
-    data_port
-        The zeromq port to use
     nav_shape
         The number of scan positions as a 2-tuple :code:`(height, width)`
-    trigger_mode
-        The strings 'exte', 'inte', 'exts', 'ints', as defined in the manual
     trigger : function
         See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
         and :ref:`trigger` for details!
@@ -328,9 +438,20 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     enable_corrections
         Automatically correct defect pixels, downloading the pixel mask from the
         detector configuration.
-    name_pattern
-        If given, file writing is enabled and the name pattern is set to the
-        given string. Please see the DECTRIS documentation for details!
+    pending_aq
+        A pending acquisition in passive mode, obtained from
+        :meth:`DectrisDetectorConnection.wait_for_acquisition`.
+        If this is not provided, it's assumed that the detector should be
+        actively armed and triggered.
+    controller
+        A `DectrisActiveController` instance, which can be obtained
+        from :meth:`DectrisDetectorConnection.get_active_controller`.
+        You can pass additional parameters to
+        :meth:`DectrisDetectorConnection.get_active_controller` in order
+        to change detector settings.
+        If no controller is passed in, and `pending_aq` is also not
+        given, then the acquisition will be started in active
+        mode, leaving all detector settings unchanged.
     '''
     def __init__(
         self,
@@ -346,7 +467,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         # in passive mode, we get this:
         pending_aq: Optional[DectrisPendingAcquisition] = None,
 
-        # in passive mode, we don't pass the controller:
+        # in passive mode, we don't pass the controller.
+        # (in active mode, you _can_ pass it, but if you don't, a default
+        # controller will be created):
         controller: Optional[DectrisActiveController] = None,
     ):
         super().__init__(trigger=trigger)
@@ -356,10 +479,18 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
         self._enable_corrections = enable_corrections
 
+        if controller is None and pending_aq is None:
+            # default to active mode, with no settings to change:
+            controller = conn.get_active_controller()
+
         self._conn = conn
         self._controller = controller
 
         if pending_aq is not None:
+            if controller is not None:
+                raise ValueError(
+                    "Got both controller and pending acquisition, please only provide one"
+                )
             self._detector_config = pending_aq.detector_config
             self._series = pending_aq.series
         else:
@@ -428,20 +559,29 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     @contextmanager
     def acquire(self):
         with tracer.start_as_current_span('acquire'):
-            with tracer.start_as_current_span("DectrisAcquisition.trigger"):
-                if self._controller is not None:
-                    self._controller.apply_file_writing()
-                    self._controller.apply_scan_settings(self._nav_shape)
-                    self._controller.apply_misc_settings()
-                    sequence_id = self._controller.arm()
-                    if self._series is None:
-                        self._series = sequence_id
-                    nimages = prod(self.shape.nav)
-                    self._acq_state = AcquisitionParams(
-                        sequence_id=sequence_id,
-                        nimages=nimages,
-                    )
+            if self._controller is not None:
+                self._controller.apply_file_writing()
+                self._controller.apply_scan_settings(self._nav_shape)
+                self._controller.apply_misc_settings()
+                sequence_id = self._controller.arm()
+                if self._series is None:
+                    self._series = sequence_id
+                nimages = prod(self.shape.nav)
+                self._acq_state = AcquisitionParams(
+                    sequence_id=sequence_id,
+                    nimages=nimages,
+                )
+                with tracer.start_as_current_span("DectrisAcquisition.trigger"):
                     self.trigger()
+            else:
+                # in passive mode, we should have the series available:
+                assert self._series is not None
+                nimages = prod(self.shape.nav)
+                self._acq_state = AcquisitionParams(
+                    sequence_id=self._series,
+                    nimages=nimages,
+                )
+
             yield
 
     def check_valid(self):
@@ -535,16 +675,20 @@ class DectrisLivePartition(Partition):
         to_read = self._end_idx - self._start_idx
         depth = tiling_scheme.depth
         # over-allocate buffer by a bit so we can handle larger incoming raw tiles
-        buf = np.zeros((2 * depth,) + tiling_scheme[0].shape, dtype=dest_dtype)
+        buf = np.zeros((2 * depth,) + tuple(tiling_scheme[0].shape), dtype=dest_dtype)
         tile_start = self._start_idx
         frames = get_frames(self._worker_context.get_worker_queue())
+        frames_in_tile = 0
         while to_read > 0:
             # 1) put frame into tile buffer (including dtype conversion if needed)
             try:
                 raw_tile = next(frames)
                 frames_in_tile = raw_tile.shape[0]
                 if frames_in_tile > buf.shape[0]:
-                    buf = np.zeros((frames_in_tile,) + tiling_scheme[0].shape, dtype=dest_dtype)
+                    buf = np.zeros(
+                        (frames_in_tile,) + tuple(tiling_scheme[0].shape),
+                        dtype=dest_dtype
+                    )
                 # FIXME: make copy optional if dtype already matches
                 buf[:frames_in_tile] = raw_tile
                 to_read -= frames_in_tile
