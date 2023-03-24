@@ -1,5 +1,11 @@
 from .acquisition import (
-    DectrisAcquisition, DectrisDetectorConnection,
+    DectrisAcquisition, DectrisAcquisitionBuilder,
+)
+from .connection import (
+    DectrisDetectorConnection, DectrisConnectionBuilder,
 )
 
-__all__ = ["DectrisAcquisition", "DectrisDetectorConnection"]
+__all__ = [
+    "DectrisAcquisition", "DectrisAcquisitionBuilder",
+    "DectrisDetectorConnection", "DectrisConnectionBuilder",
+]

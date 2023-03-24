@@ -70,23 +70,21 @@ def skipped_dectris_sim(skipped_dectris_runner):
 def test_udf_sig(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
 
-    conn = ctx_pipelined.connect(
-        'dectris',
+    conn = ctx_pipelined.make_connection('dectris').open(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        num_slots=2000,
-        bytes_per_frame=512*512,
     )
 
-    aq = ctx_pipelined.prepare_acquisition(
-        'dectris',
+    aq = ctx_pipelined.make_acquisition('dectris').open(
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
         frames_per_partition=512,
-        controller=conn.get_active_controller(trigger_mode='exte'),
+        controller=conn.get_active_controller(
+            trigger_mode='exte',
+        ),
     )
 
     bad_y = (168, 291, 326, 301, 343, 292,   0,   0,   0,   0,   0, 511)
@@ -108,21 +106,46 @@ def test_udf_sig(ctx_pipelined: LiveContext, dectris_sim):
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
-def test_udf_nav(ctx_pipelined: LiveContext, dectris_sim):
+def test_conn_parameters(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
 
-    conn = ctx_pipelined.connect(
-        'dectris',
+    conn = ctx_pipelined.make_connection('dectris').open(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        num_slots=2000,
-        bytes_per_frame=512*512,
+        buffer_size=2048,
+        bytes_per_frame=512*512//8,
+        frame_stack_size=64,
+        huge_pages=False,
     )
 
-    aq = ctx_pipelined.prepare_acquisition(
-        'dectris',
+    aq = ctx_pipelined.make_acquisition('dectris').open(
+        conn=conn,
+        nav_shape=(128, 128),
+        trigger=lambda aq: None,
+        frames_per_partition=512,
+        controller=conn.get_active_controller(trigger_mode='exte'),
+    )
+
+    udf = SumUDF()
+    ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_udf_nav(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    aq = ctx_pipelined.make_acquisition('dectris').open(
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
@@ -142,17 +165,13 @@ def test_udf_nav_inline(ltl_ctx: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
     from libertem.common.tracing import maybe_setup_tracing
     maybe_setup_tracing("test_udf_nav_inline")
-    conn = ltl_ctx.connect(
-        'dectris',
+    conn = ltl_ctx.make_connection('dectris').open(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        num_slots=2000,
-        bytes_per_frame=512*512,
     )
-    aq = ltl_ctx.prepare_acquisition(
-        'dectris',
+    aq = ltl_ctx.make_acquisition('dectris').open(
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
@@ -168,17 +187,15 @@ def test_udf_nav_inline(ltl_ctx: LiveContext, dectris_sim):
 @pytest.mark.data
 def test_sum(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
-    conn = ctx_pipelined.connect(
+    conn = ctx_pipelined.make_connection(
         'dectris',
+    ).open(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        num_slots=2000,
-        bytes_per_frame=512*512,
     )
-    aq = ctx_pipelined.prepare_acquisition(
-        'dectris',
+    aq = ctx_pipelined.make_acquisition('dectris').open(
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
@@ -194,14 +211,11 @@ def test_sum(ctx_pipelined: LiveContext, dectris_sim):
 @pytest.mark.data
 def test_passive_acquisition(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
-    conn = ctx_pipelined.connect(
-        'dectris',
+    conn = ctx_pipelined.make_connection('dectris').open(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        num_slots=2000,
-        bytes_per_frame=512*512,
     )
 
     # this can happen wherever, maybe from another computer in the network:
@@ -218,12 +232,12 @@ def test_passive_acquisition(ctx_pipelined: LiveContext, dectris_sim):
     # assert pending_aq.detector_config.y_pixels_in_detector == 512
     # assert pending_aq.detector_config.bit_depth_image == 16
 
-    aq = ctx_pipelined.prepare_from_pending(
+    aq = ctx_pipelined.make_acquisition('dectris').open(
+        pending_aq=pending_aq,
         conn=conn,
         nav_shape=(128, 128),
         trigger=lambda aq: None,
         frames_per_partition=32,
-        pending_acquisition=pending_aq,
     )
 
     # FIXME verify result
@@ -234,15 +248,13 @@ def test_passive_acquisition(ctx_pipelined: LiveContext, dectris_sim):
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_passive_timeout(dectris_sim):
-    from libertem_live.detectors.dectris.acquisition import DectrisDetectorConnection
+    from libertem_live.detectors.dectris import DectrisDetectorConnection
     api_port, data_port = dectris_sim
     conn = DectrisDetectorConnection(
         api_host='127.0.0.1',
         api_port=api_port,
         data_host='127.0.0.1',
         data_port=data_port,
-        num_slots=2000,
-        bytes_per_frame=512*512,
     )
 
     # if we don't arm the detector externally, nothing happens
@@ -275,17 +287,13 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
             cleanup_timeout=0.5,
         )
         ctx = LiveContext(executor=executor)
-        conn = ctx.connect(
-            'dectris',
+        conn = ctx.make_connection('dectris').open(
             api_host='127.0.0.1',
             api_port=api_port,
             data_host='127.0.0.1',
             data_port=data_port,
-            num_slots=2000,
-            bytes_per_frame=512*512,
         )
-        aq = ctx.prepare_acquisition(
-            'dectris',
+        aq = ctx.make_acquisition('dectris').open(
             conn=conn,
             nav_shape=(128, 128),
             trigger=lambda aq: None,
@@ -298,8 +306,7 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
             _ = ctx.run_udf(dataset=aq, udf=SumUDF())
         # Ensure the executor is still alive
         api_port, data_port = dectris_sim
-        aq2 = ctx.prepare_acquisition(
-            'dectris',
+        aq2 = ctx.make_acquisition('dectris').open(
             conn=conn,
             nav_shape=(128, 128),
             trigger=lambda aq: None,
