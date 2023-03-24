@@ -1,5 +1,8 @@
 from typing import NamedTuple, Union
 from typing_extensions import Literal
+from libertem_live.detectors.base.connection import (
+    PendingAcquisition,
+)
 
 
 TriggerMode = Union[
@@ -19,3 +22,25 @@ class DetectorConfig(NamedTuple):
     x_pixels_in_detector: int
     y_pixels_in_detector: int
     bit_depth: int
+
+
+class DectrisPendingAcquisition(PendingAcquisition):
+    def __init__(self, detector_config, series):
+        self._detector_config = detector_config
+        self._series = series
+
+    @property
+    def detector_config(self):
+        return self._detector_config
+
+    @property
+    def series(self):
+        return self._series
+
+    def create_acquisition(self, *args, **kwargs):
+        from .acquisition import DectrisAcquisition
+        aq = DectrisAcquisition(pending_aq=self, *args, **kwargs)
+        return aq
+
+    def __repr__(self):
+        return f"<DectrisPendingAcquisition series={self.series} config={self.detector_config}>"
