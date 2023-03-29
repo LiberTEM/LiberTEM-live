@@ -246,7 +246,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         if pending_aq is not None:
             if controller is not None:
                 raise ValueError(
-                    "Got both controller and pending acquisition, please only provide one"
+                    "Got both active `controller` and pending acquisition, please only provide one"
                 )
             self._detector_config = pending_aq.detector_config
             self._series = pending_aq.series
