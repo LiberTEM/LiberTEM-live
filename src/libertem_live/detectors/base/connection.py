@@ -2,8 +2,13 @@ from typing import Optional
 
 
 class PendingAcquisition:
-    def get_acquisition(self, *args, trigger=None, **kwargs):
-        raise NotImplementedError()
+    """
+    Token object that is obtained from
+    `DetectorConnection.wait_for_acquisition`.
+
+    Currently doesn't carry any user-accessible information.
+    """
+    pass
 
 
 class DetectorConnection:
@@ -27,3 +32,9 @@ class DetectorConnection:
 
     def close(self):
         raise NotImplementedError()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
