@@ -104,9 +104,23 @@ class DectrisDetectorConnection(DetectorConnection):
             handle_path=self._make_socket_path(),
         )
 
+    def __enter__(self):
+        # in most cases, we are already connected, but for
+        # re-using this object in multiple `with`-statements,
+        # we need to handle the re-connection case here:
+        if self._conn is None:
+            self._conn = self._connect()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def wait_for_acquisition(
         self, timeout: Optional[float] = None
     ) -> Optional[DectrisPendingAcquisition]:
+        # FIXME: it would be better to ask `self._conn` if it is currently
+        # in the passive mode, otherwise we have to carefully track the
+        # current state from the outside, too.
         if not self._passive_started:
             self._conn.start_passive()
             self._passive_started = True
@@ -219,8 +233,10 @@ class DectrisDetectorConnection(DetectorConnection):
         pass  # TODO: what to do?
 
     def close(self):
-        self._conn.close()
-        self._conn = None
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+        self._passive_started = False
 
     def reconnect(self):
         if self._conn is not None:
