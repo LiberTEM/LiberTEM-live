@@ -3,21 +3,24 @@ import os
 import numpy as np
 
 from libertem_live.udf.record import RecordUDF
+from libertem_live.api import LiveContext
 
 
-def test_record(tmpdir_factory, ctx_pipelined):
+def test_record(tmpdir_factory, ctx_pipelined: LiveContext):
     datadir = tmpdir_factory.mktemp('data')
     filename = 'numpyfile.npy'
     path = os.path.join(datadir, filename)
     data = np.random.random((13, 17, 19, 23))
-    aq = ctx_pipelined.prepare_acquisition('memory', trigger=None, data=data)
 
-    udf = RecordUDF(path)
+    with ctx_pipelined.make_connection('memory').open(data=data) as conn:
+        aq = ctx_pipelined.make_acquisition(conn=conn)
 
-    ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        udf = RecordUDF(path)
 
-    res = np.load(path, mmap_mode='r')
+        ctx_pipelined.run_udf(dataset=aq, udf=udf)
 
-    assert res.dtype == data.dtype
-    assert res.shape == data.shape
-    assert np.all(res == data)
+        res = np.load(path, mmap_mode='r')
+
+        assert res.dtype == data.dtype
+        assert res.shape == data.shape
+        assert np.all(res == data)

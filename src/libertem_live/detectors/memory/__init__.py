@@ -1,3 +1,3 @@
-from .acquisition import MemoryAcquisition
+from .acquisition import MemoryAcquisition, MemoryConnectionBuilder
 
-__all__ = ["MemoryAcquisition"]
+__all__ = ["MemoryAcquisition", "MemoryConnectionBuilder"]

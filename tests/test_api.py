@@ -3,41 +3,39 @@ import pytest
 
 from libertem.udf.base import NoOpUDF
 
-from libertem_live.api import LiveContext
+from libertem_live.api import LiveContext, Hooks
 from libertem_live.udf.monitor import SignalMonitorUDF
 
 
 def test_default_ctx():
     data = np.random.random((13, 17, 19, 23))
     ctx = LiveContext()
-
-    aq = ctx.prepare_acquisition('memory', data=data)
-
-    udf1 = NoOpUDF()
-
-    ctx.run_udf(dataset=aq, udf=udf1)
-    for res in ctx.run_udf_iter(dataset=aq, udf=udf1):
-        pass
+    with ctx.make_connection('memory').open(data=data) as conn:
+        aq = ctx.make_acquisition(conn=conn)
+        udf1 = NoOpUDF()
+        ctx.run_udf(dataset=aq, udf=udf1)
+        for _ in ctx.run_udf_iter(dataset=aq, udf=udf1):
+            pass
 
 
 def test_trigger(ltl_ctx):
     data = np.random.random((13, 17, 19, 23))
-
     triggered = np.array((False,))
 
-    def trigger(acquisition):
-        triggered[:] = True
-        assert tuple(acquisition.shape.nav) == data.shape[:2]
+    class MyHooks(Hooks):
+        def on_ready_for_data(self, aq):
+            triggered[:] = True
+            assert tuple(aq.shape.nav) == data.shape[:2]
 
-    aq = ltl_ctx.prepare_acquisition('memory', trigger=trigger, data=data)
+    with ltl_ctx.make_connection('memory').open(data=data) as conn:
+        aq = ltl_ctx.make_acquisition(conn=conn, hooks=MyHooks())
 
-    udf1 = SignalMonitorUDF()
-    udf2 = NoOpUDF()
+        udf1 = SignalMonitorUDF()
+        udf2 = NoOpUDF()
+        res = ltl_ctx.run_udf(dataset=aq, udf=[udf1, udf2])
 
-    res = ltl_ctx.run_udf(dataset=aq, udf=[udf1, udf2])
-
-    assert np.all(res[0]['intensity'].data == data[-1, -1])
-    assert triggered
+        assert np.all(res[0]['intensity'].data == data[-1, -1])
+        assert triggered
 
 
 def test_bad_type(ltl_ctx):
