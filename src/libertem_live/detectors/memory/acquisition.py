@@ -63,7 +63,7 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
     >>> data = np.random.random((23, 42, 51, 67))
     ...
     >>> class MyHooks(Hooks):
-    >>>     def on_ready_for_data(self, aq):
+    ...     def on_ready_for_data(self, aq):
     ...         print("Triggering!")
     ...
     >>> conn = ctx.make_connection('memory').open(
