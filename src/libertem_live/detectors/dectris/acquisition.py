@@ -17,6 +17,7 @@ from libertem.corrections.corrset import CorrectionSet
 from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.hooks import Hooks
 from .controller import DectrisActiveController
 from .common import AcquisitionParams, DetectorConfig
 
@@ -217,9 +218,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         conn: "DectrisDetectorConnection",
 
         nav_shape: Tuple[int, ...],
-        trigger=lambda aq: None,
         frames_per_partition: int = 128,
-        enable_corrections: bool = False,
 
         # in passive mode, we get this:
         pending_aq: Optional["DectrisPendingAcquisition"] = None,
@@ -228,31 +227,35 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         # (in active mode, you _can_ pass it, but if you don't, a default
         # controller will be created):
         controller: Optional[DectrisActiveController] = None,
+
+        hooks: Optional[Hooks] = None,
     ):
-        super().__init__(trigger=trigger)
-        self._nav_shape = nav_shape
-        self._sig_shape: Tuple[int, ...] = ()
-        self._acq_state: Optional[AcquisitionParams] = None
-        self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
-        self._enable_corrections = enable_corrections
+        frames_per_partition = min(frames_per_partition, prod(nav_shape))
 
         if controller is None and pending_aq is None:
             # default to active mode, with no settings to change:
             controller = conn.get_active_controller()
-
-        self._conn = conn
-        self._controller = controller
 
         if pending_aq is not None:
             if controller is not None:
                 raise ValueError(
                     "Got both active `controller` and pending acquisition, please only provide one"
                 )
-            self._detector_config = pending_aq.detector_config
-            self._series = pending_aq.series
-        else:
-            self._detector_config = None
-            self._series = None
+
+        if hooks is None:
+            hooks = Hooks()
+
+        super().__init__(
+            conn=conn,
+            nav_shape=nav_shape,
+            frames_per_partition=frames_per_partition,
+            hooks=hooks,
+            controller=controller,
+            pending_aq=pending_aq,
+        )
+
+        self._sig_shape: Tuple[int, ...] = ()
+        self._acq_state: Optional[AcquisitionParams] = None
 
     def get_api_client(self):
         return self._conn.get_api_client()
@@ -305,7 +308,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return self._meta
 
     def get_correction_data(self):
-        if not self._enable_corrections:
+        if self._controller is None or not self._controller.enable_corrections:
             return CorrectionSet()
         ec = self._conn.get_api_client()
         mask = ec.detectorConfig("pixel_mask")
@@ -321,21 +324,18 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 self._controller.apply_scan_settings(self._nav_shape)
                 self._controller.apply_misc_settings()
                 sequence_id = self._controller.arm()
-                if self._series is None:
-                    self._series = sequence_id
                 nimages = prod(self.shape.nav)
                 self._acq_state = AcquisitionParams(
                     sequence_id=sequence_id,
                     nimages=nimages,
                 )
                 with tracer.start_as_current_span("DectrisAcquisition.trigger"):
-                    self.trigger()
+                    self._hooks.on_ready_for_data(self)
             else:
-                # in passive mode, we should have the series available:
-                assert self._series is not None
                 nimages = prod(self.shape.nav)
+                sequence_id = self._pending_aq.series
                 self._acq_state = AcquisitionParams(
-                    sequence_id=self._series,
+                    sequence_id=sequence_id,
                     nimages=nimages,
                 )
 
@@ -484,72 +484,3 @@ class DectrisLivePartition(Partition):
 
     def __repr__(self):
         return f"<DectrisLivePartition {self._start_idx}:{self._end_idx}>"
-
-
-class DectrisAcquisitionBuilder:
-    def __init__(self, executor):
-        self._executor = executor
-
-    def open(
-        self,
-
-        # this replaces the {api,data}_{host,port} parameters:
-        conn: "DectrisDetectorConnection",
-
-        nav_shape: Tuple[int, ...],
-        trigger=lambda aq: None,
-        frames_per_partition: int = 128,
-        enable_corrections: bool = False,
-
-        # in passive mode, we get this:
-        pending_aq: Optional["DectrisPendingAcquisition"] = None,
-
-        # in passive mode, we don't pass the controller.
-        # (in active mode, you _can_ pass it, but if you don't, a default
-        # controller will be created):
-        controller: Optional[DectrisActiveController] = None,
-    ):
-        '''
-        Acquisition from a DECTRIS detector
-
-        Parameters
-        ----------
-        conn
-            An existing `DectrisDetectorConnection` instance
-        nav_shape
-            The number of scan positions as a 2-tuple :code:`(height, width)`
-        trigger : function
-            See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
-            and :ref:`trigger` for details!
-        frames_per_partition
-            A tunable for configuring the feedback rate - more frames per partition
-            means slower feedback, but less computational overhead. Might need to be tuned
-            to adapt to the dwell time.
-        enable_corrections
-            Automatically correct defect pixels, downloading the pixel mask from the
-            detector configuration.
-        pending_aq
-            A pending acquisition in passive mode, obtained from
-            :meth:`DectrisDetectorConnection.wait_for_acquisition`.
-            If this is not provided, it's assumed that the detector should be
-            actively armed and triggered.
-        controller
-            A `DectrisActiveController` instance, which can be obtained
-            from :meth:`DectrisDetectorConnection.get_active_controller`.
-            You can pass additional parameters to
-            :meth:`DectrisDetectorConnection.get_active_controller` in order
-            to change detector settings.
-            If no controller is passed in, and `pending_aq` is also not
-            given, then the acquisition will be started in active
-            mode, leaving all detector settings unchanged.
-        '''
-        aq = DectrisAcquisition(
-            conn=conn,
-            nav_shape=nav_shape,
-            trigger=trigger,
-            frames_per_partition=frames_per_partition,
-            enable_corrections=enable_corrections,
-            pending_aq=pending_aq,
-            controller=controller,
-        )
-        return aq.initialize(self._executor)

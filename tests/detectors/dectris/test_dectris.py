@@ -5,7 +5,8 @@ from libertem.udf.sumsigudf import SumSigUDF
 from libertem.udf.sum import SumUDF
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
-from libertem_live.api import LiveContext
+from libertem_live.api import LiveContext, Hooks
+from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from libertem.io.corrections import CorrectionSet
 import libertem
 
@@ -74,10 +75,9 @@ def test_udf_sig(ctx_pipelined: LiveContext, dectris_sim):
     )
 
     try:
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
             controller=conn.get_active_controller(
                 trigger_mode='exte',
@@ -116,10 +116,9 @@ def test_conn_parameters(ctx_pipelined: LiveContext, dectris_sim):
         huge_pages=False,
     )
     try:
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
@@ -142,10 +141,9 @@ def test_udf_nav(ctx_pipelined: LiveContext, dectris_sim):
         data_port=data_port,
     )
     try:
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
@@ -170,10 +168,9 @@ def test_udf_nav_inline(ltl_ctx: LiveContext, dectris_sim):
         data_port=data_port,
     )
     try:
-        aq = ltl_ctx.make_acquisition('dectris').open(
+        aq = ltl_ctx.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=32,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
@@ -196,10 +193,9 @@ def test_sum(ctx_pipelined: LiveContext, dectris_sim):
         data_port=data_port,
     )
     try:
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
@@ -235,11 +231,10 @@ def test_passive_acquisition(ctx_pipelined: LiveContext, dectris_sim):
         # assert pending_aq.detector_config.y_pixels_in_detector == 512
         # assert pending_aq.detector_config.bit_depth_image == 16
 
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             pending_aq=pending_aq,
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
         )
 
@@ -268,11 +263,10 @@ def test_passive_reconnect(ctx_pipelined: LiveContext, dectris_sim):
         pending_aq = conn.wait_for_acquisition(2.0)
         assert pending_aq is not None
 
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             pending_aq=pending_aq,
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
         )
 
@@ -290,11 +284,10 @@ def test_passive_reconnect(ctx_pipelined: LiveContext, dectris_sim):
         pending_aq = conn.wait_for_acquisition(2.0)
         assert pending_aq is not None
 
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             pending_aq=pending_aq,
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
         )
 
@@ -320,11 +313,10 @@ def test_context_manager(ctx_pipelined: LiveContext, dectris_sim):
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
 
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             pending_aq=pending_aq,
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
         )
 
@@ -349,11 +341,10 @@ def test_context_manager_multi_block(ctx_pipelined: LiveContext, dectris_sim):
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
 
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             pending_aq=pending_aq,
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
         )
 
@@ -367,11 +358,10 @@ def test_context_manager_multi_block(ctx_pipelined: LiveContext, dectris_sim):
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
 
-        aq = ctx_pipelined.make_acquisition('dectris').open(
+        aq = ctx_pipelined.make_acquisition(
             pending_aq=pending_aq,
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
         )
 
@@ -429,23 +419,22 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
             data_host='127.0.0.1',
             data_port=data_port,
         )
-        aq = ctx.make_acquisition('dectris').open(
+        aq = ctx.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
+
         # Originally an AssertionError, but may cause downstream issues
         # in the executor, TODO revisit after some time if executor behavior changed
         with pytest.raises(Exception):
             _ = ctx.run_udf(dataset=aq, udf=SumUDF())
         # Ensure the executor is still alive
         api_port, data_port = dectris_sim
-        aq2 = ctx.make_acquisition('dectris').open(
+        aq2 = ctx.make_acquisition(
             conn=conn,
             nav_shape=(128, 128),
-            trigger=lambda aq: None,
             frames_per_partition=512,
             controller=conn.get_active_controller(trigger_mode='exte'),
         )
@@ -455,3 +444,35 @@ def test_frame_skip(skipped_dectris_sim, dectris_sim):
             executor.close()
         if conn is not None:
             conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_hooks(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    class _MyHooks(Hooks):
+        def __init__(self):
+            self._ready_called = False
+
+        def on_ready_for_data(self, aq: "AcquisitionMixin"):
+            self._ready_called = True
+
+    with conn:
+        hook_instance = _MyHooks()
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+            frames_per_partition=512,
+            hooks=hook_instance,
+        )
+
+        assert not hook_instance._ready_called
+        for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=SumUDF()):
+            assert hook_instance._ready_called
