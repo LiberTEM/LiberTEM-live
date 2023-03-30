@@ -1,11 +1,5 @@
-import functools
 import os
-import platform
-import time
 import concurrent.futures
-import socket
-import threading
-from contextlib import contextmanager
 
 import pytest
 import numpy as np
@@ -15,15 +9,17 @@ from libertem.udf import UDF
 from libertem.udf.sum import SumUDF
 from libertem.udf.sumsigudf import SumSigUDF
 from libertem.contrib.daskadapter import make_dask_array
-from libertem.io.dataset.base import TilingScheme
+from libertem.io.dataset.base import TilingScheme, DataSet
 from libertem.common import Shape
 
-from libertem_live.detectors.merlin import MerlinDataSource, MerlinControl
-from libertem_live.detectors.merlin.sim import (
-        CameraSim, ServerThreadMixin, StopException, TriggerClient
+from libertem_live.api import Hooks, LiveContext
+from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.detectors.merlin import (
+    MerlinControl, MerlinDataSource,
 )
+from libertem_live.detectors.merlin.sim import TriggerClient
 
-from utils import get_testdata_path, run_camera_sim
+from utils import get_testdata_path
 
 
 MIB_TESTDATA_PATH = os.path.join(get_testdata_path(), 'default.mib')
@@ -38,168 +34,35 @@ pytestmark = [
 ]
 
 
-def run_merlin_sim(*args, **kwargs):
-    return run_camera_sim(
-        *args,
-        cls=CameraSim,
-        host='127.0.0.1',
-        data_port=0,
-        control_port=0,
-        trigger_port=0,
-        **kwargs
-    )
+class MyHooks(Hooks):
+    def __init__(self, triggered: np.ndarray, merlin_ds: "DataSet"):
+        self.ds = merlin_ds
+        self.triggered = triggered
 
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim_threads():
-    '''
-    Untriggered default simulator.
-    '''
-    yield from run_merlin_sim(
-        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim(merlin_detector_sim_threads):
-    '''
-    Host, port tuple of the untriggered default simulator
-    '''
-    return merlin_detector_sim_threads.server_t.sockname
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_cached_threads():
-    '''
-    Untriggered default simulator with memory cache.
-    '''
-    yield from run_merlin_sim(
-        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
-        cached='MEM'
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_cached(merlin_detector_cached_threads):
-    '''
-    Host, port tuple of the untriggered default simulator with memory cache
-    '''
-    return merlin_detector_cached_threads.server_t.sockname
-
-
-@pytest.mark.skipif(platform.system() != 'Linux',
-                    reason="MemFD is Linux-only")
-@pytest.fixture(scope='module')
-def merlin_detector_memfd_threads():
-    '''
-    Untriggered default simulator with memfd cache.
-    '''
-    yield from run_merlin_sim(
-        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
-        cached='MEMFD'
-    )
-
-
-@pytest.mark.skipif(platform.system() != 'Linux',
-                    reason="MemFD is Linux-only")
-@pytest.fixture(scope='module')
-def merlin_detector_memfd(merlin_detector_memfd_threads):
-    '''
-    Host, port tuple of the untriggered default simulator with memfd cache
-    '''
-    return merlin_detector_memfd_threads.server_t.sockname
-
-
-@pytest.fixture(scope='module')
-def merlin_triggered_garbage_threads():
-    '''
-    Triggered simulator with garbage.
-    '''
-    cached = None
-    if platform.system() == 'Linux':
-        cached = 'MEMFD'
-    yield from run_merlin_sim(
-        path=MIB_TESTDATA_PATH, nav_shape=(32, 32),
-        cached=cached,
-        wait_trigger=True, garbage=True,
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_control_sim(merlin_triggered_garbage_threads):
-    '''
-    Host, port tuple of the control port for the triggered simulator
-    '''
-    return merlin_triggered_garbage_threads.control_t.sockname
-
-
-@pytest.fixture(scope='module')
-def trigger_sim(merlin_triggered_garbage_threads):
-    '''
-    Host, port tuple of the trigger port for the triggered simulator
-    '''
-    return merlin_triggered_garbage_threads.trigger_t.sockname
-
-
-@pytest.fixture(scope='module')
-def garbage_sim(merlin_triggered_garbage_threads):
-    '''
-    Host, port tuple of the data port for the triggered simulator
-    '''
-    return merlin_triggered_garbage_threads.server_t.sockname
-
-
-@pytest.fixture
-def merlin_ds(ctx_pipelined):
-    return ctx_pipelined.load('MIB', path=MIB_TESTDATA_PATH, nav_shape=(32, 32))
-
-
-@pytest.fixture
-def merlin_ds_ptycho_flat(ltl_ctx):
-    return ltl_ctx.load(
-        'MIB', path=PTYCHO_TESTDATA_PATH, nav_shape=(128*128, )
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim_threads_ptycho():
-    '''
-    Untriggered default simulator.
-    '''
-    yield from run_merlin_sim(
-        path=PTYCHO_TESTDATA_PATH, nav_shape=(128, 128),
-    )
-
-
-@pytest.fixture(scope='module')
-def merlin_detector_sim_ptycho(merlin_detector_sim_threads_ptycho):
-    '''
-    Host, port tuple of the untriggered default simulator
-    '''
-    return merlin_detector_sim_threads_ptycho.server_t.sockname
+    def on_ready_for_data(self, aq: "AcquisitionMixin"):
+        self.triggered[:] = True
+        assert aq.shape.nav == self.ds.shape.nav
 
 
 @pytest.mark.with_numba  # Get coverage for decoders
-def test_acquisition(ctx_pipelined, merlin_detector_sim, merlin_ds):
-    triggered = triggered = np.array((False,))
+def test_acquisition(
+    ctx_pipelined: LiveContext,
+    merlin_ds,
+    default_conn,
+):
+    triggered = np.array((False,))
 
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_sim
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
+    aq = ctx_pipelined.make_acquisition(
+        conn=default_conn,
+        hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
         nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
     )
     udf = SumUDF()
 
+    assert not triggered[0]
     res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    assert triggered[0]
+
     ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
@@ -215,22 +78,17 @@ class ProcessPartitionUDF(UDF):
         self.results.result[:] = partition.sum(axis=(-1, -2))
 
 
-def test_process_partition(ctx_pipelined, merlin_detector_sim, merlin_ds):
-    triggered = triggered = np.array((False,))
+def test_process_partition(
+    ctx_pipelined,
+    default_conn,
+    merlin_ds
+):
+    triggered = np.array((False,))
 
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_sim
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
+    aq = ctx_pipelined.make_acquisition(
+        conn=default_conn,
+        hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
         nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
     )
     udf = ProcessPartitionUDF()
 
@@ -240,84 +98,90 @@ def test_process_partition(ctx_pipelined, merlin_detector_sim, merlin_ds):
     assert_allclose(res['result'], ref['result'])
 
 
-def test_acquisition_dry_run(ctx_pipelined, merlin_detector_sim, merlin_ds):
-    triggered = triggered = np.array((False,))
+def test_acquisition_dry_run(
+    ctx_pipelined,
+    default_conn,
+    merlin_ds,
+):
+    triggered = np.array((False,))
 
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_sim
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
+    aq = ctx_pipelined.make_acquisition(
+        conn=default_conn,
+        hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
         nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
     )
     udf = SumUDF()
 
+    assert not triggered[0]
     runner_cls = ctx_pipelined.executor.get_udf_runner()
     runner_cls.dry_run([udf], aq, None)
+    assert not triggered[0]
     ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    assert triggered[0]
 
 
-def test_acquisition_iter(ctx_pipelined, merlin_detector_sim, merlin_ds):
-    triggered = triggered = np.array((False,))
+def test_acquisition_iter(
+    ctx_pipelined,
+    default_conn,
+    merlin_ds
+):
+    triggered = np.array((False,))
 
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_sim
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
+    aq = ctx_pipelined.make_acquisition(
+        conn=default_conn,
+        hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
         nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
     )
     udf = SumUDF()
 
+    res = None
+    assert not triggered[0]
     for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=udf, sync=True):
+        assert triggered[0]
         pass
 
     ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
+    assert res is not None
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
 
 @pytest.mark.asyncio
-async def test_acquisition_async(ctx_pipelined, merlin_detector_sim, merlin_ds):
+async def test_acquisition_async(
+    ctx_pipelined,
+    default_conn,
+    merlin_ds,
+):
     triggered = triggered = np.array((False,))
 
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
+    with default_conn:
+        aq = ctx_pipelined.make_acquisition(
+            conn=default_conn,
+            hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
+            nav_shape=(32, 32),
+        )
 
-    host, port = merlin_detector_sim
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
-    )
-    udf = SumUDF()
+        udf = SumUDF()
 
-    res = await ctx_pipelined.run_udf(dataset=aq, udf=udf, sync=False)
+        assert not triggered[0]
+        res = await ctx_pipelined.run_udf(dataset=aq, udf=udf, sync=False)
+        assert triggered[0]
     ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
 
-    async for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=udf, sync=False):
-        pass
+    triggered[:] = False
+
+    with default_conn:
+        aq = ctx_pipelined.make_acquisition(
+            conn=default_conn,
+            hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
+            nav_shape=(32, 32),
+        )
+        async for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=udf, sync=False):
+            pass
+
+    assert triggered[0]
 
     assert_allclose(res.buffers[0]['intensity'], ref['intensity'])
 
@@ -338,206 +202,142 @@ class ValidationUDF(UDF):
 
 
 # use inline executor here to not use too much memory
-def test_get_tiles_comparison(ltl_ctx, merlin_detector_sim_ptycho, merlin_ds_ptycho_flat):
+def test_get_tiles_comparison(
+    ltl_ctx,
+    merlin_detector_sim_ptycho,
+    merlin_control_sim_ptycho,
+    merlin_ds_ptycho_flat
+):
     merlin_ds = merlin_ds_ptycho_flat
     da, _ = make_dask_array(merlin_ds)
     p = next(merlin_ds.get_partitions())
     host, port = merlin_detector_sim_ptycho
-    aq = ltl_ctx.prepare_acquisition(
-        'merlin',
-        trigger=None,
-        nav_shape=merlin_ds.shape.nav,
-        host=host,
-        port=port,
+
+    host, port = merlin_detector_sim_ptycho
+    api_host, api_port = merlin_control_sim_ptycho
+    with ltl_ctx.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
         drain=False,
-        pool_size=4,
-        # Match live partition size with offline
-        # partition size to avoid read amplification
-        frames_per_partition=p.slice.shape[0]
-    )
-    _ = TilingScheme.make_for_shape(
-        tileshape=Shape((7, 256, 256), sig_dims=2),
-        dataset_shape=aq.shape
-    )
+    ) as conn:
+        aq = ltl_ctx.make_acquisition(
+            conn=conn,
+            nav_shape=merlin_ds.shape.nav,
+            frames_per_partition=p.slice.shape[0]
+        )
+        _ = TilingScheme.make_for_shape(
+            tileshape=Shape((7, 256, 256), sig_dims=2),
+            dataset_shape=aq.shape
+        )
 
-    ltl_ctx.run_udf(dataset=aq, udf=ValidationUDF(ref_da=da))
-
-
-@pytest.mark.parametrize(
-    # Test matching and mismatching shape
-    'sig_shape', ((256, 256), (512, 512))
-)
-def test_acquisition_shape(ctx_pipelined, merlin_detector_sim, merlin_ds, sig_shape):
-    triggered = triggered = np.array((False,))
-
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_sim
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        sig_shape=sig_shape,
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
-    )
-
-    try:
-        udf = SumUDF()
-
-        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-
-        assert_allclose(res['intensity'], ref['intensity'])
-        assert sig_shape == tuple(merlin_ds.shape.sig)
-    except ValueError as e:
-        assert sig_shape != tuple(merlin_ds.shape.sig)
-        assert 'received "image_size" header' in e.args[0]
-
-
-def test_acquisition_cached(ctx_pipelined, merlin_detector_cached, merlin_ds):
-    triggered = triggered = np.array((False,))
-
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_cached
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
-    )
-    udf = SumUDF()
-
-    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-
-    assert_allclose(res['intensity'], ref['intensity'])
-
-
-@pytest.mark.skipif(platform.system() != 'Linux',
-                    reason="MemFD is Linux-only")
-def test_acquisition_memfd(ctx_pipelined, merlin_detector_memfd, merlin_ds):
-    triggered = triggered = np.array((False,))
-
-    def trigger(acquisition):
-        triggered[:] = True
-        assert acquisition.shape.nav == merlin_ds.shape.nav
-
-    host, port = merlin_detector_memfd
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        host=host,
-        port=port,
-        drain=False,
-        pool_size=16,
-    )
-    udf = SumUDF()
-
-    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-
-    assert_allclose(res['intensity'], ref['intensity'])
+        ltl_ctx.run_udf(dataset=aq, udf=ValidationUDF(ref_da=da))
 
 
 def test_acquisition_triggered_garbage(
-        ctx_pipelined, merlin_control_sim, trigger_sim, garbage_sim, merlin_ds):
-    sim_host, sim_port = garbage_sim
-
+    ctx_pipelined: LiveContext,
+    merlin_control_sim,
+    trigger_sim,
+    garbage_sim,
+    merlin_ds,
+):
     pool = concurrent.futures.ThreadPoolExecutor(1)
 
     trig_res = {
         0: None
     }
 
-    def trigger(acquisition):
-        control = MerlinControl(*merlin_control_sim)
-        with control:
-            control.cmd('STARTACQUISITION')
-        tr = TriggerClient(*trigger_sim)
-        print("Trigger connection:", trigger_sim)
-        tr.connect()
-        tr.trigger()
+    class _MyHooks(Hooks):
+        def on_ready_for_data(self, aq: "AcquisitionMixin"):
+            control = MerlinControl(*merlin_control_sim)
+            with control:
+                control.cmd('STARTACQUISITION')
+            tr = TriggerClient(*trigger_sim)
+            print("Trigger connection:", trigger_sim)
+            tr.connect()
+            tr.trigger()
 
-        def do_scan():
-            '''
-            Emulated blocking scan function using the Merlin simulator
-            '''
-            print("do_scan()")
+            def do_scan():
+                '''
+                Emulated blocking scan function using the Merlin simulator
+                '''
+                print("do_scan()")
 
-        fut = pool.submit(do_scan)
-        trig_res[0] = fut
-        tr.close()
+            fut = pool.submit(do_scan)
+            trig_res[0] = fut
+            tr.close()
 
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        host=sim_host,
-        port=sim_port,
-        pool_size=16,
-    )
-    udf = SumUDF()
+    host, port = garbage_sim
+    api_host, api_port = merlin_control_sim
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=True,
+    ) as conn:
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            hooks=_MyHooks(),
+            nav_shape=(32, 32),
+        )
+        udf = SumUDF()
 
-    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-    assert trig_res[0].result() is None
+        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        assert trig_res[0].result() is None
 
-    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
-    assert_allclose(res['intensity'], ref['intensity'])
+        assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_acquisition_triggered_control(ctx_pipelined, merlin_control_sim, garbage_sim, merlin_ds):
-    sim_host, sim_port = garbage_sim
-
     pool = concurrent.futures.ThreadPoolExecutor(1)
     trig_res = {
         0: None
     }
 
-    def trigger(acquisition):
-        control = MerlinControl(*merlin_control_sim)
-        with control:
-            control.cmd('STARTACQUISITION')
-
-        def do_scan():
-            '''
-            Emulated blocking scan function using the Merlin simulator
-            '''
-            print("do_scan()")
+    class _MyHooks(Hooks):
+        def on_ready_for_data(self, aq: "AcquisitionMixin"):
+            control = MerlinControl(*merlin_control_sim)
             with control:
-                control.cmd('SOFTTRIGGER')
+                control.cmd('STARTACQUISITION')
 
-        fut = pool.submit(do_scan)
-        trig_res[0] = fut
+            def do_scan():
+                '''
+                Emulated blocking scan function using the Merlin simulator
+                '''
+                print("do_scan()")
+                with control:
+                    control.cmd('SOFTTRIGGER')
 
-    aq = ctx_pipelined.prepare_acquisition(
-        'merlin',
-        trigger=trigger,
-        nav_shape=(32, 32),
-        host=sim_host,
-        port=sim_port,
-        pool_size=16,
-    )
-    udf = SumUDF()
+            fut = pool.submit(do_scan)
+            trig_res[0] = fut
 
-    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-    assert trig_res[0].result() is None
+    host, port = garbage_sim
+    api_host, api_port = merlin_control_sim
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=True,
+    ) as conn:
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            hooks=_MyHooks(),
+            nav_shape=(32, 32),
+        )
 
-    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+        udf = SumUDF()
 
-    assert_allclose(res['intensity'], ref['intensity'])
+        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        assert trig_res[0].result() is None
+
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+
+        assert_allclose(res['intensity'], ref['intensity'])
 
 
 @pytest.mark.parametrize(
@@ -547,7 +347,13 @@ def test_acquisition_triggered_control(ctx_pipelined, merlin_control_sim, garbag
     # auto, correct, wrong
     'sig_shape', (None, (256, 256), (512, 512)),
 )
-def test_datasource(ctx_pipelined, merlin_detector_sim, merlin_ds, inline, sig_shape):
+def test_datasource(
+    ctx_pipelined: LiveContext,
+    merlin_detector_sim,
+    merlin_ds,
+    inline,
+    sig_shape,
+):
     print("Merlin sim:", merlin_detector_sim)
     source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape, pool_size=16)
 
@@ -569,7 +375,7 @@ def test_datasource(ctx_pipelined, merlin_detector_sim, merlin_ds, inline, sig_s
         assert 'received "image_size" header' in e.args[0]
 
 
-def test_datasource_nav(ctx_pipelined, merlin_detector_sim, merlin_ds):
+def test_datasource_nav(ctx_pipelined: LiveContext, merlin_detector_sim, merlin_ds):
     source = MerlinDataSource(*merlin_detector_sim, pool_size=16)
 
     res = np.zeros(merlin_ds.shape.nav).reshape((-1,))
@@ -579,77 +385,6 @@ def test_datasource_nav(ctx_pipelined, merlin_detector_sim, merlin_ds):
     udf = SumSigUDF()
     ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
     assert_allclose(res.reshape(merlin_ds.shape.nav), ref['intensity'])
-
-
-class BadServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, exception, *args, **kwargs):
-        self.exception = exception
-        super().__init__(*args, **kwargs)
-
-    def handle_conn(self, connection):
-        raise self.exception
-
-
-class OtherError(Exception):
-    pass
-
-
-def serve(cls, host='127.0.0.1', port=0):
-    server = cls(host=host, port=port)
-    server.start()
-    server.wait_for_listen()
-    yield server
-    print("cleaning up server thread")
-    server.maybe_raise()
-    print("stopping server thread")
-    server.stop()
-    timeout = 2
-    start = time.time()
-    while True:
-        print("are we there yet?")
-        server.maybe_raise()
-        if not server.is_alive():
-            print("server is dead, we are there")
-            break
-        if (time.time() - start) >= timeout:
-            raise RuntimeError("Server didn't stop gracefully")
-        time.sleep(0.1)
-
-
-@pytest.mark.parametrize(
-    'exception_cls', (RuntimeError, ValueError, OtherError)
-)
-def test_server_throws(exception_cls):
-    server = contextmanager(serve)
-    exception = exception_cls("Testing...")
-    cls = functools.partial(BadServer, exception=exception, name="BadServer")
-    with pytest.raises(exception_cls, match="Testing..."):
-        with server(cls) as serv:
-            host, port = serv.sockname
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.connect((host, port))
-                time.sleep(1)
-                print("second try...")
-                # Making sure the server is stopped
-                with pytest.raises(ConnectionRefusedError):
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s2:
-                        s2.connect((host, port))
-
-
-def test_server_stop():
-    server = contextmanager(serve)
-    exception = StopException("Testing...")
-    cls = functools.partial(BadServer, exception=exception, name="BadServer")
-    with server(cls) as serv:
-        host, port = serv.sockname
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((host, port))
-            time.sleep(1)
-            # The above exception should have led to an immediate graceful stop of the server
-            with pytest.raises(ConnectionRefusedError):
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s2:
-                    s2.connect((host, port))
-                    print(s2.getsockname())
 
 
 def test_control(merlin_control_sim, tmp_path):

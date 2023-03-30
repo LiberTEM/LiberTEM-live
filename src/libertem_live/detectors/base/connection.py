@@ -46,6 +46,3 @@ class DetectorConnection:
         Returns the matching `Acquisition` class
         """
         raise NotImplementedError()
-
-    def get_acquisition_builder(self):
-        raise NotImplementedError()

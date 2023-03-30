@@ -1,9 +1,10 @@
 import logging
 import socket
 import time
-from typing import Generator
+from typing import Generator, Optional
 
 import numpy as np
+import numpy.typing as npt
 
 from libertem_live.detectors.base.acquisition import AcquisitionTimeout
 from .decoders import (
@@ -21,7 +22,7 @@ from .decoders import (
 logger = logging.getLogger(__name__)
 
 
-def get_np_dtype(dtype, bit_depth):
+def get_np_dtype(dtype, bit_depth) -> npt.DTypeLike:
     dtype = dtype.lower()
     num_bits = int(dtype[1:])
     if dtype[0] == "u":
@@ -36,10 +37,12 @@ def get_np_dtype(dtype, bit_depth):
             # 24bit raw is two 12bit images after another:
             return np.dtype("uint16")
         else:
-            raise NotImplementedError("unknown bit depth: %s" % bit_depth)
+            raise NotImplementedError(f"unknown bit depth: {bit_depth}")
+    else:
+        raise NotImplementedError(f"unknown dtype prefix: {dtype[0]}")
 
 
-def _parse_frame_header(raw_data):
+def _parse_frame_header(raw_data: bytes):
     # FIXME: like in the MIB reader, but no 'filesize' and 'num_images'
     # keys (they can be deduced from a .mib file, but don't make sense
     # in the networked case)
@@ -144,7 +147,7 @@ class MerlinRawFrames:
     def buffer(self):
         return self._buffer
 
-    def decode(self, out_flat):
+    def decode(self, out_flat: np.ndarray):
         fh = self._first_frame_header
         header_size = int(fh['header_size_bytes']) + 15
         itemsize = fh['dtype'].itemsize
@@ -248,7 +251,7 @@ class MerlinRawSocket:
     Read packets of frames from the merlin data socket and
     pass them on in undecoded form
     """
-    def __init__(self, host='127.0.0.1', port=6342, timeout=1.0):
+    def __init__(self, host: str = '127.0.0.1', port: int = 6342, timeout: float = 1.0):
         self._host = host
         self._port = port
         self._timeout = timeout
@@ -265,6 +268,7 @@ class MerlinRawSocket:
         self._socket.settimeout(self._timeout)
         self._is_connected = True
         self._frame_counter = 0
+        return self
 
     def is_connected(self):
         return self._is_connected
@@ -277,6 +281,7 @@ class MerlinRawSocket:
         """
         if not self.is_connected():
             raise RuntimeError("can't read without connection")
+        assert self._socket is not None
         total_bytes_read = 0
         buf = bytearray(16*1024*1024)
         assert length < len(buf)
@@ -303,6 +308,7 @@ class MerlinRawSocket:
         """
         if not self.is_connected():
             raise RuntimeError("can't read without connection")
+        assert self._socket is not None
         length = len(out)
         total_bytes_read = 0
         view = memoryview(out)
@@ -362,6 +368,7 @@ class MerlinRawSocket:
 
     def _peek_frame_header(self):
         # first, peek only the MPX header part:
+        assert self._socket is not None
         while True:
             try:
                 buf = self._socket.recv(15, socket.MSG_PEEK)
@@ -382,7 +389,7 @@ class MerlinRawSocket:
         frame_header = _parse_frame_header(buf[15:])
         return frame_header
 
-    def _parse_acq_header(self, header):
+    def _parse_acq_header(self, header: bytes):
         result = {}
         for line in header.decode("latin1").split('\n'):
             try:
@@ -399,8 +406,11 @@ class MerlinRawSocket:
         return result
 
     def close(self):
-        self._socket.close()
-        self._is_connected = False
+        if self._is_connected:
+            assert self._socket is not None
+            self._socket.close()
+            self._socket = None
+            self._is_connected = False
 
     def __enter__(self):
         self.connect()
@@ -413,6 +423,7 @@ class MerlinRawSocket:
         read data from the data socket until we hit the timeout; returns
         the number of bytes drained
         """
+        assert self._socket is not None
         bytes_read = 0
         # read from the socket until we hit the timeout:
         old_timeout = self._socket.gettimeout()
@@ -481,10 +492,26 @@ class MerlinRawSocket:
         return input_bytes
 
 
+class MerlinFrameStream:
+    def __init__(self, raw_socket: MerlinRawSocket, ):
+        self._raw_socket = raw_socket
+
+
 class MerlinDataSource:
-    def __init__(self, host, port, pool_size=2, sig_shape=None, timeout=None):
+    def __init__(
+        self,
+        host,
+        port,
+        pool_size=2,
+        sig_shape=None,
+        timeout: Optional[float] = None
+    ):
         self._sig_shape = sig_shape
-        self.socket = MerlinRawSocket(host=host, port=port, timeout=timeout)
+        self.socket = MerlinRawSocket(
+            host=host,
+            port=port,
+            timeout=timeout,
+        )
 
     def __enter__(self):
         self.socket.__enter__()

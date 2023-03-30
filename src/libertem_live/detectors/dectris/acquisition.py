@@ -193,9 +193,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         A tunable for configuring the feedback rate - more frames per partition
         means slower feedback, but less computational overhead. Might need to be tuned
         to adapt to the dwell time.
-    enable_corrections
-        Automatically correct defect pixels, downloading the pixel mask from the
-        detector configuration.
     pending_aq
         A pending acquisition in passive mode, obtained from
         :meth:`DectrisDetectorConnection.wait_for_acquisition`.
