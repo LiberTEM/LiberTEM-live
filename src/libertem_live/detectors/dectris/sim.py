@@ -430,7 +430,7 @@ def send_detector_command(parameter) -> Dict:
     elif parameter in ('hv_reset', 'initialize', 'trigger'):
         return {}
     else:
-        raise ValueError(f'Parameter {parameter} not implemented.')
+        return {"error": f'Parameter {parameter} not implemented.'}, 500
 
 
 @api.route("/stream/api/1.8.0/config/<parameter>", methods=["GET"])
@@ -450,7 +450,7 @@ def get_stream_config(parameter) -> Dict:
             'value_type': 'string'
         }
     else:
-        raise ValueError(f'Parameter {parameter} not implemented.')
+        return {"error": f'Parameter {parameter} not implemented.'}, 500
 
 
 @api.route("/stream/api/1.8.0/config/<parameter>", methods=["PUT"])
@@ -461,7 +461,7 @@ def set_stream_config(parameter):
     elif parameter == 'header_detail':
         assert request_data['value'] in ('basic', )
     else:
-        raise ValueError(f'Parameter {parameter} not implemented.')
+        return f'Parameter {parameter} not implemented.', 500
     return ""
 
 
@@ -530,11 +530,11 @@ def get_detector_config(parameter) -> Dict:
         print(current_app.config['headers'])
         if parameter not in current_app.config['headers'][1]:
             keys = list(current_app.config['headers'][1])
-            raise ValueError(f'Parameter not found in header, only have: {keys}')
+            return {"error": f'Parameter not found in header, only have: {keys}'}, 500
         res['value'] = current_app.config['headers'][1][parameter]
         return res
     else:
-        raise ValueError(f'Parameter {parameter} not implemented.')
+        return {"error": f'Parameter {parameter} not implemented.'}, 500
 
 
 @api.route("/detector/api/1.8.0/config/<parameter>", methods=["PUT"])
@@ -545,14 +545,15 @@ def set_detector_config(parameter):
         if (request_data['value'] != headers[1][parameter]
                 and (parameter not in {'ntrigger', 'nimages'}
                     or request_data['value'] != 1)):
-            raise ValueError(
+            error = (
                 f'Value {request_data["value"]} for parameter {parameter} '
                 f'does not match file content {headers[1][parameter]}.'
             )
+            return {"error": error}, 500
         else:
             return json.dumps([parameter])
     else:
-        raise ValueError(f'Parameter {parameter} not implemented.')
+        return {"error": f'Parameter {parameter} not implemented.'}, 500
 
 
 def run_api(
