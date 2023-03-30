@@ -1,24 +1,33 @@
 import warnings
 import contextlib
-from typing import TYPE_CHECKING, overload, Literal, Union
+from typing import TYPE_CHECKING, overload, Literal, Union, Tuple, Optional
+
+from opentelemetry import trace
 
 from libertem.executor.pipelined import PipelinedExecutor
 # Avoid having Context in this module to make sure
 # it is not imported by accident instead of LiveContext
 from libertem.api import Context as LiberTEM_Context
 
-from opentelemetry import trace
+from .detectors.base.connection import DetectorConnection, PendingAcquisition
+from .detectors.base.controller import AcquisitionController
+from .detectors.base.acquisition import AcquisitionMixin
+from .hooks import Hooks
 
 if TYPE_CHECKING:
-    from libertem_live.detectors.dectris import DectrisConnectionBuilder, DectrisAcquisitionBuilder
-    from libertem_live.detectors.merlin import MerlinConnectionBuilder, MerlinAcquisitionBuilder
-    from libertem_live.detectors.memory import MemoryConnectionBuilder, MemoryAcquisitionBuilder
+    from libertem_live.detectors.dectris import DectrisConnectionBuilder
+    from libertem_live.detectors.merlin import MerlinConnectionBuilder
+    from libertem_live.detectors.memory import MemoryConnectionBuilder
 
 tracer = trace.get_tracer(__name__)
 
 
-def _noop(aq):
-    return None
+class TriggerHooks(Hooks):
+    def __init__(self, trigger):
+        self._trigger = trigger
+
+    def on_ready_for_data(self, aq: "AcquisitionMixin"):
+        self._trigger(aq)
 
 
 class LiveContext(LiberTEM_Context):
@@ -94,32 +103,15 @@ class LiveContext(LiberTEM_Context):
             )
         return CLS()
 
-    @overload
     def make_acquisition(
         self,
-        detector_type: Literal['dectris'],
-    ) -> "DectrisAcquisitionBuilder":
-        ...
-
-    @overload
-    def make_acquisition(
-        self,
-        detector_type: Literal['merlin'],
-    ) -> "MerlinAcquisitionBuilder":
-        ...
-
-    @overload
-    def make_acquisition(
-        self,
-        detector_type: Literal['memory'],
-    ) -> "MemoryAcquisitionBuilder":
-        ...
-
-    def make_acquisition(
-        self,
-        detector_type: Union[
-            Literal['merlin'], Literal['dectris'], Literal['memory'],
-        ],
+        *,
+        conn: DetectorConnection,
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
+        controller: Optional[AcquisitionController] = None,
+        pending_aq: Optional[PendingAcquisition] = None,
+        hooks: Optional[Hooks] = None,
     ):
         """
         Create an acquisition object.
@@ -132,17 +124,16 @@ class LiveContext(LiberTEM_Context):
                 data=np.random.random((23, 42, 51, 67))
             )
         """
-        if detector_type == 'dectris':
-            from libertem_live.detectors.dectris import DectrisAcquisitionBuilder as CLS
-        elif detector_type == 'merlin':
-            from libertem_live.detectors.merlin import MerlinAcquisitionBuilder as CLS
-        elif detector_type == 'memory':
-            from libertem_live.detectors.memory import MemoryAcquisitionBuilder as CLS
-        else:
-            raise NotImplementedError(
-                f"detector type {detector_type} doesn't support this API"
-            )
-        return CLS(executor=self.executor)
+        cls = conn.get_acquisition_cls()
+        instance = cls(
+            conn=conn,
+            nav_shape=nav_shape,
+            frames_per_partition=frames_per_partition,
+            controller=controller,
+            pending_aq=pending_aq,
+            hooks=hooks,
+        )
+        return instance.initialize(self.executor)
 
     def prepare_acquisition(self, detector_type, *args, trigger=None, **kwargs):
         # FIXME implement similar to LiberTEM datasets once
@@ -175,8 +166,10 @@ class LiveContext(LiberTEM_Context):
             "`LiveContext.make_acquisition` instead.",
             DeprecationWarning,
         )
-        if trigger is None:
-            trigger = _noop
+        if trigger is not None:
+            hooks = TriggerHooks(trigger=trigger)
+        else:
+            hooks = None
         detector_type = str(detector_type).lower()
         if detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinAcquisition as CLS
@@ -188,7 +181,7 @@ class LiveContext(LiberTEM_Context):
             raise ValueError(
                 f"Unknown detector type '{detector_type}', supported is 'merlin' or 'dectris'"
             )
-        return CLS(*args, trigger=trigger, **kwargs).initialize(self.executor)
+        return CLS(*args, hooks=hooks, **kwargs).initialize(self.executor)
 
     def _run_sync(self, dataset, udf, iterate=False, *args, **kwargs):
         def _run_sync_iterate():

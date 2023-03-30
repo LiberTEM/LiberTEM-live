@@ -1,7 +1,7 @@
 import os
 import math
 import tempfile
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Type
 
 from libertem_live.detectors.base.connection import (
     DetectorConnection,
@@ -10,6 +10,10 @@ import libertem_dectris
 from .common import DectrisPendingAcquisition, TriggerMode
 from .controller import DectrisActiveController
 from .DEigerClient import DEigerClient
+
+
+if TYPE_CHECKING:
+    from .acquisition import DectrisAcquisition
 
 
 class DectrisDetectorConnection(DetectorConnection):
@@ -246,6 +250,10 @@ class DectrisDetectorConnection(DetectorConnection):
     def log_stats(self):
         self._conn.log_shm_stats()
 
+    def get_acquisition_cls(self) -> Type["DectrisAcquisition"]:
+        from .acquisition import DectrisAcquisition
+        return DectrisAcquisition
+
 
 class DectrisConnectionBuilder:
     def open(
@@ -254,7 +262,7 @@ class DectrisConnectionBuilder:
         api_port: int,
         data_host: str,
         data_port: int,
-        buffer_size: int = 1024,
+        buffer_size: int = 2048,
         bytes_per_frame: Optional[int] = None,
         frame_stack_size: int = 24,
         huge_pages: bool = False,

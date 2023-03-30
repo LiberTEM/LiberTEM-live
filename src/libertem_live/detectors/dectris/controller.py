@@ -3,12 +3,13 @@ from typing import Optional, Tuple, TYPE_CHECKING
 from libertem.common.math import prod
 from .common import TriggerMode
 from .DEigerClient import DEigerClient
+from ..base.controller import AcquisitionController
 
 if TYPE_CHECKING:
     from .acquisition import DectrisDetectorConnection
 
 
-class DectrisActiveController:
+class DectrisActiveController(AcquisitionController):
     """
     Detector settings. If you leave them out or set them to None, they
     will not be changed.
@@ -30,6 +31,7 @@ class DectrisActiveController:
         compression: Optional[str] = None,  # bslz4, lz4
         name_pattern: Optional[str] = None,
         nimages_per_file: Optional[int] = 0,
+        enable_corrections: bool = False,
     ):
         self._api_host = api_host
         self._api_port = api_port
@@ -43,6 +45,7 @@ class DectrisActiveController:
         self._roi_mode = roi_mode
         self._roi_y_size = roi_y_size
         self._roi_bit_depth = roi_bit_depth
+        self._enable_corrections = enable_corrections
 
     def get_api_client(self) -> DEigerClient:
         ec = DEigerClient(self._api_host, port=self._api_port)
@@ -106,3 +109,7 @@ class DectrisActiveController:
         """
         # conn.stop_series()
         pass  # FIXME: do we have to do anything here?
+
+    @property
+    def enable_corrections(self) -> bool:
+        return self._enable_corrections

@@ -1,4 +1,6 @@
-from typing import Optional
+from typing import Optional, Type
+
+from .acquisition import AcquisitionMixin
 
 
 class PendingAcquisition:
@@ -38,3 +40,12 @@ class DetectorConnection:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
+
+    def get_acquisition_cls(self) -> Type[AcquisitionMixin]:
+        """
+        Returns the matching `Acquisition` class
+        """
+        raise NotImplementedError()
+
+    def get_acquisition_builder(self):
+        raise NotImplementedError()
