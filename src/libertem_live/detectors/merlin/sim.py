@@ -9,6 +9,7 @@ import platform
 import threading
 import logging
 import select
+from typing import List
 
 import click
 import numpy as np
@@ -556,12 +557,24 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
 
 class ControlSocketServer(ServerThreadMixin, threading.Thread):
     def __init__(
-            self, acquisition_event, trigger_event, stop_event=None,
-            host='0.0.0.0', port=6341):
+        self, acquisition_event, trigger_event, stop_event=None,
+        host='0.0.0.0', port=6341, initial_params=None,
+    ):
         self._trigger_event = trigger_event
         self._acquisition_event = acquisition_event
         self._params = {}
+        if initial_params is not None:
+            self._params = initial_params
         super().__init__(host=host, port=port, name=self.__class__.__name__, stop_event=stop_event)
+
+    def encode_response(self, response_parts: List[str]) -> bytes:
+        resp_len = len(",".join(response_parts).encode("ASCII"))
+        parts = [
+            "MPX",
+            f"{resp_len:010d}",  # 1
+        ] + response_parts
+        response_str = ','.join(parts)
+        return response_str.encode("ascii")
 
     def handle_conn(self, connection):
         connection.settimeout(1)
@@ -575,6 +588,11 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
         # * Figure out the missing parts of the response to match Merlin behavior
         # * Actually respond to commands that can be simulated, such as 'numframes'
         # * Possibly emit errors like a real Merlin detector upon bad commands?
+        #       error codes:
+        #       0 -> success
+        #       1 -> busy
+        #       2 -> command not recognized
+        #       3 -> parameter out of range
         while not self.is_stopped():
             try:
                 chunk = connection.recv(1024*1024)
@@ -588,43 +606,45 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             parts = [part.decode('ascii') for part in parts]
             method = parts[2]
             param = parts[3]
-            if method == 'SET':
-                value = parts[4]
             if method == 'GET':
-                response_parts = (
-                    "noideafirst",
-                    "noideasecond",
-                    method,
-                    "noideafourth",
-                    self._params.get(param, "undef"),
-                    "0"
+                response = self.encode_response(
+                    response_parts=[
+                        method,
+                        param,
+                        self._params.get(param, "undef"),
+                        "0"  # error code: success
+                    ]
                 )
             elif method == 'SET':
+                # handle the actual operation:
+                value = parts[4]
                 self._params[param] = value
-                response_parts = (
-                    "noideafirst",  # 0
-                    "noideasecond",  # 1
-                    method,  # 2
-                    "noideafourth",  # 3
-                    "0",  # 4
+
+                # and generate a response
+                response = self.encode_response(
+                    response_parts=[
+                        method,  # 2
+                        param,  # 3
+                        "0",  # 4 - error code: success
+                    ]
                 )
             elif method == 'CMD':
                 if param == 'SOFTTRIGGER':
                     self._trigger_event.set()
                 elif param == 'STARTACQUISITION':
                     self._acquisition_event.set()
-                response_parts = (
-                    "noideafirst",  # 0
-                    "noideasecond",  # 1
-                    method,  # 2
-                    "noideafourth",  # 3
-                    "0",  # 4
+
+                response = self.encode_response(
+                    response_parts=[
+                        method,  # 2
+                        param,  # 3
+                        "0",  # error code: success
+                    ]
                 )
             else:
                 raise RuntimeError("Unknown method %s", method)
-            response_str = ','.join(response_parts)
-            print("Control response: ", response_str)
-            connection.send(response_str.encode('ascii'))
+            print("Control response: ", str(response))
+            connection.send(response)
 
 
 class TriggerSocketServer(ServerThreadMixin, threading.Thread):
@@ -668,9 +688,11 @@ class TriggerClient():
         self._socket = s
 
     def trigger(self):
+        assert self._socket is not None, "need to be connected"
         self._socket.send(b'TRIGGER\n')
 
     def wait(self):
+        assert self._socket is not None, "need to be connected"
         while True:
             try:
                 res = self._socket.recv(1024)
@@ -680,14 +702,19 @@ class TriggerClient():
                 pass
 
     def close(self):
-        self._socket.close()
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None
 
 
 class CameraSim:
-    def __init__(self, path, nav_shape, continuous=False,
-            host='0.0.0.0', data_port=6342, control_port=6341,
-            trigger_port=6343, wait_trigger=False, garbage=False,
-            cached=None, max_runs=-1, manual_trigger=False):
+    def __init__(
+        self, path, nav_shape, continuous=False,
+        host='0.0.0.0', data_port=6342, control_port=6341,
+        trigger_port=6343, wait_trigger=False, garbage=False,
+        cached=None, max_runs=-1, initial_params=None,
+        manual_trigger=False,
+    ):
         if garbage:
             wait_trigger = True
 
@@ -733,6 +760,7 @@ class CameraSim:
             stop_event=self.stop_event,
             acquisition_event=self.acquisition_event,
             trigger_event=self.trigger_event,
+            initial_params=initial_params,
         )
         # Make sure the thread dies with the main program
         self.control_t.daemon = True

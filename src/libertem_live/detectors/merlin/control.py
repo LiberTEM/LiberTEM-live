@@ -1,5 +1,6 @@
 import socket
 import logging
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,7 @@ class MerlinControl:
     def __enter__(self):
         self._protected = True
         self.connect()
+        return self
 
     def __exit__(self, type, value, traceback):
         if self._protected:
@@ -50,8 +52,10 @@ class MerlinControl:
             self._protected = False
 
     def _send(self, message):
+        assert self._socket is not None, "must be connected to send"
         self._socket.sendall(message.encode("ascii"))
         done = False
+        resp = None
         while not done:
             try:
                 resp = self._socket.recv(self._buffer_size)
@@ -61,7 +65,7 @@ class MerlinControl:
         logger.debug(f'Response: {resp}')
         return resp
 
-    def _parse_response(self, resp):
+    def _parse_response(self, resp) -> Optional[bytes]:
         parts = resp.split(b',')
         msgs = ['Command OK', 'System Busy', 'Unrecognised Command',
                 'Param out of range']
@@ -72,6 +76,9 @@ class MerlinControl:
 
         if parts[2] == b'GET':
             return parts[4]
+        else:
+            # no response expected:
+            return None
 
     def _create_cmd(self, typ, cmd, value=None):
         string = ''
@@ -101,13 +108,15 @@ class MerlinControl:
             self._send(self._create_cmd('SET', param, value))
         )
 
-    def get(self, param):
+    def get(self, param) -> bytes:
         """
         Send a GET command, and return the response
         """
-        return self._parse_response(
+        parsed = self._parse_response(
             self._send(self._create_cmd('GET', param))
         )
+        assert parsed is not None, "for GET commands, the repsonse must not be None"
+        return parsed
 
     def send_command_file(self, filename):
         """
@@ -134,5 +143,6 @@ class MerlinControl:
         Close the socket connection. Usually, instead of calling this function,
         you should use this class as a context manager.
         """
-        self._socket.close()
-        self._socket = None
+        if self._socket is not None:
+            self._socket.close()
+            self._socket = None

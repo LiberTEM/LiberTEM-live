@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 import logging
-from typing import Callable, Generator, Iterator, Tuple, Optional
-import warnings
+from typing import Generator, Iterator, Tuple, Optional
 import numpy as np
 from libertem.common.math import prod
 from libertem.common import Shape, Slice
@@ -14,7 +13,9 @@ from libertem.io.dataset.base import (
 from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
-from .data import MerlinRawFrames, MerlinRawSocket, validate_get_sig_shape
+from libertem_live.hooks import Hooks
+from .data import MerlinRawFrames
+from .connection import MerlinDetectorConnection, MerlinPendingAcquisition
 
 from opentelemetry import trace
 
@@ -30,15 +31,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     Parameters
     ----------
 
-    trigger : function()
-        See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
-        and :ref:`trigger` for details!
     nav_shape : tuple(int)
-    sig_shape : tuple(int)
-    host : str
-        Hostname of the Merlin data server, default '127.0.0.1'
-    port : int
-        Data port of the Merlin data server, default 6342
     drain : bool
         Drain the socket before triggering. Disable this when using internal
         start trigger!
@@ -48,42 +41,52 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     '''
     def __init__(
         self,
-        trigger: Callable,
+        conn: MerlinDetectorConnection,
         nav_shape: Tuple[int, int],
-        sig_shape: Tuple[int, int] = (256, 256),
-        host: str = '127.0.0.1',
-        port: int = 6342,
-        drain: bool = True,
-        frames_per_partition: int = 256,
-        pool_size: Optional[int] = None,
-        timeout: float = 5,
+        frames_per_partition: Optional[int],
+        pending_aq: Optional[MerlinPendingAcquisition] = None,
+        controller: Optional[None] = None,  # FIXME
+        hooks: Optional[Hooks] = None,
     ):
-        # This will also call the DataSet constructor, additional arguments
-        # could be passed -- currently not necessary
-        super().__init__(trigger=trigger)
-        self._socket = MerlinRawSocket(host, port, timeout=timeout)
-        self._drain = drain
-        self._nav_shape = nav_shape
-        self._sig_shape = sig_shape
-        self._frames_per_partition = min(frames_per_partition, prod(nav_shape))
-        self._timeout = timeout
-        if pool_size is not None:
-            warnings.warn('`pool_size` parameter is no longer used and ignored', UserWarning)
+        if frames_per_partition is None:
+            frames_per_partition = 256
+        frames_per_partition = min(frames_per_partition, prod(nav_shape))
+        if controller is None and pending_aq is None:
+            controller = conn.get_active_controller()
+
+        if hooks is None:
+            hooks = Hooks()
+
+        super().__init__(
+            conn=conn,
+            nav_shape=nav_shape,
+            frames_per_partition=frames_per_partition,
+            pending_aq=pending_aq,
+            controller=controller,
+            hooks=hooks,
+        )
 
     def initialize(self, executor):
         # FIXME: possibly need to have an "acquisition plan" object
         # so we know all relevant parameters beforehand
-        dtype = np.uint8  # FIXME: don't know the dtype yet
+        sig_shape = self._conn.read_sig_shape()
+
+        bitdepth = self._conn.read_bitdepth()
+        if bitdepth in (1, 6):
+            dtype = np.uint8
+        elif bitdepth == 12:
+            dtype = np.uint16
+        elif bitdepth == 24:
+            dtype = np.uint32
+        else:
+            raise RuntimeError(f"unknown COUNTERDEPTH {bitdepth}! should be in (1,6,16,24)")
+
         self._meta = DataSetMeta(
-            shape=Shape(self._nav_shape + self._sig_shape, sig_dims=2),
+            shape=Shape(self._nav_shape + sig_shape, sig_dims=2),
             raw_dtype=dtype,
             dtype=dtype,
         )
         return self
-
-    @property
-    def raw_socket(self):
-        return self._socket
 
     @property
     def dtype(self):
@@ -103,22 +106,23 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 
     @contextmanager
     def acquire(self):
-        with self.raw_socket:
-            if self._drain:
-                with tracer.start_as_current_span("drain") as span:
-                    drained_bytes = self.raw_socket.drain()
-                    span.set_attributes({
-                        "libertem_live.drained_bytes": drained_bytes,
-                    })
-                if drained_bytes > 0:
-                    logger.info(f"drained {drained_bytes} bytes of garbage")
-            with tracer.start_as_current_span("MerlinAcquisition.trigger"):
-                self.trigger()
-            self.raw_socket.read_headers(cancel_timeout=self._timeout)
+        if self._pending_aq is None:
+            # active case, we manage the connection:
+            with self._conn:
+                self._conn.maybe_drain()
+                with tracer.start_as_current_span("MerlinAcquisition.trigger"):
+                    self._hooks.on_ready_for_data(self)
+                self._conn._data_socket.read_headers(cancel_timeout=30)
 
-            frame_header = self.raw_socket.get_first_frame_header()
-            validate_get_sig_shape(frame_header, self._sig_shape)
-            yield
+                # FIXME: is this still needed?
+                # we are now reading the sig shape via the detector control
+                # interface anyways, so it should fit!
+                #
+                # frame_header = self.raw_socket.get_first_frame_header()
+                # validate_get_sig_shape(frame_header, self._sig_shape)
+                yield
+        else:
+            raise NotImplementedError("todo - passive mode")
 
     def check_valid(self):
         pass
@@ -143,8 +147,6 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         num_frames = np.prod(self._nav_shape, dtype=np.uint64)
         num_partitions = int(num_frames // self._frames_per_partition)
 
-        header = self.raw_socket.get_acquisition_header()
-
         slices = BasePartition.make_slices(self.shape, num_partitions)
         for part_slice, start, stop in slices:
             yield MerlinLivePartition(
@@ -152,12 +154,11 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
                 end_idx=stop,
                 meta=self._meta,
                 partition_slice=part_slice,
-                acq_header=header,
             )
 
     def get_task_comm_handler(self) -> TaskCommHandler:
         return MerlinCommHandler(
-            socket=self.raw_socket,
+            conn=self._conn,
             tiling_depth=24,  # FIXME!
         )
 
@@ -220,8 +221,8 @@ def _accum_partition(
 
 
 class MerlinCommHandler(TaskCommHandler):
-    def __init__(self, socket: MerlinRawSocket, tiling_depth: int):
-        self._socket = socket
+    def __init__(self, conn: MerlinDetectorConnection, tiling_depth: int):
+        self._conn = conn
         self._tiling_depth = tiling_depth
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
@@ -236,14 +237,15 @@ class MerlinCommHandler(TaskCommHandler):
             frame_chunk_size = min(32, self._tiling_depth)
             frames_read = 0
             num_frames_in_partition = end_idx - start_idx
+            data_socket = self._conn.get_data_socket()
             while frames_read < num_frames_in_partition:
                 next_read_size = min(
                     num_frames_in_partition - frames_read,
                     frame_chunk_size,
                 )
                 # FIXME: can't properly reuse this buffer currently...
-                input_buffer = self._socket.get_input_buffer(next_read_size)
-                res = self._socket.read_multi_frames(
+                input_buffer = data_socket.get_input_buffer(next_read_size)
+                res = data_socket.read_multi_frames(
                     input_buffer=input_buffer,
                     num_frames=next_read_size,
                     read_upto_frame=end_idx,
@@ -273,13 +275,11 @@ class MerlinCommHandler(TaskCommHandler):
 
 class MerlinLivePartition(Partition):
     def __init__(
-        self, start_idx, end_idx, partition_slice,
-        meta, acq_header,
+        self, start_idx, end_idx, partition_slice, meta,
     ):
         super().__init__(meta=meta, partition_slice=partition_slice, io_backend=None, decoder=None)
         self._start_idx = start_idx
         self._end_idx = end_idx
-        self._acq_header = acq_header
 
     def shape_for_roi(self, roi):
         return self.slice.adjust_for_roi(roi).shape

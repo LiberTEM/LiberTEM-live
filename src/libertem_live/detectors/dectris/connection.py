@@ -150,6 +150,7 @@ class DectrisDetectorConnection(DetectorConnection):
         compression: Optional[str] = None,  # bslz4, lz4
         name_pattern: Optional[str] = None,
         nimages_per_file: Optional[int] = 0,
+        enable_corrections: bool = False,
     ):
         '''
         Create a controller object that knows about the detector settings
@@ -185,6 +186,9 @@ class DectrisDetectorConnection(DetectorConnection):
         name_pattern
             If given, file writing is enabled and the name pattern is set to the
             given string. Please see the DECTRIS documentation for details!
+        enable_corrections
+            Automatically correct defect pixels, downloading the pixel mask from the
+            detector configuration.
         '''
         return DectrisActiveController(
             # these two don't need to be repeated:
@@ -201,6 +205,7 @@ class DectrisDetectorConnection(DetectorConnection):
             compression=compression,
             name_pattern=name_pattern,
             nimages_per_file=nimages_per_file,
+            enable_corrections=enable_corrections,
         )
 
     @property
