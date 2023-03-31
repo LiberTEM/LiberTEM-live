@@ -113,5 +113,6 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
 
     @contextmanager
     def acquire(self):
-        self._hooks.on_ready_for_data(self)
+        if self._pending_aq is not None:
+            self._hooks.on_ready_for_data(self)
         yield
