@@ -37,7 +37,10 @@ def ctx_pipelined():
 
 @pytest.fixture()
 def default_aq(ltl_ctx):
-    return ltl_ctx.prepare_acquisition('memory', trigger=None, datashape=[16, 16, 32, 32])
+    conn = ltl_ctx.make_connection('memory').open(
+        data=None, extra_kwargs={'datashape': [16, 16, 32, 32]}
+    )
+    return ltl_ctx.make_acquisition(conn=conn)
 
 
 def pytest_collectstart(collector):

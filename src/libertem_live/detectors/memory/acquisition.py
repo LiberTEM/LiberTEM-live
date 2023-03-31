@@ -72,6 +72,7 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
     ...
     >>> aq = ctx.make_acquisition(
     ...     conn=conn,
+    ...     hooks=MyHooks(),
     ... )
     ...
     >>> udf = SumUDF()
