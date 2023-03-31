@@ -1,6 +1,7 @@
 import warnings
 import contextlib
-from typing import TYPE_CHECKING, overload, Literal, Union, Tuple, Optional
+from typing import TYPE_CHECKING, overload, Union, Tuple, Optional
+from typing_extensions import Literal
 
 from opentelemetry import trace
 
