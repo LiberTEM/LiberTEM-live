@@ -65,18 +65,18 @@ class DectrisActiveController(AcquisitionController):
 
     def apply_misc_settings(self):
         ec = self.get_api_client()
-        if self._count_time is not None:
-            ec.setDetectorConfig('count_time', self._count_time)
-        if self._frame_time is not None:
-            ec.setDetectorConfig('frame_time', self._frame_time)
-        if self._compression is not None:
-            ec.setDetectorConfig('compression', self._compression)
         if self._roi_mode is not None:
             ec.setDetectorConfig('roi_mode', self._roi_mode)
         if self._roi_y_size is not None:
             ec.setDetectorConfig('roi_y_size', self._roi_y_size)
         if self._roi_bit_depth is not None:
             ec.setDetectorConfig('roi_bit_depth', self._roi_bit_depth)
+        if self._count_time is not None:
+            ec.setDetectorConfig('count_time', self._count_time)
+        if self._frame_time is not None:
+            ec.setDetectorConfig('frame_time', self._frame_time)
+        if self._compression is not None:
+            ec.setDetectorConfig('compression', self._compression)
 
     def apply_file_writing(self):
         """
