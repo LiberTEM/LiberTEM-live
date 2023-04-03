@@ -50,6 +50,23 @@ def merlin_detector_sim(merlin_detector_sim_threads):
 
 
 @pytest.fixture(scope='module')
+def merlin_triggered_sim_threads():
+    '''
+    Triggered non-garbage simulator.
+    '''
+    yield from run_merlin_sim(
+        path=MIB_TESTDATA_PATH,
+        nav_shape=(32, 32),
+        wait_trigger=True,
+        initial_params={
+            'IMAGEX': "256",
+            'IMAGEY': "256",
+            'COUNTERDEPTH': '12',
+        },
+    )
+
+
+@pytest.fixture(scope='module')
 def merlin_triggered_garbage_threads():
     '''
     Triggered simulator with garbage.
@@ -145,10 +162,27 @@ def merlin_control_sim_ptycho(merlin_detector_sim_threads_ptycho):
 def default_conn(
     ctx_pipelined: LiveContext,
     merlin_detector_sim,
-    merlin_control_sim,
+    merlin_control_sim,  # XXX not really the matching control, but it kinda works...
 ):
     host, port = merlin_detector_sim
     api_host, api_port = merlin_control_sim
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=False,
+    ) as conn:
+        yield conn
+
+
+@pytest.fixture(scope='function')
+def conn_triggered(
+    ctx_pipelined: LiveContext,
+    merlin_triggered_sim_threads,
+):
+    host, port = merlin_triggered_sim_threads.server_t.sockname
+    api_host, api_port = merlin_triggered_sim_threads.control_t.sockname
     with ctx_pipelined.make_connection('merlin').open(
         data_host=host,
         data_port=port,

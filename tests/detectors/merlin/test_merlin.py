@@ -95,6 +95,16 @@ def test_passive_acquisition(
     assert_allclose(res['intensity'], ref['intensity'])
 
 
+def test_passive_timeout(
+    ctx_pipelined: LiveContext,
+    conn_triggered,
+):
+    with conn_triggered as conn:
+        # without external interaction, we don't get an acquisition:
+        pending_aq = conn.wait_for_acquisition(0.5)
+        assert pending_aq is None
+
+
 class ProcessPartitionUDF(UDF):
     def get_result_buffers(self):
         return {
