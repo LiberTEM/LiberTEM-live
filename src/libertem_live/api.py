@@ -9,15 +9,17 @@ from libertem.executor.pipelined import PipelinedExecutor
 # it is not imported by accident instead of LiveContext
 from libertem.api import Context as LiberTEM_Context
 
-
 from .detectors.base.connection import DetectorConnection, PendingAcquisition
 from .detectors.base.controller import AcquisitionController
 from .hooks import Hooks
 
 if TYPE_CHECKING:
-    from libertem_live.detectors.dectris import DectrisConnectionBuilder
-    from libertem_live.detectors.merlin import MerlinConnectionBuilder
-    from libertem_live.detectors.memory import MemoryConnectionBuilder
+    from libertem_live.detectors.dectris import DectrisConnectionBuilder, DectrisAcquisition
+    from libertem_live.detectors.dectris.connection import DectrisDetectorConnection
+    from libertem_live.detectors.merlin import MerlinConnectionBuilder, MerlinAcquisition
+    from libertem_live.detectors.merlin.connection import MerlinDetectorConnection
+    from libertem_live.detectors.memory import MemoryConnectionBuilder, MemoryAcquisition
+    from libertem_live.detectors.memory.acquisition import MemoryConnection
 
 tracer = trace.get_tracer(__name__)
 
@@ -79,25 +81,62 @@ class LiveContext(LiberTEM_Context):
             Literal['merlin'],
             Literal['memory']
         ],
-    ):
+    ) -> Union["DectrisConnectionBuilder", "MerlinConnectionBuilder", "MemoryConnectionBuilder"]:
         """
         Connect to a detector system.
         """
-        # FIXME: type hint for cls?
         if detector_type == 'dectris':
             from libertem_live.detectors.dectris import DectrisConnectionBuilder
-            cls = DectrisConnectionBuilder
+            return DectrisConnectionBuilder()
         elif detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinConnectionBuilder
-            cls = MerlinConnectionBuilder
+            return MerlinConnectionBuilder()
         elif detector_type == 'memory':
             from libertem_live.detectors.memory import MemoryConnectionBuilder
-            cls = MemoryConnectionBuilder
+            return MemoryConnectionBuilder()
         else:
             raise NotImplementedError(
                 f"detector type {detector_type} doesn't support this API"
             )
-        return cls()
+
+    @overload
+    def make_acquisition(
+        self,
+        *,
+        conn: "DectrisDetectorConnection",
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
+        controller: Optional[AcquisitionController] = None,
+        pending_aq: Optional[PendingAcquisition] = None,
+        hooks: Optional[Hooks] = None,
+    ) -> "DectrisAcquisition":
+        ...
+
+    @overload
+    def make_acquisition(
+        self,
+        *,
+        conn: "MerlinDetectorConnection",
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
+        controller: Optional[AcquisitionController] = None,
+        pending_aq: Optional[PendingAcquisition] = None,
+        hooks: Optional[Hooks] = None,
+    ) -> "MerlinAcquisition":
+        ...
+
+    @overload
+    def make_acquisition(
+        self,
+        *,
+        conn: "MemoryConnection",
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
+        controller: Optional[AcquisitionController] = None,
+        pending_aq: Optional[PendingAcquisition] = None,
+        hooks: Optional[Hooks] = None,
+    ) -> "MemoryAcquisition":
+        ...
 
     def make_acquisition(
         self,
@@ -108,7 +147,7 @@ class LiveContext(LiberTEM_Context):
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,
         hooks: Optional[Hooks] = None,
-    ):
+    ) -> Union["MerlinAcquisition", "DectrisAcquisition", "MemoryAcquisition"]:
         """
         Create an acquisition object.
 
