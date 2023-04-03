@@ -1,10 +1,26 @@
-import math
-from typing import Tuple, Optional, TYPE_CHECKING
+from typing import Tuple, NamedTuple
 
-from libertem_live.detectors.base.controller import AcquisitionController
+from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
-if TYPE_CHECKING:
-    from libertem_live.detectors.base.acquisition import AcquisitionMixin
+
+class ReadyForDataEnv(NamedTuple):
+    aq: AcquisitionProtocol
+    """
+    The acquisition object which will receive the data.
+    """
+
+
+class DetermineNavShapeEnv(NamedTuple):
+    nimages: int
+    """
+    The total number of images in the acquisition.
+    """
+
+    shape_hint: Tuple[int, ...]
+    """
+    Shape that was passed into :meth:`LiveContext.make_acquisition`, can contain
+    placeholders, i.e. :code:`(-1, 256)` or :code:`(-1, -1)`.
+    """
 
 
 class Hooks:
@@ -15,14 +31,17 @@ class Hooks:
 
     By implementing methods of this interface, you can "hook into" the lifecycle of
     an acquisition at different important events.
+
+    Each hook method gets a specific environment object as a parameter, that
+    includes all necessary context information from current state of the
+    acquisition.
     """
 
     # FIXME: additional lifecycle methods?
     # - on_setup - before arming?
     # - on_acquisition_done - when all data has been received and processed
 
-    # FIXME: type hint for aq: intersection type?
-    def on_ready_for_data(self, aq: "AcquisitionMixin"):
+    def on_ready_for_data(self, env: ReadyForDataEnv):
         """
         This hook is called whenever we are ready for data, i.e. the detector is
         armed.
@@ -36,12 +55,11 @@ class Hooks:
         """
         pass
 
-    def determine_nav_shape(
+    def on_determine_nav_shape(
         self,
-        nimages: int,
-        controller: AcquisitionController,
-        shape_hint: Optional[Tuple[int, ...]] = None,
+        env: DetermineNavShapeEnv,
     ) -> Tuple[int, ...]:
+        raise RuntimeError("TODO: move the default behavior somewhere else")
         """
         This hook is called to determine the N-D nav shape for the acquisition.
         This is needed as many detectors only know about the 1D shape, i.e. the
@@ -70,10 +88,12 @@ class Hooks:
         # - If all above fails, raise an Exception
 
         # right now, only perform the last step:
-        side = int(math.sqrt(nimages))
-        if side * side != nimages:
-            raise RuntimeError(
-                "Can't handle non-square scans by default, please override"
-                " `Hooks.determine_nav_shape` or pass in a concrete nav_shape"
-            )
-        return (side, side)
+
+        # import math
+        # side = int(math.sqrt(nimages))
+        # if side * side != nimages:
+        #     raise RuntimeError(
+        #         "Can't handle non-square scans by default, please override"
+        #         " `Hooks.determine_nav_shape` or pass in a concrete nav_shape"
+        #     )
+        # return (side, side)
