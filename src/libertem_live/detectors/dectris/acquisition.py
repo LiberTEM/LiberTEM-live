@@ -272,7 +272,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     def initialize(self, executor) -> "DataSet":
         self._update_meta()
         return self
-    
+
     def _update_meta(self):
         dc = self.get_detector_config()
         dtypes = {
