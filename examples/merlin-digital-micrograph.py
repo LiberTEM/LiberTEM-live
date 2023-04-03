@@ -110,67 +110,74 @@ def main():
     pool = concurrent.futures.ThreadPoolExecutor(1)
 
     # This uses the above variables as a closure
-    def trigger(aq):
-        print("Triggering!")
-        # microscope.start_scanning()
+    class MyHooks(api.Hooks):
+        def on_ready_for_data(self, env):
+            print("Triggering!")
+            # microscope.start_scanning()
 
-        time.sleep(1)
-        height, width = aq.shape.nav
+            time.sleep(1)
+            height, width = env.aq.shape.nav
 
-        # Real-world example: Function call to trigger the scan engine
-        # do_scan = lambda: ceos.call.acquireScan(width=width, height=height+1, imageName="test")
+            # Real-world example: Function call to trigger the scan engine
+            # do_scan = lambda: ceos.call.acquireScan(
+            #    width=width,
+            #    height=height+1,
+            #    imageName="test"
+            # )
 
-        # Testing: Use soft trigger
-        def do_scan():
-            '''
-            Emulated blocking scan function using the Merlin simulator.
+            # Testing: Use soft trigger
+            def do_scan():
+                '''
+                Emulated blocking scan function using the Merlin simulator.
 
-            This function doesn't actually block, but it could!
-            '''
-            print("do_scan()")
-            with c:
-                c.cmd('SOFTTRIGGER')
+                This function doesn't actually block, but it could!
+                '''
+                print("do_scan()")
+                with c:
+                    c.cmd('SOFTTRIGGER')
 
-        fut = pool.submit(do_scan)
-        acquisition_state.set_trigger_result(fut)
+            fut = pool.submit(do_scan)
+            acquisition_state.set_trigger_result(fut)
 
     with api.LiveContext() as ctx:
-        aq = ctx.prepare_acquisition(
-            'merlin',
-            trigger=trigger,
-            nav_shape=NAV_SHAPE,
-            host=MERLIN_DATA_SOCKET[0],
-            port=MERLIN_DATA_SOCKET[1],
-            frames_per_partition=800,
-            pool_size=2,
-            timeout=5
-        )
+        with ctx.make_connection('merlin').open(
+            api_host=MERLIN_CONTROL_SOCKET[0],
+            api_port=MERLIN_CONTROL_SOCKET[1],
+            data_host=MERLIN_DATA_SOCKET[0],
+            data_port=MERLIN_DATA_SOCKET[1],
+        ) as conn:
+            aq = ctx.make_acquisition(
+                conn=conn,
+                hooks=MyHooks(),
+                nav_shape=NAV_SHAPE,
+                frames_per_partition=800,
+            )
 
-        udfs = [SumUDF(), SumSigUDF(), SignalMonitorUDF()]
+            udfs = [SumUDF(), SumSigUDF(), SignalMonitorUDF()]
 
-        plots = [GMSLive2DPlot(aq, udf) for udf in udfs]
-        for plot in plots:
-            plot.display()
+            plots = [GMSLive2DPlot(aq, udf) for udf in udfs]
+            for plot in plots:
+                plot.display()
 
-        c = MerlinControl(*MERLIN_CONTROL_SOCKET)
+            c = MerlinControl(*MERLIN_CONTROL_SOCKET)
 
-        print("Connecting Merlin control...")
-        with c:
-            merlin_setup(c)
-            microscope_setup()
+            print("Connecting Merlin control...")
+            with c:
+                merlin_setup(c)
+                microscope_setup()
 
-            set_nav(c, aq)
-            arm(c)
-        try:
-            ctx.run_udf(dataset=aq, udf=udfs, plots=plots)
-        finally:
+                set_nav(c, aq)
+                arm(c)
             try:
-                if acquisition_state.trigger_result is not None:
-                    print("Waiting for blocking scan function...")
-                    print(f"result = {acquisition_state.trigger_result.result()}")
+                ctx.run_udf(dataset=aq, udf=udfs, plots=plots)
             finally:
-                pass  # microscope.stop_scanning()
-        print("Finished.")
+                try:
+                    if acquisition_state.trigger_result is not None:
+                        print("Waiting for blocking scan function...")
+                        print(f"result = {acquisition_state.trigger_result.result()}")
+                finally:
+                    pass  # microscope.stop_scanning()
+            print("Finished.")
 
 
 if __name__ == "__main__":
