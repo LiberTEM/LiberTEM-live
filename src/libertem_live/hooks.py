@@ -61,7 +61,6 @@ class Hooks:
         self,
         env: DetermineNavShapeEnv,
     ) -> Tuple[int, ...]:
-        raise RuntimeError("TODO: move the default behavior somewhere else")
         """
         This hook is called to determine the N-D nav shape for the acquisition.
         This is needed as many detectors only know about the 1D shape, i.e. the
@@ -79,6 +78,7 @@ class Hooks:
         Only called in passive mode, as we need a concrete `nav_shape` as user
         input in active mode.
         """
+        raise RuntimeError("TODO: move the default behavior somewhere else")
         # TODO: implement the following behavior:
         #
         # Order of operations to determine `nav_shape`:

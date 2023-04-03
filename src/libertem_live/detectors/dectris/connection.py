@@ -158,14 +158,17 @@ class DectrisDetectorConnection(DetectorConnection):
 
         Any settings left out or set to None will be left unchanged.
 
+        In general, please consult your detector manual for details!
+
         Parameters
         ----------
         trigger_mode
-            The strings 'exte', 'inte', 'exts', 'ints', as defined in the manual
+            One of 'exte', 'inte', 'exts', 'ints', as defined in the manual
         count_time
             Exposure time per image in seconds
         frame_time
-            The interval between start of image acquisitions in seconds
+            The interval between start of image acquisitions in seconds. Must be
+            greater than or equal to `count_time`.
         roi_mode
             Configure ROI mode. Set to the string 'disabled' to disable ROI mode.
             The allowed values depend on the detector.
@@ -183,9 +186,19 @@ class DectrisDetectorConnection(DetectorConnection):
             Note that the image size is then two times this value, plus two pixels,
             for example if you select 64 lines, it will result in images with 130
             pixels height and the full width.
+        enable_file_writing
+            Enable file writing on the DCU. If set to `False`, explicitly
+            disable file writing.
+        compression
+            The type of compression to enable. Can be, for example,
+            'bslz4', or 'lz4'.
         name_pattern
-            If given, file writing is enabled and the name pattern is set to the
-            given string. Please see the DECTRIS documentation for details!
+            If given, the name pattern is set to the given string. Only set if
+            file writing is enabled.
+        nimages_per_file
+            If file writing is enabled, split the written files such that at
+            maximum this number of images are saved per file. The default is not
+            to split into multiple files.
         enable_corrections
             Automatically correct defect pixels, downloading the pixel mask from the
             detector configuration.

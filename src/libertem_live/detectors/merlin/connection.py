@@ -105,7 +105,8 @@ class MerlinDetectorConnection(DetectorConnection):
         return self
 
     def close(self):
-        # implementing "close" gives us contextmanager API for free.
+        # implementing "close" and __enter__ above gives us contextmanager API
+        # for free:
         if self._data_socket is not None:
             self._data_socket.close()
             self._data_socket = None
@@ -156,6 +157,8 @@ class MerlinConnectionBuilder:
         drain: bool = False,
     ):
         """
+        Connect to a Merlin Medipix detector system.
+
         Parameters
         ----------
         api_host
