@@ -19,6 +19,7 @@ from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
+from libertem_live.detectors.merlin.data import AcquisitionHeader
 from libertem_live.detectors.common import ErrThreadMixin, UndeadException
 
 
@@ -166,7 +167,7 @@ class HeaderSocketSimulator:
         return hdr.encode('latin1')
 
     @property
-    def hdr(self):
+    def hdr(self) -> bytes:
         if is_valid_hdr(self._path):
             with open(self._path, 'rb') as f:
                 # FIXME: possibly change header in continuous mode?
@@ -174,6 +175,10 @@ class HeaderSocketSimulator:
         else:
             hdr = self._make_hdr()
         return hdr
+
+    @property
+    def parsed(self) -> AcquisitionHeader:
+        return AcquisitionHeader.from_raw(self.hdr)
 
     def get_chunks(self):
         """
@@ -230,11 +235,21 @@ class DataSocketSimulator:
         self._max_runs = max_runs
         self._mmaps = {}
 
+    def get_ds_shape(self) -> Shape:
+        self._load()
+        assert self._ds is not None
+        return self._ds.shape
+
+    def _load(self):
+        if self._ds is None:
+            ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
+            ds.initialize(MITExecutor())
+            self._ds = ds
+
     def open(self):
-        ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
-        ds.initialize(MITExecutor())
-        print(f"dataset shape: {ds.shape}")
-        self._ds = ds
+        self._load()
+        assert self._ds is not None
+        print(f"dataset shape: {self._ds.shape}")
         self._warmup()
 
     def get_chunks(self):
@@ -520,6 +535,9 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
             raise ValueError('Cannot have both wait softtrigger and manual trigger')
         self._garbage = garbage
 
+    def get_sim(self):
+        return self._sim
+
     def run(self):
         try:
             self._sim.open()
@@ -753,6 +771,16 @@ class CameraSim:
         )
         # Make sure the thread dies with the main program
         self.server_t.daemon = True
+
+        if initial_params is None:
+            # make some effort to populate useful parameters:
+            shape = self.server_t.get_sim().get_ds_shape()
+            acq_hdr = self.headers.parsed
+            initial_params = {
+                'IMAGEX': str(shape.sig[1]),
+                'IMAGEY': str(shape.sig[0]),
+                'COUNTERDEPTH': acq_hdr.raw_keys['Counter Depth (number)'],
+            }
 
         self.control_t = ControlSocketServer(
             host=host,
