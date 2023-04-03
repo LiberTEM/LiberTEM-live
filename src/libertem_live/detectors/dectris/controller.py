@@ -65,12 +65,20 @@ class DectrisActiveController(AcquisitionController):
 
     def apply_misc_settings(self):
         ec = self.get_api_client()
+
+        # Set ROI settings first, as they will reset other settings:
         if self._roi_mode is not None:
             ec.setDetectorConfig('roi_mode', self._roi_mode)
         if self._roi_y_size is not None:
             ec.setDetectorConfig('roi_y_size', self._roi_y_size)
         if self._roi_bit_depth is not None:
             ec.setDetectorConfig('roi_bit_depth', self._roi_bit_depth)
+
+        # `frame_time`` must be longer than `count_time`. From the manual:
+        # "To acquire images with a certain frame rate and best possible duty
+        # cycle, a simple procedure is to first set `count_time` to the inverse
+        # of the frame rate and subsequently `frame_time` to the inverse of the
+        # frame rate."
         if self._count_time is not None:
             ec.setDetectorConfig('count_time', self._count_time)
         if self._frame_time is not None:
