@@ -270,6 +270,10 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         )
 
     def initialize(self, executor) -> "DataSet":
+        self._update_meta()
+        return self
+    
+    def _update_meta(self):
         dc = self.get_detector_config()
         dtypes = {
             8: np.uint8,
@@ -286,7 +290,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             raw_dtype=dtype,
             dtype=dtype,
         )
-        return self
 
     @property
     def dtype(self):
@@ -320,6 +323,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                 self._controller.apply_file_writing()
                 self._controller.apply_scan_settings(self._nav_shape)
                 self._controller.apply_misc_settings()
+                self._update_meta()
                 sequence_id = self._controller.arm()
                 nimages = prod(self.shape.nav)
                 self._acq_state = AcquisitionParams(
