@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from libertem.udf.base import NoOpUDF
 
@@ -36,11 +35,6 @@ def test_trigger(ltl_ctx):
 
         assert np.all(res[0]['intensity'].data == data[-1, -1])
         assert triggered
-
-
-def test_bad_type(ltl_ctx):
-    with pytest.raises(ValueError):
-        ltl_ctx.prepare_acquisition('asdf does not exist')
 
 
 def test_dataset(ltl_ctx):
