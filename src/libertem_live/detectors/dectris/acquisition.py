@@ -17,7 +17,7 @@ from libertem.corrections.corrset import CorrectionSet
 from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
-from libertem_live.hooks import Hooks
+from libertem_live.hooks import Hooks, ReadyForDataEnv
 from .controller import DectrisActiveController
 from .common import AcquisitionParams, DetectorConfig
 
@@ -331,7 +331,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                     nimages=nimages,
                 )
                 with tracer.start_as_current_span("DectrisAcquisition.trigger"):
-                    self._hooks.on_ready_for_data(self)
+                    self._hooks.on_ready_for_data(ReadyForDataEnv(aq=self))
             else:
                 nimages = prod(self.shape.nav)
                 sequence_id = self._pending_aq.series

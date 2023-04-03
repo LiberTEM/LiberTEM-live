@@ -13,7 +13,7 @@ from libertem.io.dataset.base import TilingScheme, DataSet
 from libertem.common import Shape
 
 from libertem_live.api import Hooks, LiveContext
-from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.hooks import ReadyForDataEnv
 from libertem_live.detectors.merlin import (
     MerlinControl, MerlinDataSource,
 )
@@ -39,9 +39,9 @@ class MyHooks(Hooks):
         self.ds = merlin_ds
         self.triggered = triggered
 
-    def on_ready_for_data(self, aq: "AcquisitionMixin"):
+    def on_ready_for_data(self, env: ReadyForDataEnv):
         self.triggered[:] = True
-        assert aq.shape.nav == self.ds.shape.nav
+        assert env.aq.shape.nav == self.ds.shape.nav
 
 
 @pytest.mark.with_numba  # Get coverage for decoders
@@ -276,7 +276,7 @@ def test_acquisition_triggered_garbage(
     }
 
     class _MyHooks(Hooks):
-        def on_ready_for_data(self, aq: "AcquisitionMixin"):
+        def on_ready_for_data(self, env: ReadyForDataEnv):
             control = MerlinControl(*merlin_control_sim)
             with control:
                 control.cmd('STARTACQUISITION')
@@ -326,7 +326,7 @@ def test_acquisition_triggered_control(ctx_pipelined, merlin_control_sim, garbag
     }
 
     class _MyHooks(Hooks):
-        def on_ready_for_data(self, aq: "AcquisitionMixin"):
+        def on_ready_for_data(self, env: ReadyForDataEnv):
             control = MerlinControl(*merlin_control_sim)
             with control:
                 control.cmd('STARTACQUISITION')

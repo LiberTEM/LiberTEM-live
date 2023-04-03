@@ -1,10 +1,12 @@
-from typing import Tuple, NamedTuple
+from typing import Tuple, NamedTuple, TYPE_CHECKING
 
-from libertem_live.detectors.base.acquisition import AcquisitionProtocol
+
+if TYPE_CHECKING:
+    from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
 
 class ReadyForDataEnv(NamedTuple):
-    aq: AcquisitionProtocol
+    aq: "AcquisitionProtocol"
     """
     The acquisition object which will receive the data.
     """

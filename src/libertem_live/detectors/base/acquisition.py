@@ -2,13 +2,13 @@ from typing import TYPE_CHECKING, Optional, Tuple, Protocol
 from contextlib import contextmanager
 import logging
 
+from libertem.common import Shape
+from libertem_live.hooks import Hooks
+
 if TYPE_CHECKING:
     from .connection import DetectorConnection, PendingAcquisition
     from .controller import AcquisitionController
-    from libertem_live.hooks import Hooks
     from libertem.common.executor import JobExecutor
-
-from libertem.common import Shape
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,8 @@ class AcquisitionMixin:
         pending_aq: Optional["PendingAcquisition"] = None,
         hooks: Optional["Hooks"] = None,
     ):
+        if hooks is None:
+            hooks = Hooks()
         self._conn = conn
         self._nav_shape = nav_shape
         self._frames_per_partition = frames_per_partition

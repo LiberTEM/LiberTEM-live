@@ -1,10 +1,11 @@
 import logging
 import socket
 import time
-from typing import Generator, Optional, NamedTuple, Dict
+from typing import (
+    Generator, Optional, NamedTuple, Dict, Tuple,
+)
 
 import numpy as np
-import numpy.typing as npt
 
 from libertem_live.detectors.base.acquisition import AcquisitionTimeout
 from .decoders import (
@@ -49,7 +50,7 @@ class AcquisitionHeader(NamedTuple):
         )
 
 
-def get_np_dtype(dtype, bit_depth) -> npt.DTypeLike:
+def get_np_dtype(dtype, bit_depth) -> np.dtype:
     dtype = dtype.lower()
     num_bits = int(dtype[1:])
     if dtype[0] == "u":
@@ -69,62 +70,75 @@ def get_np_dtype(dtype, bit_depth) -> npt.DTypeLike:
         raise NotImplementedError(f"unknown dtype prefix: {dtype[0]}")
 
 
-def _parse_frame_header(raw_data: bytes):
-    # FIXME: like in the MIB reader, but no 'filesize' and 'num_images'
-    # keys (they can be deduced from a .mib file, but don't make sense
-    # in the networked case)
-    header = raw_data.decode('ascii', errors='ignore')
-    parts = header.split(",")
-    header_size_bytes = int(parts[2])
-    parts = [p
-             for p in header[:header_size_bytes].split(",")
-             if '\x00' not in p]
-    dtype = parts[6].lower()
-    mib_kind = dtype[0]
-    image_size = (int(parts[5]), int(parts[4]))
-    # FIXME: There can either be threshold values for all chips, or maybe
-    # also none. For now, we just make use of the fact that the bit depth
-    # is supposed to be the last value.
-    bits_per_pixel_raw = int(parts[-1])
-    if mib_kind == "u":
-        bytes_per_pixel = int(parts[6][1:]) // 8
-        image_size_bytes = image_size[0] * image_size[1] * bytes_per_pixel
-    elif mib_kind == "r":
-        size_factor = {
-            1: 1/8,
-            6: 1,
-            12: 2,
-            24: 4,
-        }[bits_per_pixel_raw]
-        if bits_per_pixel_raw == 24:
-            image_size = (image_size[0], image_size[1] // 2)
-        image_size_bytes = int(image_size[0] * image_size[1] * size_factor)
-    else:
-        raise ValueError("unknown kind: %s" % mib_kind)
+class FrameHeader(NamedTuple):
+    header_size_bytes: int
+    dtype: np.dtype
+    mib_dtype: str   # rXX or uXX
+    mib_kind: str  # 'r' or 'u'
+    bits_per_pixel: int
+    image_size: Tuple[int, int]
+    image_size_eff: Tuple[int, int]
+    image_size_bytes: int
+    sequence_first_image: int
+    num_chips: int
 
-    num_chips = int(parts[3])
-    if num_chips == 4 and mib_kind == "r":
-        image_size_eff = (512, 512)
-        assert np.prod(image_size_eff) == np.prod(image_size)
-    else:
-        image_size_eff = image_size
+    @classmethod
+    def from_raw(cls, raw_data: bytes) -> "FrameHeader":
+        # FIXME: like in the MIB reader, but no 'filesize' and 'num_images'
+        # keys (they can be deduced from a .mib file, but don't make sense
+        # in the networked case)
+        header = raw_data.decode('ascii', errors='ignore')
+        parts = header.split(",")
+        header_size_bytes = int(parts[2])
+        parts = [p
+                for p in header[:header_size_bytes].split(",")
+                if '\x00' not in p]
+        dtype = parts[6].lower()
+        mib_kind = dtype[0]
+        image_size = (int(parts[5]), int(parts[4]))
+        # FIXME: There can either be threshold values for all chips, or maybe
+        # also none. For now, we just make use of the fact that the bit depth
+        # is supposed to be the last value.
+        bits_per_pixel_raw = int(parts[-1])
+        if mib_kind == "u":
+            bytes_per_pixel = int(parts[6][1:]) // 8
+            image_size_bytes = image_size[0] * image_size[1] * bytes_per_pixel
+        elif mib_kind == "r":
+            size_factor = {
+                1: 1/8,
+                6: 1,
+                12: 2,
+                24: 4,
+            }[bits_per_pixel_raw]
+            if bits_per_pixel_raw == 24:
+                image_size = (image_size[0], image_size[1] // 2)
+            image_size_bytes = int(image_size[0] * image_size[1] * size_factor)
+        else:
+            raise ValueError("unknown kind: %s" % mib_kind)
 
-    return {
-        'header_size_bytes': header_size_bytes,
-        'dtype': get_np_dtype(parts[6], bits_per_pixel_raw),
-        'mib_dtype': dtype,
-        'mib_kind': mib_kind,
-        'bits_per_pixel': bits_per_pixel_raw,
-        'image_size': image_size,
-        'image_size_eff': image_size_eff,
-        'image_size_bytes': image_size_bytes,
-        'sequence_first_image': int(parts[1]),
-        'num_chips': num_chips,
-    }
+        num_chips = int(parts[3])
+        if num_chips == 4 and mib_kind == "r":
+            image_size_eff = (512, 512)
+            assert np.prod(image_size_eff) == np.prod(image_size)
+        else:
+            image_size_eff = image_size
+
+        return FrameHeader(
+            header_size_bytes=header_size_bytes,
+            dtype=get_np_dtype(parts[6], bits_per_pixel_raw),
+            mib_dtype=dtype,
+            mib_kind=mib_kind,
+            bits_per_pixel=bits_per_pixel_raw,
+            image_size=image_size,
+            image_size_eff=image_size_eff,
+            image_size_bytes=image_size_bytes,
+            sequence_first_image=int(parts[1]),
+            num_chips=num_chips,
+        )
 
 
 def validate_get_sig_shape(frame_hdr, sig_shape=None):
-    image_size = frame_hdr.get('image_size_eff')
+    image_size = frame_hdr.image_size_eff
     if image_size is None and sig_shape is None:
         raise ValueError(
                 'Frame header "image_size" not present and sig shape '
@@ -147,7 +161,7 @@ class MerlinRawFrames:
         buffer,
         start_idx: int,
         end_idx: int,
-        first_frame_header: dict,
+        first_frame_header: FrameHeader,
     ):
         self._buffer = buffer
         self._start_idx = start_idx
@@ -176,11 +190,11 @@ class MerlinRawFrames:
 
     def decode(self, out_flat: np.ndarray):
         fh = self._first_frame_header
-        header_size = int(fh['header_size_bytes']) + 15
-        itemsize = fh['dtype'].itemsize
-        bits_pp = fh['bits_per_pixel']
-        num_rows = fh['image_size'][0]
-        if fh['mib_kind'] == 'u':
+        header_size = int(fh.header_size_bytes) + 15
+        itemsize = fh.dtype.itemsize
+        bits_pp = fh.bits_per_pixel
+        num_rows = fh.image_size[0]
+        if fh.mib_kind == 'u':
             # binary:
             if itemsize == 1:
                 fn = decode_multi_u1
@@ -190,7 +204,7 @@ class MerlinRawFrames:
                 raise RuntimeError("itemsize %d currently not supported" % itemsize)
         else:
             # raw binary:
-            if fh['num_chips'] == 4:
+            if fh.num_chips == 4:
                 if bits_pp == 1:
                     fn = decode_quad_r1
                 elif bits_pp == 6:
@@ -201,7 +215,7 @@ class MerlinRawFrames:
                     raise RuntimeError(
                         "can't handle quad raw binary %d bits per pixel yet" % bits_pp
                     )
-            elif fh['num_chips'] == 1:
+            elif fh.num_chips == 1:
                 if bits_pp == 1:
                     fn = decode_multi_r1
                 elif bits_pp == 6:
@@ -211,7 +225,7 @@ class MerlinRawFrames:
                 else:
                     raise RuntimeError("can't handle raw binary %d bits per pixel yet" % bits_pp)
             else:
-                raise RuntimeError(f"Can't handle num_chips={fh['num_chips']}")
+                raise RuntimeError(f"Can't handle num_chips={fh.num_chips}")
         num_frames = self.num_frames
         compat_shape = (num_frames, num_rows, -1)
         input_arr = np.frombuffer(self._buffer, dtype=np.uint8).reshape(
@@ -227,7 +241,7 @@ class MerlinDecodedFrames:
         buffer,
         start_idx: int,
         end_idx: int,
-        first_frame_header: dict,
+        first_frame_header: FrameHeader,
     ):
         self._buffer = buffer
         self._start_idx = start_idx
@@ -255,7 +269,7 @@ class MerlinDecodedFrames:
         return self._buffer
 
     @classmethod
-    def from_raw(cls, raw_frames: MerlinRawFrames, out: np.ndarray):
+    def from_raw(cls, raw_frames: MerlinRawFrames, out: np.ndarray) -> "MerlinDecodedFrames":
         """
         Decode `raw_frames` into `out` and return a `MerlinDecodedFrames`
         object referencing `out`.
@@ -283,8 +297,6 @@ class MerlinRawSocket:
         self._port = port
         self._timeout = timeout
         self._socket = None
-        self._acquisition_header = None
-        self._first_frame_header = None
         self._is_connected = False
         self._frame_counter = 0
 
@@ -294,7 +306,6 @@ class MerlinRawSocket:
         self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self._socket.settimeout(self._timeout)
         self._is_connected = True
-        self._frame_counter = 0
         return self
 
     def is_connected(self):
@@ -363,37 +374,18 @@ class MerlinRawSocket:
         # length calculation, that's why we substract 1 here:
         return length - 1
 
-    def _read_acquisition_header(self, cancel_timeout=None):
+    def read_acquisition_header(self, cancel_timeout: Optional[float] = None) -> AcquisitionHeader:
         # assumption: when we connect, the connection is idle
         # so the first thing we will get is the acquisition header.
         # we read it in an inefficient way, but the header is small,
         # so this should be ok:
         length = self.read_mpx_length(cancel_timeout=cancel_timeout)
         header = self.read_unbuffered(length)
-        header = self._parse_acq_header(header)
+        header = AcquisitionHeader.from_raw(header)
         self._acquisition_header = header
         return header
 
-    def get_acquisition_header(self):
-        return self._acquisition_header
-
-    def get_first_frame_header(self):
-        return self._first_frame_header
-
-    def read_headers(self, cancel_timeout=None):
-        """
-        Read acquisition header, and peek first frame header
-
-        The acquisition header is consumed, the first frame header will
-        be kept in the socket queue, and can be read regularly afterwards.
-        """
-        self._acquisition_header = self._read_acquisition_header(cancel_timeout=cancel_timeout)
-        self._first_frame_header = self._peek_frame_header()
-        self._frame_counter = self._first_frame_header['sequence_first_image'] - 1
-        logger.info(f"got headers; frame offset = {self._frame_counter}")
-        return self._acquisition_header, self._first_frame_header
-
-    def _peek_frame_header(self):
+    def peek_frame_header(self) -> FrameHeader:
         # first, peek only the MPX header part:
         assert self._socket is not None
         while True:
@@ -413,7 +405,7 @@ class MerlinRawSocket:
         while len(buf) < peek_length:
             # need to repeat, as the first peek can fail to give the full length message:
             buf = self._socket.recv(peek_length, socket.MSG_PEEK)
-        frame_header = _parse_frame_header(buf[15:])
+        frame_header = FrameHeader.from_raw(buf[15:])
         return frame_header
 
     def close(self):
@@ -448,6 +440,39 @@ class MerlinRawSocket:
         finally:
             self._socket.settimeout(old_timeout)
 
+
+class MerlinFrameStream:
+    """
+    This class takes over reading from the `MerlinRawSocket` once the
+    `AcquisitionHeader` has been read.
+
+    It first peeks the first frame header, and then reads multiple frames
+    in stacks of mostly fixed size.
+    """
+    def __init__(
+        self,
+        raw_socket: MerlinRawSocket,
+        acquisition_header: AcquisitionHeader,
+        first_frame_header: FrameHeader,
+    ):
+        self._raw_socket = raw_socket
+        self._acquisition_header = acquisition_header
+        self._first_frame_header = first_frame_header
+        self._frame_counter = 0
+
+    @classmethod
+    def from_frame_header(
+        cls,
+        raw_socket: MerlinRawSocket,
+        acquisition_header: AcquisitionHeader
+    ) -> "MerlinFrameStream":
+        first_frame_header = raw_socket.peek_frame_header()
+        return cls(
+            raw_socket=raw_socket,
+            acquisition_header=acquisition_header,
+            first_frame_header=first_frame_header,
+        )
+
     def read_multi_frames(self, input_buffer, num_frames=32, read_upto_frame=None):
         """
         Returns `False` on timeout, `True` in case we are done and don't need to
@@ -461,8 +486,9 @@ class MerlinRawSocket:
         `read_upto_frame` can be used to only read up to a total number of frames.
         Once this number is reached, we behave the same way as if we had reached EOF.
         """
-        header_size = int(self._first_frame_header['header_size_bytes']) + 15
-        bytes_per_frame = header_size + self._first_frame_header['image_size_bytes']
+        assert self._first_frame_header is not None
+        header_size = int(self._first_frame_header.header_size_bytes) + 15
+        bytes_per_frame = header_size + self._first_frame_header.image_size_bytes
 
         input_buffer = memoryview(input_buffer)
         if read_upto_frame is not None:
@@ -470,7 +496,7 @@ class MerlinRawSocket:
             input_buffer = input_buffer[:num_frames * bytes_per_frame]
             if num_frames == 0:
                 return True  # we are done.
-        bytes_read = self.read_into(input_buffer)
+        bytes_read = self._raw_socket.read_into(input_buffer)
         frames_read = bytes_read // bytes_per_frame
         if bytes_read % bytes_per_frame != 0:
             raise EOFError(
@@ -495,17 +521,16 @@ class MerlinRawSocket:
             self._first_frame_header,
         )
 
-    def get_input_buffer(self, num_frames: int):
-        header_size = int(self._first_frame_header['header_size_bytes']) + 15
-        image_size = int(self._first_frame_header['image_size_bytes'])
+    def get_input_buffer(self, num_frames: int) -> bytearray:
+        assert self._first_frame_header is not None
+        header_size = int(self._first_frame_header.header_size_bytes) + 15
+        image_size = int(self._first_frame_header.image_size_bytes)
         read_size = num_frames*(header_size + image_size)
         input_bytes = bytearray(read_size)
         return input_bytes
 
-
-class MerlinFrameStream:
-    def __init__(self, raw_socket: MerlinRawSocket, acquisition_header: AcquisitionHeader):
-        self._raw_socket = raw_socket
+    def get_first_frame_header(self) -> FrameHeader:
+        return self._first_frame_header
 
 
 class MerlinDataSource:
@@ -542,19 +567,23 @@ class MerlinDataSource:
     def _read_and_decode(
         self, read_dtype=np.float32, chunk_size=10, num_frames=None
     ) -> Generator[MerlinDecodedFrames, None, None]:
-        self.socket.read_headers()
-        hdr = self.socket.get_acquisition_header()
-        logger.info(hdr)
+        acq_header = self.socket.read_acquisition_header()
+        stream = MerlinFrameStream.from_frame_header(
+            raw_socket=self.socket,
+            acquisition_header=acq_header,
+        )
 
-        frame_hdr = self.socket.get_first_frame_header()
+        logger.info(acq_header)
+
+        frame_hdr = stream.get_first_frame_header()
         logger.info(frame_hdr)
 
         sig_shape = validate_get_sig_shape(frame_hdr, self._sig_shape)
         out = np.zeros((chunk_size,) + sig_shape, dtype=read_dtype)
-        input_buffer = self.socket.get_input_buffer(num_frames=chunk_size)
+        input_buffer = stream.get_input_buffer(num_frames=chunk_size)
 
         while True:
-            res = self.socket.read_multi_frames(
+            res = stream.read_multi_frames(
                 num_frames=chunk_size,
                 input_buffer=input_buffer,
                 read_upto_frame=num_frames,

@@ -3,10 +3,12 @@ from typing import Optional, Type, Generator, Tuple
 from contextlib import contextmanager
 
 from libertem_live.detectors.base.connection import DetectorConnection, PendingAcquisition
-from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
 from .control import MerlinControl
-from .data import MerlinRawSocket
+from .data import (
+    MerlinRawSocket, MerlinFrameStream, AcquisitionHeader, AcquisitionTimeout,
+)
 
 from opentelemetry import trace
 
@@ -19,8 +21,12 @@ class MerlinPendingAcquisition(PendingAcquisition):
     This object carries the acquisition header and can provide the
     parsed values.
     """
-    def __init__(self):
-        pass
+    def __init__(self, header: AcquisitionHeader):
+        self._header = header
+
+    @property
+    def header(self):
+        return self._header
 
 
 class MerlinDetectorConnection(DetectorConnection):
@@ -73,16 +79,23 @@ class MerlinDetectorConnection(DetectorConnection):
     def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
         if self._data_socket is None:
             self._connect()
-        # Hmm, with Merlin, we have a "situation":
-        # - we don't have all the info we need in the acquisition header
-        # - what is missing?
-        #    - for `read_multi_frames`: `header_size_bytes` and `image_size_bytes`
-        #    - same for `get_input_buffer`
-        #    - -> we don't need these until we actually receive data!
-        #    - `MerlinRawSocket` should maybe not include these methods,
-        raise NotImplementedError()
+        assert self._data_socket is not None
+        try:
+            header = self._data_socket.read_acquisition_header(cancel_timeout=timeout)
+            return MerlinPendingAcquisition(header=header)
+        except AcquisitionTimeout:
+            return None
 
-    def get_acquisition_cls(self) -> Type[AcquisitionMixin]:
+    def get_header_and_stream(self) -> Tuple[AcquisitionHeader, MerlinFrameStream]:
+        assert self._data_socket is not None
+        acq_header = self._data_socket.read_acquisition_header()
+        stream = MerlinFrameStream.from_frame_header(
+            raw_socket=self._data_socket,
+            acquisition_header=acq_header,
+        )
+        return acq_header, stream
+
+    def get_acquisition_cls(self) -> Type[AcquisitionProtocol]:
         from .acquisition import MerlinAcquisition
         return MerlinAcquisition
 

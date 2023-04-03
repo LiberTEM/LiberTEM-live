@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 import logging
-from typing import Generator, Iterator, Tuple, Optional
+from typing import Generator, Iterator, Tuple, Optional, NamedTuple
 import numpy as np
 from libertem.common.math import prod
 from libertem.common import Shape, Slice
@@ -13,8 +13,8 @@ from libertem.io.dataset.base import (
 from sparseconverter import ArrayBackend, NUMPY, CUDA
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
-from libertem_live.hooks import Hooks
-from .data import MerlinRawFrames
+from libertem_live.hooks import Hooks, ReadyForDataEnv
+from .data import MerlinRawFrames, MerlinFrameStream, AcquisitionHeader
 from .connection import MerlinDetectorConnection, MerlinPendingAcquisition
 
 from opentelemetry import trace
@@ -24,7 +24,14 @@ tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
+class AcqState(NamedTuple):
+    acq_header: AcquisitionHeader
+    stream: MerlinFrameStream
+
+
 class MerlinAcquisition(AcquisitionMixin, DataSet):
+    _conn: MerlinDetectorConnection
+    _pending_aq: Optional[MerlinPendingAcquisition]
     '''
     Acquisition from a Quantum Detectors Merlin camera
 
@@ -56,6 +63,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 
         if hooks is None:
             hooks = Hooks()
+
+        self._acq_state: Optional[AcqState] = None
 
         super().__init__(
             conn=conn,
@@ -111,18 +120,32 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
             with self._conn:
                 self._conn.maybe_drain()
                 with tracer.start_as_current_span("MerlinAcquisition.trigger"):
-                    self._hooks.on_ready_for_data(self)
-                self._conn._data_socket.read_headers(cancel_timeout=30)
-
-                # FIXME: is this still needed?
-                # we are now reading the sig shape via the detector control
-                # interface anyways, so it should fit!
-                #
-                # frame_header = self.raw_socket.get_first_frame_header()
-                # validate_get_sig_shape(frame_header, self._sig_shape)
-                yield
+                    self._hooks.on_ready_for_data(ReadyForDataEnv(aq=self))
+                acq_header, stream = self._conn.get_header_and_stream()
+                self._acq_state = AcqState(
+                    acq_header=acq_header,
+                    stream=stream,
+                )
+                try:
+                    yield
+                finally:
+                    self._acq_state = None
         else:
-            raise NotImplementedError("todo - passive mode")
+            # passive case, we don't manage the connection and we definitely
+            # don't drain anything out of the socket!
+            acq_header = self._pending_aq.header
+            stream = MerlinFrameStream.from_frame_header(
+                raw_socket=self._conn.get_data_socket(),
+                acquisition_header=acq_header
+            )
+            self._acq_state = AcqState(
+                acq_header=acq_header,
+                stream=stream,
+            )
+            try:
+                yield
+            finally:
+                self._acq_state = None
 
     def check_valid(self):
         pass
@@ -157,8 +180,10 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
             )
 
     def get_task_comm_handler(self) -> TaskCommHandler:
+        assert self._acq_state is not None
         return MerlinCommHandler(
             conn=self._conn,
+            state=self._acq_state,
             tiling_depth=24,  # FIXME!
         )
 
@@ -221,8 +246,14 @@ def _accum_partition(
 
 
 class MerlinCommHandler(TaskCommHandler):
-    def __init__(self, conn: MerlinDetectorConnection, tiling_depth: int):
+    def __init__(
+        self,
+        conn: MerlinDetectorConnection,
+        state: AcqState,
+        tiling_depth: int
+    ):
         self._conn = conn
+        self._acq_state = state
         self._tiling_depth = tiling_depth
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
@@ -237,15 +268,15 @@ class MerlinCommHandler(TaskCommHandler):
             frame_chunk_size = min(32, self._tiling_depth)
             frames_read = 0
             num_frames_in_partition = end_idx - start_idx
-            data_socket = self._conn.get_data_socket()
+            stream = self._acq_state.stream
             while frames_read < num_frames_in_partition:
                 next_read_size = min(
                     num_frames_in_partition - frames_read,
                     frame_chunk_size,
                 )
                 # FIXME: can't properly reuse this buffer currently...
-                input_buffer = data_socket.get_input_buffer(next_read_size)
-                res = data_socket.read_multi_frames(
+                input_buffer = stream.get_input_buffer(next_read_size)
+                res = stream.read_multi_frames(
                     input_buffer=input_buffer,
                     num_frames=next_read_size,
                     read_upto_frame=end_idx,
