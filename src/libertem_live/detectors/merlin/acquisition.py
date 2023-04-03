@@ -16,6 +16,7 @@ from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from libertem_live.hooks import Hooks, ReadyForDataEnv
 from .data import MerlinRawFrames, MerlinFrameStream, AcquisitionHeader
 from .connection import MerlinDetectorConnection, MerlinPendingAcquisition
+from .controller import MerlinActiveController
 
 from opentelemetry import trace
 
@@ -52,7 +53,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         nav_shape: Tuple[int, int],
         frames_per_partition: Optional[int],
         pending_aq: Optional[MerlinPendingAcquisition] = None,
-        controller: Optional[None] = None,  # FIXME
+        controller: Optional[MerlinActiveController] = None,
         hooks: Optional[Hooks] = None,
     ):
         if frames_per_partition is None:

@@ -73,6 +73,6 @@ class AcquisitionProtocol(Protocol):
         """
         ...
 
-    def initialize(self, executor: "JobExecutor"):
+    def initialize(self, executor: "JobExecutor") -> "AcquisitionProtocol":
         ""
         ...
