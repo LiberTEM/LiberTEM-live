@@ -68,6 +68,33 @@ def test_acquisition(
     assert_allclose(res['intensity'], ref['intensity'])
 
 
+def test_passive_acquisition(
+    ctx_pipelined: LiveContext,
+    merlin_ds,
+    default_conn,
+):
+    triggered = np.array((False,))
+
+    pending_aq = default_conn.wait_for_acquisition(10.0)
+    assert pending_aq is not None
+
+    aq = ctx_pipelined.make_acquisition(
+        conn=default_conn,
+        hooks=MyHooks(triggered=triggered, merlin_ds=merlin_ds),
+        pending_aq=pending_aq,
+        nav_shape=(32, 32),
+    )
+    udf = SumUDF()
+
+    assert not triggered[0]
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    assert not triggered[0]  # in passive mode, we don't call the on_ready_for_data hook
+
+    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert_allclose(res['intensity'], ref['intensity'])
+
+
 class ProcessPartitionUDF(UDF):
     def get_result_buffers(self):
         return {

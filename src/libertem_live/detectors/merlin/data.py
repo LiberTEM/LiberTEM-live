@@ -1,7 +1,7 @@
 import logging
 import socket
 import time
-from typing import Generator, Optional
+from typing import Generator, Optional, NamedTuple, Dict
 
 import numpy as np
 import numpy.typing as npt
@@ -20,6 +20,33 @@ from .decoders import (
 
 
 logger = logging.getLogger(__name__)
+
+
+class AcquisitionHeader(NamedTuple):
+    frames_in_acquisition: int
+    frames_per_trigger: int
+    raw_keys: Dict[str, str]
+
+    @classmethod
+    def from_raw(cls, header: bytes) -> "AcquisitionHeader":
+        result: Dict[str, str] = {}
+        for line in header.decode("latin1").split('\n'):
+            try:
+                if line.startswith("HDR") or line.startswith("End\t"):
+                    continue
+                k, v = line.split("\t", 1)
+                k = k.rstrip(':')
+                v = v.rstrip("\r")
+                v = v.rstrip("\n")
+            except ValueError:
+                logger.warn("error while parsing line %r", line)
+                raise
+            result[k] = v
+        return AcquisitionHeader(
+            raw_keys=result,
+            frames_in_acquisition=int(result['Frames in Acquisition (Number)']),
+            frames_per_trigger=int(result['Frames per Trigger (Number)']),
+        )
 
 
 def get_np_dtype(dtype, bit_depth) -> npt.DTypeLike:
@@ -389,22 +416,6 @@ class MerlinRawSocket:
         frame_header = _parse_frame_header(buf[15:])
         return frame_header
 
-    def _parse_acq_header(self, header: bytes):
-        result = {}
-        for line in header.decode("latin1").split('\n'):
-            try:
-                if line.startswith("HDR") or line.startswith("End\t"):
-                    continue
-                k, v = line.split("\t", 1)
-                k = k.rstrip(':')
-                v = v.rstrip("\r")
-                v = v.rstrip("\n")
-            except ValueError:
-                logger.warn("error while parsing line %r", line)
-                raise
-            result[k] = v
-        return result
-
     def close(self):
         if self._is_connected:
             assert self._socket is not None
@@ -493,7 +504,7 @@ class MerlinRawSocket:
 
 
 class MerlinFrameStream:
-    def __init__(self, raw_socket: MerlinRawSocket, ):
+    def __init__(self, raw_socket: MerlinRawSocket, acquisition_header: AcquisitionHeader):
         self._raw_socket = raw_socket
 
 

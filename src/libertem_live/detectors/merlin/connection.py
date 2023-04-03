@@ -78,6 +78,8 @@ class MerlinDetectorConnection(DetectorConnection):
         # - what is missing?
         #    - for `read_multi_frames`: `header_size_bytes` and `image_size_bytes`
         #    - same for `get_input_buffer`
+        #    - -> we don't need these until we actually receive data!
+        #    - `MerlinRawSocket` should maybe not include these methods,
         raise NotImplementedError()
 
     def get_acquisition_cls(self) -> Type[AcquisitionMixin]:

@@ -350,6 +350,8 @@ def test_context_manager_multi_block(ctx_pipelined: LiveContext, dectris_sim):
 
         _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
 
+    assert conn._conn is None
+
     with conn:
         # this can happen wherever, maybe from another computer in the network:
         ec = conn.get_api_client()
@@ -366,6 +368,8 @@ def test_context_manager_multi_block(ctx_pipelined: LiveContext, dectris_sim):
         )
 
         _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+
+    assert conn._conn is None
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
