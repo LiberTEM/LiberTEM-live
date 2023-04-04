@@ -9,7 +9,7 @@ import platform
 import threading
 import logging
 import select
-from typing import List
+from typing import List, Dict
 
 import click
 import numpy as np
@@ -122,7 +122,15 @@ class StopException(Exception):
 
 
 class HeaderSocketSimulator:
-    def __init__(self, path: str, stop_event=None, nav_shape=None, continuous=False, rois=None):
+    def __init__(
+        self,
+        path: str,
+        first_frame_headers: Dict,
+        stop_event=None,
+        nav_shape=None,
+        continuous=False,
+        rois=None,
+    ):
         """
         This class handles sending out acquisition header - calling the `handle_conn` method
         will send the header to the give connection.
@@ -142,6 +150,10 @@ class HeaderSocketSimulator:
         rois: List[np.ndarray]
             If a list of ROIs is given, in continuous mode, cycle through
             these ROIs from the source data
+
+        first_frame_headers
+            The frame headers of the first frame, as a dict (as LiberTEM reads
+            them)
         """
         if stop_event is None:
             stop_event = threading.Event()
@@ -155,13 +167,16 @@ class HeaderSocketSimulator:
         self._continuous = continuous
         self._rois = rois
         self._ds = None
+        self._first_frame_headers = first_frame_headers
 
     def _make_hdr(self):
         # FIXME: support for continuous mode - need to fake a better header here in that case
+        bpp = self._first_frame_headers['bits_per_pixel']
         hdr = (
             f"HDR,\n"
             f"Frames in Acquisition (Number):\t{np.prod(self._nav_shape, dtype=np.int64)}\n"
             f"Frames per Trigger (Number):\t{self._nav_shape[1]}\n"
+            f"Counter Depth (number):\t{bpp}\n"
             f"End\t"
         )
         return hdr.encode('latin1')
@@ -321,6 +336,12 @@ class DataSocketSimulator:
             tiling_scheme=tiling_scheme,
             roi=None,
         )
+
+    @property
+    def first_frame_headers(self) -> Dict:
+        self.open()
+        first_file = self._ds._files_sorted[0]
+        return first_file.fields
 
     def _get_single_scan(self, roi):
         fileset = self._ds._get_fileset()
@@ -751,14 +772,14 @@ class CameraSim:
         self.trigger_event = threading.Event()
         self.finish_event = threading.Event()
 
-        self.headers = HeaderSocketSimulator(
-            path=path, nav_shape=nav_shape, continuous=continuous,
-            stop_event=self.stop_event,
-        )
-
         self.sim = cls(
             path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs,
             stop_event=self.stop_event,
+        )
+
+        self.headers = HeaderSocketSimulator(
+            path=path, nav_shape=nav_shape, continuous=continuous,
+            stop_event=self.stop_event, first_frame_headers=self.sim.first_frame_headers,
         )
 
         self.server_t = DataSocketServer(
