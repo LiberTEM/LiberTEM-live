@@ -16,6 +16,7 @@ class SignalMonitorUDF(UDF):
     '''
 
     def get_backends(self):
+        ''
         return [
             backend for backend in self.BACKEND_ALL
             if backend not in {self.BACKEND_CUPY_SCIPY_COO, self.BACKEND_SCIPY_COO}
@@ -70,9 +71,11 @@ class PartitionMonitorUDF(UDF):
         super().__init__(dtype=dtype)
 
     def get_preferred_input_dtype(self):
+        ''
         return self.params.dtype
 
     def get_backends(self):
+        ''
         return self.BACKEND_ALL
 
     def get_result_buffers(self):
