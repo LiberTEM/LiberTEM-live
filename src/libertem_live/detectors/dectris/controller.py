@@ -17,6 +17,8 @@ class DectrisActiveController(AcquisitionController):
     Users should call :meth:`DectrisDetectorConnection.get_active_controller`
     instead of manually constructing an instance of this class.
     """
+    # NOTE: when adding a parameter here, also update
+    # `DectrisDetectorConnection.get_active_controller`
     def __init__(
         self,
         api_host: str,
@@ -32,6 +34,7 @@ class DectrisActiveController(AcquisitionController):
         name_pattern: Optional[str] = None,
         nimages_per_file: Optional[int] = 0,
         enable_corrections: bool = False,
+        mask_to_zero: Optional[bool] = None,
     ):
         self._api_host = api_host
         self._api_port = api_port
@@ -46,6 +49,7 @@ class DectrisActiveController(AcquisitionController):
         self._roi_y_size = roi_y_size
         self._roi_bit_depth = roi_bit_depth
         self._enable_corrections = enable_corrections
+        self._mask_to_zero = mask_to_zero
 
     def get_api_client(self) -> DEigerClient:
         ec = DEigerClient(self._api_host, port=self._api_port)
@@ -85,6 +89,10 @@ class DectrisActiveController(AcquisitionController):
             ec.setDetectorConfig('frame_time', self._frame_time)
         if self._compression is not None:
             ec.setDetectorConfig('compression', self._compression)
+
+        # mask to zero instead of MAX_INT:
+        if self._mask_to_zero is not None:
+            ec.setDetectorConfig('mask_to_zero', self._mask_to_zero)
 
     def apply_file_writing(self):
         """

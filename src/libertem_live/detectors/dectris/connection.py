@@ -151,6 +151,7 @@ class DectrisDetectorConnection(DetectorConnection):
         name_pattern: Optional[str] = None,
         nimages_per_file: Optional[int] = 0,
         enable_corrections: bool = False,
+        mask_to_zero: Optional[bool] = None,
     ):
         '''
         Create a controller object that knows about the detector settings
@@ -163,7 +164,7 @@ class DectrisDetectorConnection(DetectorConnection):
         Parameters
         ----------
         trigger_mode
-            One of 'exte', 'inte', 'exts', 'ints', as defined in the manual
+            One of 'exte', 'inte', 'exts', 'ints', as defined in the manual.
         count_time
             Exposure time per image in seconds
         frame_time
@@ -176,8 +177,9 @@ class DectrisDetectorConnection(DetectorConnection):
             For example, for ARINA, to bin to frames of 96x96,
             set `roi_mode` to 'merge2x2'.
 
-            For QUADRO, to select a subset of lines as active, set `roi_mode` to
-            'lines'. Then, additionally set `roi_y_size` to one of the supported values.
+            For QUADRO and other supported detectors, to select a subset of
+            lines as active, set `roi_mode` to 'lines'. Then, additionally set
+            `roi_y_size` to one of the supported values.
         roi_bit_depth
             For QUADRO, this can be either 8 or 16. Setting to 8 bit is required
             to reach the highest frame rates.
@@ -186,6 +188,9 @@ class DectrisDetectorConnection(DetectorConnection):
             Note that the image size is then two times this value, plus two pixels,
             for example if you select 64 lines, it will result in images with 130
             pixels height and the full width.
+
+            Starting with DECTRIS software version "release-2022.1", this is
+            the total height instead, so 130, 258, 512 for QUADRO.
         enable_file_writing
             Enable file writing on the DCU. If set to `False`, explicitly
             disable file writing.
@@ -200,8 +205,16 @@ class DectrisDetectorConnection(DetectorConnection):
             maximum this number of images are saved per file. The default is not
             to split into multiple files.
         enable_corrections
-            Automatically correct defect pixels, downloading the pixel mask from the
-            detector configuration.
+            Let LiberTEM automatically correct defect pixels, downloading the
+            pixel mask from the detector configuration.
+        mask_to_zero
+            When set to `True`, the bad pixels that are configured in the
+            detector software are set to zero instead of MAX_INT. This is
+            using the detector-internal correction facilities, not those
+            of LiberTEM.
+
+            Needs a current version of the DECTRIS software to work correctly
+            (at least "release-2022.1.2").
         '''
         return DectrisActiveController(
             # these two don't need to be repeated:
@@ -219,6 +232,7 @@ class DectrisDetectorConnection(DetectorConnection):
             name_pattern=name_pattern,
             nimages_per_file=nimages_per_file,
             enable_corrections=enable_corrections,
+            mask_to_zero=mask_to_zero,
         )
 
     @property
