@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, Optional, Tuple, Protocol
+from typing import TYPE_CHECKING, Optional, Tuple
+from typing_extensions import Protocol
 from contextlib import contextmanager
 import logging
 
