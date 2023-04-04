@@ -7,6 +7,13 @@ Live Context
 .. automodule:: libertem_live.api
    :members:
 
+
+Detector connection
+~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: libertem_live.detectors.base.connection
+   :members:
+
 .. _`detector reference`:
 
 Detectors
@@ -37,6 +44,8 @@ Memory
 
 .. automodule:: libertem_live.detectors.memory
    :members:
+
+.. _`utility udfs`:
 
 UDFs
 ~~~~

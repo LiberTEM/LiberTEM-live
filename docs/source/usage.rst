@@ -22,34 +22,38 @@ We currently support the following detectors:
 * :ref:`Merlin Medipix <merlin detector>`, including 2x2 quad configuration
 * :ref:`DECTRIS EIGER2-based detectors <dectris detectors>`, like ARINA or QUADRO
 
-Simulating a detector
----------------------
+Computations on the live stream use the LiberTEM user-defined functions (UDF) interface.
+There are some useful UDFs shipped with both LiberTEM and LiberTEM-live, or you can
+implement your own, custom reconstruction methods.
 
-For basic testing, the
-:class:`~libertem_live.detectors.memory.MemoryAcquisition` can be used. It
-implements the additional functionality of an acquisition on top of the
-:class:`libertem.io.dataset.memory.MemoryDataSet`. A more advanced data source
-that emulates the Merlin data and control socket is available as well. Please
-note that this emulation is still very basic for the time being.
+Common setup code
+-----------------
 
-This command runs an emulation server on the default ports 6341 for control and
-6342 for data which replays the provided MIB dataset:
+As with LiberTEM itself, we have a main entry point for all interaction,
+which is the :class:`~libertem_live.api.LiveContext`:
 
-.. code-block:: shell
+.. testsetup::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
-    (libertem) $ libertem-live-mib-sim "Ptycho01/20200518 165148/default.hdr"
+    from libertem_live.detectors.dectris.sim import DectrisSim
+    server = DectrisSim(path=DECTRIS_TESTDATA_PATH, port=0, zmqport=0, verbose=False)
+    server.start()
+    server.wait_for_listen()
+    DCU_API_PORT = server.port
+    DCU_DATA_PORT = server.zmqport
 
-See :ref:`merlin detector` for all available command line arguments. For
-running the example notebooks, you need to use at least the
-:code:`--wait-trigger` parameter.
+    class MockMic:
+        def trigger_scan(self, width, height, dwelltime):
+            pass
 
-Start a :code:`LiveContext`
----------------------------
+    microscope = MockMic()
 
-A :class:`~libertem_live.api.LiveContext` requires using a compatible executor
-since task scheduling has to be coordinated with the incoming detector data. It
-starts a suitable executor by default when it is instantiated, currently the
-:class:`~libertem.executor.pipelined.PipelinedExecutor`.
+.. testoutput::
+    :hide:
+
+    RustedReplay listening on tcp://127.0.0.1:...
+    Waiting for arm
+
 
 .. testcode::
 
@@ -57,148 +61,214 @@ starts a suitable executor by default when it is instantiated, currently the
 
     ctx = LiveContext()
 
+This creates the appropriate resources for computation, in other words, it
+starts worker processes and prepares them for receiving data.
 
-.. _`trigger`:
+The next step is to prepare a connection to the detector system; in most cases
+you'll specify network hostnames, IP addresses and/or ports here.
 
-Define a callback function to trigger an acquisition
-----------------------------------------------------
+.. code::
 
-This callback function will be included in an acquisition object to be called
-when LiberTEM-live is ready and waiting for data. It should trigger the start of
-the acquisition, for example by starting a scan. If a scan is triggered before
-the acquisition system is ready to receive, data may be lost depending on the
-timimg and architecture.
-
-Setting up the devices before the scan with a configuration that generates the
-expected data as well as cleanup after a scan is finished should be handled by
-the user.
-
-.. testcode::
-
-    def trigger(acquisition):
-        print("Triggering!")
-        height, width = acquisition.shape.nav
-        # microscope.trigger_scan()
-
-Prepare an acquisition
-----------------------
-
-The API of an acquisition is deliberately similar to a LiberTEM offline
-:class:`~libertem.io.dataset.base.dataset.DataSet` to make the internals of
-LiberTEM work the same. However, the behavior and usage are different. An
-offline dataset represents immutable data on a storage medium that can be
-accessed at any time and be shared between all processes that have access to the
-underlying file system. As a consequence,
-:class:`~libertem.io.dataset.base.dataset.DataSet` objects can be long-lived and
-re-used easily.
-
-:class:`~libertem_live.detector.base.acquisition.AcquisitionMixin` objects, in
-contrast, are just a vehicle to communicate to the LiberTEM internals what data
-to expect. What data will actually arrive depends entirely on the settings of
-the acquisition system. Since doing a 4D STEM acquisition requires coordinating
-at least camera, scan engine and microscope, it is usually customized for each
-setup. Furthermore, interactive user adjustments such as focusing and navigating
-are usually required. That makes generalizing a live acquisition harder than an
-offline dataset: It doesn't represent an immutable state on storage like an
-offline dataset, but a desired action of an acquisition system that usually has
-a unique configuration and depends on a state that is dynamic, complex and
-diverse in nature.
-
-For that reason, the functionality of a
-:class:`~libertem_live.detector.base.acquisition.AcquisitionMixin` object is
-strictly limited to reading data from the camera, expecting data in the shape
-and kind that was specified. Controlling the settings of the acquisition system
-is the responsibility of the user. The example notebook uses a convenience
-function that accepts an acquisition object as a parameter and adjusts the
-settings of the acquisition system to match the scan shape of the acquisition.
-This function is called directly before running an acquisition, together with
-other setup functions.
-
-This example just creates a memory acquisition:
-
-.. testcode::
-
-    import numpy as np
-
-    # We use a memory-based acquisition to make this example runnable
-    # without a real detector or detector simulation.
-    data = np.random.random((23, 42, 51, 67))
-
-    aq = ctx.prepare_acquisition(
-        'memory',
-        trigger=trigger,
-        data=data,
+    conn = ctx.make_connection('your_detector_type').open(
+        key=value,
+        ...
     )
 
-Run an acquisition
-------------------
-
-This first initializes the acquisition to the point that it can receive data, for
-example by connecting to the data socket in the case of the Merlin detector. Then it
-calls the user-provided :code:`trigger` callback function that should set off
-the acquisition. After that, it reads the data from the camera and feeds it into
-the provided UDFs. Finally, it closes the camera connection, if applicable.
+For example, for DECTRIS SIMPLON based detectors, creating a connection looks
+like this:
 
 .. testcode::
 
-    from libertem_live.udf.monitor import SignalMonitorUDF
+    conn = ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    )
 
-    res = ctx.run_udf(dataset=aq, udf=SignalMonitorUDF(), plots=True)
+The connection is usually persistent, so it's important to clean up after yourself:
 
-.. testoutput::
+.. testcode::
 
-    Triggering!
+    conn.close()
 
-.. _`recording`:
+Or use the context manager based interface instead, which automatically cleans up
+after the :code:`with`-block:
 
-Recording data
---------------
+.. testcode::
 
-The :class:`~libertem_live.udf.record.RecordUDF` allows to record the input data
-as NPY file. Here it is demonstrated with the memory-based acquisition created
-above.
+    with ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,  # 80 by default
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,  # 9999 by default
+    ) as conn:
+        # your code using the connection here
+        pass
+    # `conn` is closed here
 
-.. note::
-    This feature might be updated in the future to better support recording at high data rate.
+.. _`passive mode`:
+
+Passive mode
+------------
+
+.. versionadded:: 0.2
+
+Possibly the easiest way of using LiberTEM-live is by passively listening
+to events on the detector, and starting a reconstruction once the data
+starts to arrive. Configuration, arming and triggering is assumed
+to be done by an external program, for example from the detector vendor.
+
+See below for the description
+of the :ref:`active mode <active mode>`, where the detector is configured and the
+acquisition is actively controlled via LiberTEM-live.
+
+In passive mode, you usually use the :meth:`~libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition`
+to wait for an acquisition to start:
+
+.. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
+
+    from libertem.udf.sum import SumUDF
+
+    with ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    ) as conn:
+        # if the timeout, specified in seconds as float here, is hit,
+        # `pending_aq` will be `None`. This is useful if you need to
+        # regularly do some other work in your code between acquisitions.
+        pending_aq = conn.wait_for_acquisition(timeout=10.0)
+
+        aq = ctx.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+            nav_shape=(128, 128),
+        )
+
+        # run one or more UDFs on the live data stream:
+        ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
+
+
+This mode works with all detectors in the same way, the only difference
+will be the connection parameters.
+
+.. _`active mode`:
+
+Active mode
+-----------
+
+.. versionchanged:: 0.2
+
+    The API has changed in 0.2 to seamlessly support different detectors,
+    and to allow connecting independently of the acquisition object.
+
+Passive mode is a good way to use LiberTEM-live, if you already have configuration,
+arming and triggering set up externally. If you want to integrate this more tightly,
+and control everything from one place, you can use active mode instead.
+
+In active mode, the acquisition is actively controlled by LiberTEM-live.
+That includes setting detector settings, up to arming the detector.
+Depending on your setup, you can also integrate configuration of your
+microscope, STEM settings, control your scan engine and start a STEM scan etc.
+
+
+.. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
+
+    from libertem.udf.sum import SumUDF
+
+    with ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    ) as conn:
+        # NOTE: we are no longer passing `pending_aq`, like in the passive mode.
+        # Instead we pass a controller object:
+        aq = ctx.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+            controller=conn.get_active_controller(
+                # NOTE: parameters here are detector specific
+                trigger_mode='exte',
+                frame_time=55e-6,
+            ),
+        )
+
+        # run one or more UDFs on the live data stream:
+        ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
+
+
+Hooks
+-----
+
+.. versionchanged:: 0.2
+    This is a replacement for the previously used :code:`trigger` function,
+    and should be an equivalent replacement. The new hooks API is more open
+    for future improvements while being backwards-compatible.
+
+In order to integrate LiberTEM-live into your experimental setup,
+we provide a way to hook into different points at the lifecycle of
+an acquisition. Right now, the most important hook is
+:meth:`~libertem_live.api.Hooks.on_ready_for_data`.
+
+This hook is called in :ref:`active mode <active mode>`, when the LiberTEM is
+ready to receive data. Depending on the setup and the detector, you can then trigger
+a STEM scan, and possibly control other devices, such as signal generators, in-situ
+holders with heating etc.
 
 .. testsetup::
+    conn = ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    )
 
-    import os
-    from tempfile import TemporaryDirectory
+    from libertem.udf.sum import SumUDF
 
-    d = TemporaryDirectory()
-    filename = os.path.join(d.name, 'numpyfile.npy')
 
 .. testcode::
 
-    from libertem_live.udf.record import RecordUDF
+    from libertem_live.api import Hooks
 
-    ctx.run_udf(dataset=aq, udf=RecordUDF(filename))
+    class MyHooks(Hooks):
+        def on_ready_for_data(self, env):
+            """
+            You can trigger the scan here, if you have a microscope control API
+            """
+            print("Triggering!")
+            height, width = env.aq.shape.nav
+            microscope.trigger_scan(width, height, dwelltime=10e-6)
 
-    res = np.load(filename)
-    assert np.all(res == data)
+    aq = ctx.make_acquisition(
+        conn=conn,
+        nav_shape=(128, 128),
+        hooks=MyHooks(),
+    )
 
-.. testoutput::
+    # run one or more UDFs on the live data stream:
+    ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
 
-    Triggering!
+:meth:`~libertem_live.api.Hooks.on_ready_for_data` is not called for passive
+acquisitions, as we cannot accurately synchronize to the beginning of the acquisition
+in this case. Also, you will probably have different code to execute based on
+active or passive configuration.
 
-Examples
---------
 
-This example is closer to a real-world application based on the Merlin
-simulator:
+Included UDFs
+-------------
 
-.. toctree::
-
-    merlin
-
-This example shows how to access the detector frame stream without using LiberTEM:
-
-    .. toctree::
-
-        lowlevel
+In addition to :ref:`the UDFs included with LiberTEM <libertem:utilify udfs>`,
+we ship :ref:`a few additional UDFs with LiberTEM-live <utility udfs>` that are mostly
+useful for live processing.
 
 .. testcleanup::
 
     # close the context when done to free up resources:
     ctx.close()
+
+    conn.close()

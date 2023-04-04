@@ -178,7 +178,25 @@ class DectrisCommHandler(TaskCommHandler):
 # FIXME: naming: native `DetectorConnection` vs this is confusing?
 class DectrisAcquisition(AcquisitionMixin, DataSet):
     '''
-    Acquisition from a DECTRIS detector
+    Acquisition from a DECTRIS detector.
+    Use :meth:`libertem_live.api.LiveContext.make_acquisition`to instantiate this
+    class!
+
+    Examples
+    --------
+
+    >>> from libertem_live.api import LiveContext
+    >>> with LiveContext() as ctx:
+    ...     with ctx.make_connection('dectris').open(
+    ...         api_host='127.0.0.1',
+    ...         api_port=80,
+    ...         data_host='127.0.0.1',
+    ...         data_port=9999,
+    ...     ) as conn:
+    ...         aq = ctx.make_acquisition(
+    ...             conn=conn,
+    ...             nav_shape=(128, 128),
+    ...         )
 
     Parameters
     ----------
@@ -255,9 +273,15 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._acq_state: Optional[AcquisitionParams] = None
 
     def get_api_client(self):
+        '''
+        Get an API client, which can be used to configure the detector.
+        '''
         return self._conn.get_api_client()
 
     def get_detector_config(self) -> DetectorConfig:
+        '''
+        Get (very limited subset of) detector configuration
+        '''
         ec = self._conn.get_api_client()
         # FIXME: initialize detector here, if not already initialized?
         shape_x = ec.detectorConfig("x_pixels_in_detector")['value']
@@ -270,6 +294,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         )
 
     def initialize(self, executor) -> "DataSet":
+        ''
         self._update_meta()
         return self
 
@@ -308,6 +333,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         return self._meta
 
     def get_correction_data(self):
+        ''
         if self._controller is None or not self._controller.enable_corrections:
             return CorrectionSet()
         ec = self._conn.get_api_client()
@@ -318,6 +344,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     @contextmanager
     def acquire(self):
+        ''
         with tracer.start_as_current_span('acquire'):
             if self._controller is not None:
                 self._controller.apply_file_writing()
@@ -343,29 +370,36 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             yield
 
     def check_valid(self):
+        ''
         pass
 
     def need_decode(self, read_dtype, roi, corrections):
+        ''
         return True  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape, roi):
+        ''
         depth = 12  # FIXME: hardcoded, hmm...
         return (depth, *self.meta.shape.sig)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
+        ''
         # return 12*256*256*8
         # FIXME magic numbers?
         return 12*np.prod(self.meta.shape.sig)*8
 
     def get_base_shape(self, roi):
+        ''
         return (1, *self.meta.shape.sig)
 
     @property
     def acquisition_state(self):
+        ''
         return self._acq_state
 
     def get_partitions(self):
+        ''
         # FIXME: only works for inline executor or similar, as we are using a zeromq socket
         # which is not safe to be passed to other threads
         num_frames = np.prod(self._nav_shape, dtype=np.uint64)
@@ -382,6 +416,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             )
 
     def get_task_comm_handler(self) -> "DectrisCommHandler":
+        ''
         return DectrisCommHandler(
             params=self._acq_state,
             conn=self._conn,

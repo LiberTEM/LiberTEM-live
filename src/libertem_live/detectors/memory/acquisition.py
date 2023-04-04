@@ -95,7 +95,6 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
         # XXX copy/pasta from AcquisitionMixin as we do need to
         # pass extra kwargs to the memory data set underneath:
         self._conn = conn
-        self._hooks = hooks
         self._nav_shape = nav_shape
         self._frames_per_partition = frames_per_partition  # FIXME: ignored!
         self._controller = controller

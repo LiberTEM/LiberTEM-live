@@ -21,42 +21,21 @@ class DectrisDetectorConnection(DetectorConnection):
     Connect to a DECTRIS DCU, both for detector configuration and for accessing
     the data stream.
 
-    Parameters
-    ----------
-    api_host
-        The hostname or IP address of the DECTRIS DCU for the REST API
-    api_port
-        The port of the REST API
-    data_host
-        The hostname or IP address of the DECTRIS DCU for the zeromq data stream
-    data_port
-        The zeromq port to use
-    buffer_size
-        The total receive buffer in MiB that is used to stream data to worker
-        processes.
-    bytes_per_frame
-        Roughtly how many bytes should be reserved per frame
+    Please see :class:`libertem_live.detectors.dectris.DectrisConnectionBuilder`
+    for a description of the parameters, and use
+    :meth:`libertem_live.api.LiveContext.make_connection` to create a connection.
 
-        If this is None, a rough guess will be calculated from the detector size.
-        You can check the :py:attr:`~bytes_per_frame` property to see if the guess
-        matches reality, and adjust this parameter if it doesn't.
-    frame_stack_size
-        How many frames should be stacked together and put into a shared memory slot?
-        If this is chosen too small, it might cause slowdowns because of having
-        to handle many small objects; if it is chosen too large, it again may be
-        slower due to having to split frame stacks more often in boundary conditions.
-        When in doubt, leave this value at it's default.
-    huge_pages
-        Set to True to allocate shared memory in huge pages. This can improve performance
-        by reducing the page fault cost. Currently only available on Linux. Enabling this
-        requires reserving huge pages, either at system start, or before connecting.
 
-        For example, to reserve 10000 huge pages, you can run:
-
-        :code:`echo 10000 | sudo tee /proc/sys/vm/nr_hugepages`
-
-        See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`
-        can be useful to check your configuration.
+    Examples
+    --------
+    >>> from libertem_live.api import LiveContext
+    >>> with LiveContext() as ctx, ctx.make_connection('dectris').open(
+    ...     api_host='127.0.0.1',
+    ...     api_port=80,
+    ...     data_host='127.0.0.1',
+    ...     data_port=9999,
+    ... ) as conn:
+    ...     print("connected")
     '''
     def __init__(
         self,
@@ -184,13 +163,14 @@ class DectrisDetectorConnection(DetectorConnection):
             For QUADRO, this can be either 8 or 16. Setting to 8 bit is required
             to reach the highest frame rates.
         roi_y_size
-            Select a subset of lines. For QUADRO, this has to be 64, 128, or 256.
-            Note that the image size is then two times this value, plus two pixels,
-            for example if you select 64 lines, it will result in images with 130
-            pixels height and the full width.
+            Select a subset of lines. For QUADRO, this has to be between 2 and
+            256, inclusive. Note that the image size is then two times this
+            value, plus two pixels, for example if you select 64 lines, it will
+            result in images with 130 pixels height and the full width.
 
-            Starting with DECTRIS software version "release-2022.1", this is
-            the total height instead, so 130, 258, 512 for QUADRO.
+            Starting with DECTRIS software version "release-2022.1", this is the
+            total height instead, so any even number between 4 and 512,
+            inclusive.
         enable_file_writing
             Enable file writing on the DCU. If set to `False`, explicitly
             disable file writing.

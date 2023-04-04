@@ -54,3 +54,10 @@ def pytest_collectstart(collector):
 @pytest.fixture(autouse=True)
 def add_np(doctest_namespace):
     doctest_namespace['np'] = np
+
+
+@pytest.fixture(autouse=True)
+def add_helpers(doctest_namespace, ctx_pipelined):
+    from libertem.udf.sum import SumUDF
+    doctest_namespace['ctx'] = ctx_pipelined
+    doctest_namespace['SumUDF'] = SumUDF

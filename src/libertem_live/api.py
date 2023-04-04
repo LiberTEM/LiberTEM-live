@@ -84,6 +84,21 @@ class LiveContext(LiberTEM_Context):
     ) -> Union["DectrisConnectionBuilder", "MerlinConnectionBuilder", "MemoryConnectionBuilder"]:
         """
         Connect to a detector system.
+
+        Parameters
+        ----------
+        detector_type
+            The detector type as a string. Further connection parameters
+            are passed to the :code:`open` method of the returned builder object.
+
+        Examples
+        --------
+
+        >>> data = np.random.random((23, 42, 51, 67))
+        >>> ctx = LiveContext()  # doctest: +SKIP
+        >>> with ctx.make_connection('memory').open(data=data) as conn:
+        ...     print("connected!")
+        connected!
         """
         if detector_type == 'dectris':
             from libertem_live.detectors.dectris import DectrisConnectionBuilder
@@ -96,7 +111,7 @@ class LiveContext(LiberTEM_Context):
             return MemoryConnectionBuilder()
         else:
             raise NotImplementedError(
-                f"detector type {detector_type} doesn't support this API"
+                f"Detector type {detector_type} doesn't support this API"
             )
 
     @overload
@@ -155,9 +170,11 @@ class LiveContext(LiberTEM_Context):
         --------
 
         >>> data = np.random.random((23, 42, 51, 67))
-        >>> with LiveContext() as ctx,\
-        ...        ctx.make_connection('memory').open(data=data) as conn:
+        >>> ctx = LiveContext()  # doctest: +SKIP
+        >>> with ctx.make_connection('memory').open(data=data) as conn:
         ...     aq = ctx.make_acquisition(conn=conn)
+        ...     ctx.run_udf(dataset=aq, udf=SumUDF())
+        {'intensity': ...}
         """
         cls = conn.get_acquisition_cls()
         instance = cls(
