@@ -4,7 +4,9 @@ in both doctests and regular tests.
 """
 from libertem.executor.inline import InlineJobExecutor
 from libertem.executor.pipelined import PipelinedExecutor
+
 import pytest
+import numpy as np
 
 from libertem.viz.base import Dummy2DPlot
 
@@ -47,3 +49,8 @@ def pytest_collectstart(collector):
     # nbval: ignore some output types
     if collector.fspath and collector.fspath.ext == '.ipynb':
         collector.skip_compare += 'text/html', 'application/javascript', 'stderr',
+
+
+@pytest.fixture(autouse=True)
+def add_np(doctest_namespace):
+    doctest_namespace['np'] = np
