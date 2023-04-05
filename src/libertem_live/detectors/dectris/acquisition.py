@@ -189,9 +189,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     >>> with LiveContext() as ctx:
     ...     with ctx.make_connection('dectris').open(
     ...         api_host='127.0.0.1',
-    ...         api_port=80,
+    ...         api_port=DCU_API_PORT,
     ...         data_host='127.0.0.1',
-    ...         data_port=9999,
+    ...         data_port=DCU_DATA_PORT,
     ...     ) as conn:
     ...         aq = ctx.make_acquisition(
     ...             conn=conn,
@@ -204,9 +204,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         An existing `DectrisDetectorConnection` instance
     nav_shape
         The number of scan positions as a 2-tuple :code:`(height, width)`
-    trigger : function
-        See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
-        and :ref:`trigger` for details!
     frames_per_partition
         A tunable for configuring the feedback rate - more frames per partition
         means slower feedback, but less computational overhead. Might need to be tuned
@@ -225,6 +222,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         If no controller is passed in, and `pending_aq` is also not
         given, then the acquisition will be started in active
         mode, leaving all detector settings unchanged.
+    hooks
+        Acquisition hooks to react to certain events
     '''
     def __init__(
         self,
@@ -245,6 +244,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
         hooks: Optional[Hooks] = None,
     ):
+        if frames_per_partition is None:
+            frames_per_partition = 512
         frames_per_partition = min(frames_per_partition, prod(nav_shape))
 
         if controller is None and pending_aq is None:
