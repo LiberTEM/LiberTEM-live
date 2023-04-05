@@ -31,11 +31,12 @@ class DectrisDetectorConnection(DetectorConnection):
     >>> from libertem_live.api import LiveContext
     >>> with LiveContext() as ctx, ctx.make_connection('dectris').open(
     ...     api_host='127.0.0.1',
-    ...     api_port=80,
+    ...     api_port=DCU_API_PORT,
     ...     data_host='127.0.0.1',
-    ...     data_port=9999,
+    ...     data_port=DCU_DATA_PORT,
     ... ) as conn:
-    ...     print("connected")
+    ...     print("connected!")
+    connected!
     '''
     def __init__(
         self,

@@ -601,7 +601,7 @@ class MerlinDataSource:
 
         >>> source = MerlinDataSource(...)  # doctest: +SKIP
         >>> with source:  # doctest: +SKIP
-        ...     for _ in source.stream():  # doctest: +SKIP
+        ...     for chunk in source.stream():  # doctest: +SKIP
         ...         ...
         """
         chunks = self._read_and_decode(
