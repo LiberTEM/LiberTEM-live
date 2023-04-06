@@ -31,22 +31,42 @@ class AcqState(NamedTuple):
 
 
 class MerlinAcquisition(AcquisitionMixin, DataSet):
-    _conn: MerlinDetectorConnection
-    _pending_aq: Optional[MerlinPendingAcquisition]
     '''
-    Acquisition from a Quantum Detectors Merlin camera
+    Acquisition from a Quantum Detectors Merlin camera.
+
+    Use :meth:`libertem_live.api.LiveContext.make_acquisition`
+    to create an instance!
 
     Parameters
     ----------
 
-    nav_shape : tuple(int)
-    drain : bool
-        Drain the socket before triggering. Disable this when using internal
-        start trigger!
-    frames_per_partition : int
+    conn
+        An existing :class:`MerlinDetectorConnection` instance
+    nav_shape
+        The number of scan positions as a 2-tuple :code:`(height, width)`
+    frames_per_partition
         Number of frames to process before performing a merge operation. Decreasing this number
         increases the update rate, but can decrease performance.
+    pending_aq
+        A pending acquisition in passive mode, obtained from
+        :meth:`MerlinDetectorConnection.wait_for_acquisition`.
+        If this is not provided, it's assumed that the detector should be
+        actively armed and triggered.
+    controller
+        A `MerlinActiveController` instance, which can be obtained
+        from :meth:`MerlinDetectorConnection.get_active_controller`.
+        You can pass additional parameters to
+        :meth:`MerlinDetectorConnection.get_active_controller` in order
+        to change detector settings.
+        If no controller is passed in, and `pending_aq` is also not
+        given, then the acquisition will be started in active
+        mode, leaving all detector settings unchanged.
+    hooks
+        Acquisition hooks to react to certain events
     '''
+    _conn: MerlinDetectorConnection
+    _pending_aq: Optional[MerlinPendingAcquisition]
+
     def __init__(
         self,
         conn: MerlinDetectorConnection,
@@ -77,6 +97,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         )
 
     def initialize(self, executor):
+        ''
         # FIXME: possibly need to have an "acquisition plan" object
         # so we know all relevant parameters beforehand
         sig_shape = self._conn.read_sig_shape()
@@ -149,17 +170,21 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
                 self._acq_state = None
 
     def check_valid(self):
+        ''
         pass
 
     def need_decode(self, read_dtype, roi, corrections):
+        ''
         return True  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape, roi):
+        ''
         depth = 24
         return (depth, *self.meta.shape.sig)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
+        ''
         # return 12*256*256*8
         # FIXME magic numbers?
         return 24*np.prod(self.meta.shape.sig)*8
@@ -168,6 +193,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         return (1, 1, self.meta.shape.sig[-1])
 
     def get_partitions(self):
+        ''
         num_frames = np.prod(self._nav_shape, dtype=np.uint64)
         num_partitions = int(num_frames // self._frames_per_partition)
 

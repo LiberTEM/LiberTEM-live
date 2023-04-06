@@ -6,7 +6,7 @@ import numpy as np
 
 from libertem.io.dataset.memory import MemoryDataSet
 
-from libertem_live.hooks import Hooks
+from libertem_live.hooks import Hooks, ReadyForDataEnv
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from libertem_live.detectors.base.connection import DetectorConnection, PendingAcquisition
 # from libertem_live.detectors.base.controller import AcquisitionController
@@ -56,15 +56,13 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
     --------
 
     >>> import numpy as np
-    >>> from libertem.udf.sum import SumUDF
-    >>> from libertem_live.api import LiveContext, Hooks
+    >>> from libertem_live.api import Hooks
     ...
-    >>> ctx = LiveContext()
     >>> data = np.random.random((23, 42, 51, 67))
     ...
     >>> class MyHooks(Hooks):
-    ...     def on_ready_for_data(self, aq):
-    ...         print("Triggering!")
+    ...     def on_ready_for_data(self, env):
+    ...         print(f"Triggering! {env.aq.shape.nav}")
     ...
     >>> conn = ctx.make_connection('memory').open(
     ...    data=data
@@ -77,7 +75,7 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
     ...
     >>> udf = SumUDF()
     >>> ctx.run_udf(dataset=aq, udf=udf, plots=True)
-    Triggering!
+    Triggering! (23, 42)
     {'intensity': <BufferWrapper kind=sig dtype=float64 extra_shape=()>}
     '''
 
@@ -113,5 +111,7 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
     @contextmanager
     def acquire(self):
         if self._pending_aq is None:
-            self._hooks.on_ready_for_data(self)
+            self._hooks.on_ready_for_data(
+                ReadyForDataEnv(aq=self),
+            )
         yield

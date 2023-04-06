@@ -62,20 +62,20 @@ class ServerThreadMixin(ErrThreadMixin):
             self._socket.bind((self._host, self._port))
             self._socket.settimeout(1)
             self._socket.listen(1)
-            print(f"{self._name} listening {self.sockname}")
+            logger.info(f"{self._name} listening {self.sockname}")
             self.listen_event.set()
             while not self.is_stopped():
                 try:
                     connection, client_addr = self._socket.accept()
                     with connection:
-                        print(f"{self._name} accepted from %s" % (client_addr,))
+                        logger.info(f"{self._name} accepted from %s" % (client_addr,))
                         self.handle_conn(connection)
                 except socket.timeout:
                     continue
                 except BrokenPipeError:
                     continue  # the other end died, but that doesn't mean we have to die
                 except ConnectionResetError:
-                    print(f"{self._name} disconnected")
+                    logger.info(f"{self._name} disconnected")
                 # except BrokenPipeError:
                 #     # catch broken pipe error - allow the server to continue
                 #     # running, even when a client prematurely disconnects
@@ -96,7 +96,7 @@ class ServerThreadMixin(ErrThreadMixin):
         except Exception as e:
             return self.error(e)
         finally:
-            print(f"{self._name} exiting")
+            logger.info(f"{self._name} exiting")
             self._socket.close()
 
 
@@ -264,7 +264,7 @@ class DataSocketSimulator:
     def open(self):
         self._load()
         assert self._ds is not None
-        print(f"dataset shape: {self._ds.shape}")
+        logger.info(f"dataset shape: {self._ds.shape}")
         self._warmup()
 
     def get_chunks(self):
@@ -272,10 +272,10 @@ class DataSocketSimulator:
         generator of `bytes` for the given configuration
         """
         if self._continuous:
-            print("yielding from continuous")
+            logger.info("yielding from continuous")
             yield from self._get_continuous()
         else:
-            print("yielding from single scan")
+            logger.info("yielding from single scan")
             roi = np.ones(self._ds.shape.nav, dtype=bool)
             # Times two since _get_single_scan() returns header
             # and frame separately
@@ -394,7 +394,7 @@ class DataSocketSimulator:
             t0 = time.time()
             yield from self._get_single_scan(roi)
             t1 = time.time()
-            print("cycle %d took %.05fs" % (i, t1 - t0))
+            logger.info("cycle %d took %.05fs" % (i, t1 - t0))
             i += 1
             if self._max_runs != -1 and i >= self._max_runs:
                 raise StopException("max_runs exceeded")
@@ -461,7 +461,7 @@ class MemfdSocketSim(DataSocketSimulator):
         self._populate_cache()
 
     def _populate_cache(self):
-        print("populating cache, please wait...")
+        logger.info("populating cache, please wait...")
         roi = np.ones(self._ds.shape.nav, dtype=bool)
         total_size = 0
         for chunk in super()._get_single_scan(roi):
@@ -473,7 +473,7 @@ class MemfdSocketSim(DataSocketSimulator):
             total_size += len(chunk)
         os.lseek(self._cache_fd, 0, 0)
         self._size = total_size
-        print(
+        logger.info(
             "cache populated, total size = %d MiB (%d bytes)" % (
                 total_size / 1024 / 1024, total_size
             )
@@ -493,7 +493,7 @@ class MemfdSocketSim(DataSocketSimulator):
                 self._size - total_sent
             )
             reps += 1
-        print("_send_full_file took %d reps" % reps)
+        logger.info("_send_full_file took %d reps" % reps)
 
     def handle_conn(self, conn):
         if self._continuous:
@@ -503,17 +503,17 @@ class MemfdSocketSim(DataSocketSimulator):
                 self._send_full_file(conn)
                 t1 = time.time()
                 throughput = self._size / (t1 - t0) / 1024 / 1024
-                print("cycle %d took %.05fs (%.2fMiB/s)" % (i, t1 - t0, throughput))
+                logger.info("cycle %d took %.05fs (%.2fMiB/s)" % (i, t1 - t0, throughput))
                 i += 1
                 if self._max_runs != -1 and i >= self._max_runs:
                     raise StopException("max_runs exceeded")
         else:
-            print("yielding from single scan")
+            logger.info("yielding from single scan")
             t0 = time.time()
             self._send_full_file(conn)
             t1 = time.time()
             throughput = self._size / (t1 - t0) / 1024 / 1024
-            print(f"single scan took {t1 - t0:.05f}s ({throughput:.2f}MiB/s)")
+            logger.info(f"single scan took {t1 - t0:.05f}s ({throughput:.2f}MiB/s)")
         conn.close()
 
 
@@ -532,7 +532,7 @@ def wait_with_socket(event: threading.Event, connection):
             # normally, but only send
             res = connection.recv(1)
             if not res:
-                print("Readable socket yielded no result, probably closed")
+                logger.info("Readable socket yielded no result, probably closed")
                 # The socket was closed, return False to signal abort
                 return False
 
@@ -570,11 +570,11 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
         try:
             if self._wait_trigger or self._manual_trigger:
                 if self._garbage:
-                    print("Sending some garbage...")
+                    logger.info("Sending some garbage...")
                     connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
-                print("Waiting for acquisition start...")
+                logger.info("Waiting for acquisition start...")
                 if not wait_with_socket(self.acquisition_event, connection):
-                    print("Readable socket yielded no result, probably closed")
+                    logger.info("Readable socket yielded no result, probably closed")
                     connection.close()
                     return
                 self.acquisition_event.clear()
@@ -583,9 +583,9 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
                 _ = input("Press key to trigger...\n")
                 self.trigger_event.set()
             if self._wait_trigger or self._manual_trigger:
-                print("Waiting for trigger...")
+                logger.info("Waiting for trigger...")
                 if not wait_with_socket(self.trigger_event, connection):
-                    print("Readable socket yielded no result, probably closed")
+                    logger.info("Readable socket yielded no result, probably closed")
                     connection.close()
                     return
                 self.trigger_event.clear()
@@ -617,7 +617,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
 
     def handle_conn(self, connection):
         connection.settimeout(1)
-        print("handling control connection")
+        logger.info("handling control connection")
         # This code is only a proof of concept. It works just well enough to send
         # commands and parse responses with control.MerlinControl.
         # A few points to improve:
@@ -638,10 +638,10 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             except socket.timeout:
                 continue
             if len(chunk) == 0:
-                print("closed control")
+                logger.info("closed control")
                 return
             parts = chunk.split(b',')
-            print("Control command received: ", chunk)
+            logger.info(f"Control command received: {chunk}")
             parts = [part.decode('ascii') for part in parts]
             method = parts[2]
             param = parts[3]
@@ -682,7 +682,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                 )
             else:
                 raise RuntimeError("Unknown method %s", method)
-            print("Control response: ", str(response))
+            logger.info("Control response: {str(response)}")
             connection.send(response)
 
 
@@ -694,22 +694,22 @@ class TriggerSocketServer(ServerThreadMixin, threading.Thread):
 
     def handle_conn(self, connection):
         connection.settimeout(1)
-        print("handling trigger connection")
+        logger.info("handling trigger connection")
         while not self.is_stopped():
             try:
                 chunk = connection.recv(1024)
             except socket.timeout:
                 continue
             if len(chunk) == 0:
-                print("closed trigger control")
+                logger.info("closed trigger control")
                 return
             if chunk == b'TRIGGER\n':
-                print("Triggered, waiting for finish!")
+                logger.info("Triggered, waiting for finish!")
                 self._finish_event.clear()
                 self._trigger_event.set()
                 self._finish_event.wait()
                 connection.send(b'FINISH\n')
-                print("Finished!")
+                logger.info("Finished!")
                 self._finish_event.clear()
 
 
@@ -842,7 +842,7 @@ class CameraSim:
         self.trigger_t.maybe_raise()
 
     def stop(self):
-        print("Stopping...")
+        logger.info("Stopping...")
         self.stop_event.set()
         timeout = 2
         start = time.time()
@@ -893,8 +893,13 @@ class CameraSim:
 )
 @click.option('--max-runs', type=int, default=-1)
 def main(path, nav_shape, continuous,
+<<<<<<< HEAD
         host, data_port, control_port, trigger_port, wait_trigger,
         manual_trigger, garbage, cached, max_runs):
+=======
+        host, data_port, control_port, trigger_port, wait_trigger, garbage, cached, max_runs):
+    logging.basicConfig(level=logging.INFO)
+>>>>>>> 9f237f2 (Documentation updates)
     camera_sim = CameraSim(
         path=path, nav_shape=nav_shape, continuous=continuous,
         host=host, data_port=data_port, control_port=control_port, trigger_port=trigger_port,

@@ -6,7 +6,6 @@ from libertem.udf.sum import SumUDF
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
 from libertem_live.api import LiveContext, Hooks
-from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from libertem.io.corrections import CorrectionSet
 import libertem
 
@@ -465,7 +464,7 @@ def test_hooks(ctx_pipelined: LiveContext, dectris_sim):
         def __init__(self):
             self._ready_called = False
 
-        def on_ready_for_data(self, aq: "AcquisitionMixin"):
+        def on_ready_for_data(self, env):
             self._ready_called = True
 
     with conn:

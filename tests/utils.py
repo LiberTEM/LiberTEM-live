@@ -1,4 +1,5 @@
 import os
+import sys
 from contextlib import contextmanager
 
 import pytest
@@ -23,11 +24,11 @@ def run_camera_sim(*args, cls, **kwargs):
     )
     server.start()
     server.wait_for_listen()
-    print("camera sim started")
+    print("camera sim started", file=sys.stderr)
     yield server
-    print("cleaning up server thread")
+    print("cleaning up server thread", file=sys.stderr)
     server.maybe_raise()
-    print("stopping server thread")
+    print("stopping server thread", file=sys.stderr)
     try:
         server.stop()
     except UndeadException:

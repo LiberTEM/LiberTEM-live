@@ -22,9 +22,9 @@ def test_trigger(ltl_ctx):
     triggered = np.array((False,))
 
     class MyHooks(Hooks):
-        def on_ready_for_data(self, aq):
+        def on_ready_for_data(self, env):
             triggered[:] = True
-            assert tuple(aq.shape.nav) == data.shape[:2]
+            assert tuple(env.aq.shape.nav) == data.shape[:2]
 
     with ltl_ctx.make_connection('memory').open(data=data) as conn:
         aq = ltl_ctx.make_acquisition(conn=conn, hooks=MyHooks())
