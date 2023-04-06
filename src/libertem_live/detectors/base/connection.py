@@ -5,8 +5,8 @@ from .acquisition import AcquisitionProtocol
 
 class PendingAcquisition:
     """
-    Base class for token objects that are obtained from
-    `DetectorConnection.wait_for_acquisition`.
+    A token object that can be obtained from
+    :meth:`libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition`.
 
     Currently doesn't carry any user-accessible information.
     Pass this object into :meth:`libertem_live.api.LiveContext.make_acquisition`
@@ -26,18 +26,27 @@ class DetectorConnection:
         to arm and trigger the acquisition.
 
         Once the detector is armed, this function returns a `PendingAcquisition`,
-        which can be converted to a full `Acquisition` object.
+        which can be converted to a full `Acquisition` object using
+        :meth:`libertem_live.api.LiveContext.make_acquisition`.
 
         The function returns `None` on timeout.
 
         Parameters
         ----------
-        timeout : Optional[float]
+        timeout
             Timeout in seconds. If `None`, wait indefinitely.
         """
         raise NotImplementedError()
 
     def close(self):
+        """
+        Close the connection. It's important to call this function once
+        you don't need the connection anymore, as an open connection
+        might interfere with other software using the detector.
+
+        If possible, use this object as a context manager instead,
+        using a :code:`with`-statement.
+        """
         raise NotImplementedError()
 
     def __enter__(self):

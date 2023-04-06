@@ -37,5 +37,8 @@ Base classes
 .. automodule:: libertem_live.detectors.base.connection
    :members:
 
+Hooks
+~~~~~
+
 .. automodule:: libertem_live.hooks
    :members:

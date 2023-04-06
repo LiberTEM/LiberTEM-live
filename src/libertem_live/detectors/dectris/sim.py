@@ -1,5 +1,6 @@
 import sys
 import time
+import logging
 import threading
 import signal
 import multiprocessing
@@ -36,6 +37,9 @@ except ImportError:
         s.bind(server_address)
         s.listen(LISTEN_QUEUE)
         return s
+
+
+logger = logging.getLogger(__name__)
 
 
 class StopException(Exception):
@@ -160,19 +164,19 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         try:
             context = zmq.Context()
             zmq_socket = context.socket(zmq.PUSH)
-            print("about to bind")
+            logger.debug("about to bind")
             if self._random_port:
                 self._port = zmq_socket.bind_to_random_port(self._uri)
             else:
                 sock = zmq_socket.bind(self._uri)
                 self._port = urllib.parse.urlparse(sock.addr).port
             zmq_socket.set_hwm(18000)
-            print("bound")
+            logger.debug("bound")
             with open(self._path, mode='rb') as f:
                 mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
                 self.listen_event.set()
                 start_index = find_start_offset(mm)
-                print(
+                logger.info(
                     f"ZMQReplay {self._name} sending on {self._uri} port {self.port},"
                     f" start_index={start_index}"
                 )
@@ -187,12 +191,14 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                             nimages = headers[1]['ntrigger']
                         elif headers[1]['trigger_mode'] in ('exts', 'ints'):
                             nimages = headers[1]['nimages']
-                        print(f"Waiting for arm; will send {nimages} frames")
+                        else:
+                            raise RuntimeError(f"Unknown trigger mode {headers[1]['trigger_mode']}")
+                        logger.info(f"Waiting for arm; will send {nimages} frames")
                         while not self._arm_event.wait(timeout=0.1):
                             if self.is_stopped():
                                 raise StopException("Server is stopped")
                         self._arm_event.clear()
-                        print("sending acquisition headers")
+                        logger.info("sending acquisition headers")
                         while count < 2 and not self.is_stopped() and index < len(mm):
                             index = send_line(index, zmq_socket, mm)
                             count += 1
@@ -201,7 +207,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                         if headers[1]['trigger_mode'] in ('exte', 'exts'):
                             self._trigger_event.set()
                         else:
-                            print("waiting for trigger(s)")
+                            logger.info("waiting for trigger(s)")
 
                         sent_message = False
                         have_sent_footer = False
@@ -211,14 +217,14 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                                     raise StopException("Server is stopped")
                             count = 0
                             if not sent_message:
-                                print("sending frame data")
+                                logger.info("sending frame data")
                                 sent_message = True
                             more = True
                             while count < 4 and not self.is_stopped() and index < len(mm):
                                 if count == 3:
                                     more = False
                                 if frame_index >= nimages:
-                                    print("'footer', no longer multi part...")
+                                    logger.info("'footer', no longer multi part...")
                                     more = False
                                     have_sent_footer = True
                                 index = send_line(index, zmq_socket, mm, more)
@@ -228,11 +234,11 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                             # in next loop iteration
                             if headers[1]['trigger_mode'] == 'inte':
                                 self._trigger_event.clear()
-                        print("finished frame data")
+                        logger.info("finished frame data")
                         # the file may be missing the footer message;
                         # we emulate it here:
                         if not have_sent_footer:
-                            print("did not see footer, emulating")
+                            logger.info("did not see footer, emulating")
                             footer = {
                                 "htype": "dseries_end-1.0",
                                 "series": headers[0]['series'],
@@ -249,7 +255,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         except Exception as e:
             return self.error(e)
         finally:
-            print(f"{self._name} exiting")
+            logger.info(f"{self._name} exiting")
             zmq_socket.close()
 
 
@@ -272,12 +278,12 @@ class RustedReplay(ZMQReplay):
             real_uri = _sim.get_uri()
             self._port = urllib.parse.urlparse(real_uri).port
             if self._verbose:
-                print(f"RustedReplay listening on {real_uri}")
+                logger.info(f"RustedReplay listening on {real_uri}")
 
             self.listen_event.set()
             while True:
                 if self._verbose:
-                    print("Waiting for arm")
+                    logger.info("Waiting for arm")
                 while not self._arm_event.wait(timeout=0.1):
                     if self.is_stopped():
                         raise StopException("Server is stopped")
@@ -309,16 +315,16 @@ class RustedReplay(ZMQReplay):
                 #       fast as we can send the data
                 try:
                     if self._verbose:
-                        print("sending acquisition headers")
+                        logging.info("sending acquisition headers")
                     _sim.send_headers()
                     if self._verbose:
-                        print("headers sent")
+                        logging.info("headers sent")
                     det_config = _sim.get_detector_config()
                     trigger_mode = det_config.get_trigger_mode()
                     if trigger_mode == libertem_dectris.TriggerMode.INTE:
                         # FIXME: check stop event from _sim in send_frames
                         if self._verbose:
-                            print("sending one frame per trigger")
+                            logging.info("sending one frame per trigger")
                         for _ in range(det_config.ntrigger):
                             while not self._trigger_event.wait(timeout=0.1):
                                 if self.is_stopped():
@@ -333,7 +339,7 @@ class RustedReplay(ZMQReplay):
                     ):
                         # FIXME: check stop event from _sim in send_frames
                         if self._verbose:
-                            print("sending all frames")
+                            logging.info("sending all frames")
                         _sim.send_frames()
                         _sim.send_footer()
                     elif trigger_mode in (
@@ -346,14 +352,14 @@ class RustedReplay(ZMQReplay):
                                         raise StopException("Server is stopped")
                                 self._trigger_event.clear()
                             if self._verbose:
-                                print("sending next series")
+                                logging.info("sending next series")
                             # FIXME: check stop event from _sim in send_frames
                             _sim.send_frames(det_config.get_num_frames())
                         _sim.send_footer()
 
                 except libertem_dectris.TimeoutError:
                     if self._verbose:
-                        print("Timeout, resetting")
+                        logging.info("Timeout, resetting")
                     self._trigger_event.clear()
         except StopException:
             pass
@@ -527,7 +533,7 @@ def get_detector_config(parameter) -> Dict:
     }
     if parameter in defaults:
         res = defaults[parameter]
-        print(current_app.config['headers'])
+        logger.info(current_app.config['headers'])
         if parameter not in current_app.config['headers'][1]:
             keys = list(current_app.config['headers'][1])
             return {"error": f'Parameter not found in header, only have: {keys}'}, 500
@@ -571,7 +577,7 @@ def run_api(
     sockname = sock.getsockname()
     port_value.value = sockname[1]
     fd = sock.fileno()
-    print("API server listening on", sockname)
+    logger.info("API server listening on %s", sockname)
     server = make_server(host='localhost', port=port, app=app, fd=fd)
     listen_event.set()
     return server.serve_forever()
@@ -708,6 +714,7 @@ class DectrisSim:
 @click.option('--dwelltime', type=int, default=None)
 @click.option('--verbose', type=bool, default=True)
 def main(path, port, zmqport, dwelltime, verbose):
+    logging.basicConfig(level=logging.INFO)
     dectris_sim = DectrisSim(
         path=path, port=port, zmqport=zmqport, dwelltime=dwelltime, verbose=verbose,
     )

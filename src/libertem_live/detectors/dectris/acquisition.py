@@ -168,7 +168,7 @@ class DectrisCommHandler(TaskCommHandler):
 
     def start(self):
         if self.controller is not None and self.params is not None:
-            print(f"arming for acquisition with id={self.params.sequence_id}")
+            logger.info(f"arming for acquisition with id={self.params.sequence_id}")
             self.controller.handle_start(self.conn, self.params.sequence_id)
 
     def done(self):
@@ -178,8 +178,6 @@ class DectrisCommHandler(TaskCommHandler):
 
 # FIXME: naming: native `DetectorConnection` vs this is confusing?
 class DectrisAcquisition(AcquisitionMixin, DataSet):
-    _conn: "DectrisDetectorConnection"
-    _controller: "DectrisActiveController"
     '''
     Acquisition from a DECTRIS detector.
     Use :meth:`libertem_live.api.LiveContext.make_acquisition` to instantiate this
@@ -188,18 +186,16 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     Examples
     --------
 
-    >>> from libertem_live.api import LiveContext
-    >>> with LiveContext() as ctx:
-    ...     with ctx.make_connection('dectris').open(
-    ...         api_host='127.0.0.1',
-    ...         api_port=DCU_API_PORT,
-    ...         data_host='127.0.0.1',
-    ...         data_port=DCU_DATA_PORT,
-    ...     ) as conn:
-    ...         aq = ctx.make_acquisition(
-    ...             conn=conn,
-    ...             nav_shape=(128, 128),
-    ...         )
+    >>> with ctx.make_connection('dectris').open(
+    ...     api_host='127.0.0.1',
+    ...     api_port=DCU_API_PORT,
+    ...     data_host='127.0.0.1',
+    ...     data_port=DCU_DATA_PORT,
+    ... ) as conn:
+    ...     aq = ctx.make_acquisition(
+    ...         conn=conn,
+    ...         nav_shape=(128, 128),
+    ...     )
 
     Parameters
     ----------
@@ -228,6 +224,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     hooks
         Acquisition hooks to react to certain events
     '''
+    _conn: "DectrisDetectorConnection"
+    _controller: "DectrisActiveController"
+
     def __init__(
         self,
 

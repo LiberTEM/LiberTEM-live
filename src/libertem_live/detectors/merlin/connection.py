@@ -17,10 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class MerlinPendingAcquisition(PendingAcquisition):
-    """
-    This object carries the acquisition header and can provide the
-    parsed values.
-    """
     def __init__(self, header: AcquisitionHeader):
         self._header = header
 
@@ -35,6 +31,10 @@ class MerlinDetectorConnection(DetectorConnection):
 
     Control connections are also possible to obtain from this class,
     but are created on demand and not kept open.
+
+    You can use the convenience function
+    :meth:`libertem_live.api.LiveContext.make_connection` to create an instance,
+    instead of calling this constructor directly.
 
     Parameters
     ----------
@@ -51,6 +51,21 @@ class MerlinDetectorConnection(DetectorConnection):
         Drain the socket before triggering. Enable this when
         using old versions of the Merlin software, but not when
         using an internal trigger.
+
+    Examples
+    --------
+    Usually, this class is instantiated using
+    :meth:`libertem_live.api.LiveContext.make_connection`:
+
+    >>> with ctx.make_connection('merlin').open(
+    ...     api_host='127.0.0.1',
+    ...     api_port=MERLIN_API_PORT,
+    ...     data_host='127.0.0.1',
+    ...     data_port=MERLIN_DATA_PORT,
+    ... ) as conn:
+    ...     aq = ctx.make_acquisition(conn=conn, nav_shape=(32, 32))
+    ...     ctx.run_udf(dataset=aq, udf=SumUDF())
+    {'intensity': ...}
     """
 
     def __init__(
@@ -77,6 +92,41 @@ class MerlinDetectorConnection(DetectorConnection):
         return self._data_socket
 
     def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
+        """
+        Wait for at most `timeout` seconds for an acquisition to start. This
+        does not perform any triggering itself and expects something external
+        to arm and trigger the acquisition.
+
+        Once the detector is armed, this function returns a `PendingAcquisition`,
+        which can be converted to a full `Acquisition` object using
+        :meth:`libertem_live.api.LiveContext.make_acquisition`.
+
+        The function returns `None` on timeout.
+
+        Parameters
+        ----------
+        timeout
+            Timeout in seconds. If `None`, wait indefinitely.
+
+        Examples
+        --------
+        >>> with ctx.make_connection('merlin').open(
+        ...     api_host='127.0.0.1',
+        ...     api_port=MERLIN_API_PORT,
+        ...     data_host='127.0.0.1',
+        ...     data_port=MERLIN_DATA_PORT,
+        ... ) as conn:
+        ...     pending_aq = conn.wait_for_acquisition(timeout=1)
+        ...     # at this point, something else is arming and triggering the
+        ...     # detector:
+        ...     aq = ctx.make_acquisition(
+        ...         conn=conn,
+        ...         nav_shape=(32, 32),
+        ...         pending_aq=pending_aq,
+        ...     )
+        ...     ctx.run_udf(dataset=aq, udf=SumUDF())
+        {'intensity': ...}
+        """
         if self._data_socket is None:
             self._connect()
         assert self._data_socket is not None
@@ -147,6 +197,11 @@ class MerlinDetectorConnection(DetectorConnection):
 
 
 class MerlinConnectionBuilder:
+    """
+    Builder class that can construct :class:`MerlinDetectorConnection` instances.
+
+    Use the :meth:`open` method to create a connection.
+    """
     def open(
         self,
         *,
@@ -155,7 +210,7 @@ class MerlinConnectionBuilder:
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
-    ):
+    ) -> MerlinDetectorConnection:
         """
         Connect to a Merlin Medipix detector system.
 
@@ -174,6 +229,21 @@ class MerlinConnectionBuilder:
             Drain the socket before triggering. Enable this when
             using old versions of the Merlin software, but not when
             using an internal trigger.
+
+        Examples
+        --------
+        Usually, this method is directly used together with
+        :meth:`libertem_live.api.LiveContext.make_connection`:
+
+        >>> with ctx.make_connection('merlin').open(
+        ...     api_host='127.0.0.1',
+        ...     api_port=MERLIN_API_PORT,
+        ...     data_host='127.0.0.1',
+        ...     data_port=MERLIN_DATA_PORT,
+        ... ) as conn:
+        ...     aq = ctx.make_acquisition(conn=conn, nav_shape=(32, 32))
+        ...     ctx.run_udf(dataset=aq, udf=SumUDF())
+        {'intensity': ...}
         """
         return MerlinDetectorConnection(
             api_host=api_host,

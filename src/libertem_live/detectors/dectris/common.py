@@ -37,10 +37,5 @@ class DectrisPendingAcquisition(PendingAcquisition):
     def series(self):
         return self._series
 
-    def create_acquisition(self, *args, **kwargs):
-        from .acquisition import DectrisAcquisition
-        aq = DectrisAcquisition(pending_aq=self, *args, **kwargs)
-        return aq
-
     def __repr__(self):
         return f"<DectrisPendingAcquisition series={self.series} config={self.detector_config}>"

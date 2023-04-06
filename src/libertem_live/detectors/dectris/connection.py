@@ -102,6 +102,46 @@ class DectrisDetectorConnection(DetectorConnection):
     def wait_for_acquisition(
         self, timeout: Optional[float] = None
     ) -> Optional[DectrisPendingAcquisition]:
+        """
+        Wait for at most `timeout` seconds for an acquisition to start. This
+        does not perform any triggering itself and expects something external
+        to arm and trigger the acquisition.
+
+        Once the detector is armed, this function returns a `PendingAcquisition`,
+        which can be converted to a full `Acquisition` object using
+        :meth:`libertem_live.api.LiveContext.make_acquisition`.
+
+        The function returns `None` on timeout.
+
+        Parameters
+        ----------
+        timeout
+            Timeout in seconds. If `None`, wait indefinitely.
+
+        Examples
+        --------
+        >>> with ctx.make_connection('dectris').open(
+        ...     api_host='127.0.0.1',
+        ...     api_port=DCU_API_PORT,
+        ...     data_host='127.0.0.1',
+        ...     data_port=DCU_DATA_PORT,
+        ... ) as conn:
+        ...     # NOTE: this is the part that is usually done by an external software,
+        ...     # but we include it here to have a running example:
+        ...     ec = conn.get_api_client()
+        ...     arm_response = ec.sendDetectorCommand('arm')
+        ...
+        ...     pending_aq = conn.wait_for_acquisition(timeout=1)
+        ...     assert pending_aq is not None, "timeout"
+        ...
+        ...     aq = ctx.make_acquisition(
+        ...         conn=conn,
+        ...         nav_shape=(32, 32),
+        ...         pending_aq=pending_aq,
+        ...     )
+        ...     ctx.run_udf(dataset=aq, udf=SumUDF())
+        {'intensity': ...}
+        """
         # FIXME: it would be better to ask `self._conn` if it is currently
         # in the passive mode, otherwise we have to carefully track the
         # current state from the outside, too.

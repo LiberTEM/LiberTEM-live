@@ -599,10 +599,14 @@ class MerlinDataSource:
         Examples
         --------
 
-        >>> source = MerlinDataSource(...)  # doctest: +SKIP
-        >>> with source:  # doctest: +SKIP
-        ...     for chunk in source.stream():  # doctest: +SKIP
-        ...         ...
+        >>> source = MerlinDataSource(
+        ...     host='127.0.0.1',
+        ...     port=MERLIN_DATA_PORT,
+        ... )
+        >>> result = np.zeros((256, 256), dtype=np.float32)
+        >>> with source:
+        ...     for chunk in source.stream(num_frames=128*128, chunk_size=16):
+        ...         result += chunk.buf.sum(axis=0)
         """
         chunks = self._read_and_decode(
             read_dtype=read_dtype,

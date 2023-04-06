@@ -15,6 +15,7 @@ import numpy as np
 from libertem.viz.base import Dummy2DPlot
 
 from libertem_live.detectors.dectris.sim import DectrisSim
+from libertem_live.detectors.merlin.sim import CameraSim
 from libertem_live import api as ltl
 # A bit of gymnastics to import the test utilities since this
 # conftest.py file is shared between the doctests and unit tests
@@ -31,6 +32,8 @@ DECTRIS_TESTDATA_PATH = os.path.join(
     'dectris', 'zmqdump.dat.128x128-id34-exte-bslz4'
 )
 HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
+MIB_TESTDATA_PATH = os.path.join(utils.get_testdata_path(), 'default.mib')
+HAVE_MIB_TESTDATA = os.path.exists(MIB_TESTDATA_PATH)
 
 
 @pytest.fixture
@@ -85,7 +88,7 @@ def add_helpers(doctest_namespace, ctx_pipelined):
 
 @pytest.fixture(autouse=True)
 def add_sims(doctest_namespace):
-    if not HAVE_DECTRIS_TESTDATA:
+    if not HAVE_DECTRIS_TESTDATA or not HAVE_MIB_TESTDATA:
         # FIXME: add some kind of proxy object that calls
         # pytest.skip on access? is this possible somehow?
         yield
@@ -99,10 +102,31 @@ def add_sims(doctest_namespace):
         path=path,
         port=0,
         zmqport=0,
-    ) as dectris_runner:
-        api_port, data_port = dectris_runner.port, dectris_runner.zmqport
+    ) as dectris_runner, sim(
+        cls=CameraSim,
+        host='127.0.0.1',
+        data_port=0,
+        control_port=0,
+        trigger_port=0,
+        path=MIB_TESTDATA_PATH,
+        nav_shape=(32, 32),
+        wait_trigger=False,
+        initial_params={
+            'IMAGEX': "256",
+            'IMAGEY': "256",
+            'COUNTERDEPTH': '12',
+        },
+    ) as merlin_runner:
+        dectris_api_port, dectris_data_port = dectris_runner.port, dectris_runner.zmqport
+        merlin_api_port, merlin_data_port = (
+            merlin_runner.control_t.sockname[1],
+            merlin_runner.server_t.sockname[1]
+        )
 
-        doctest_namespace['DCU_API_PORT'] = api_port
-        doctest_namespace['DCU_DATA_PORT'] = data_port
+        doctest_namespace['DCU_API_PORT'] = dectris_api_port
+        doctest_namespace['DCU_DATA_PORT'] = dectris_data_port
+
+        doctest_namespace['MERLIN_API_PORT'] = merlin_api_port
+        doctest_namespace['MERLIN_DATA_PORT'] = merlin_data_port
 
         yield
