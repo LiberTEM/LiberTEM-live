@@ -13,3 +13,10 @@ This example shows how to access the detector frame stream without using LiberTE
 .. toctree::
 
     merlin-lowlevel-example
+
+This example shows a typical use with a DECTRIS detector, using the active API:
+
+
+.. toctree::
+
+    dectris-acquisition-example
