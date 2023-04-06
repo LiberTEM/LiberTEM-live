@@ -9,11 +9,23 @@ LiberTEM-live has support for all DECTRIS detectors that support
 the `SIMPLON API <https://media.dectris.com/210607-DECTRIS-SIMPLON-API-Manual_EIGER2-chip-based_detectros.pdf>`_,
 including QUADRO and ARINA.
 
+Hardware and Software Requirements
+----------------------------------
+
+You should have LiberTEM-live installed on a computer that has a fast (10Gbit+)
+connection to the DECTRIS DCU (detector control unit). The exact requirements on
+this computer depend on the computation you want to run and the framerate you
+want to run it at. For reference, a 10-core system was sufficient for live
+processing using the QUADRO at full speed; for ARINA, we used a 24-core AMD EPYC.
+
+We have tested on both Linux and Windows - if you have a choice, Linux should be
+preferred.
+
 Usage examples
 --------------
 
 This section shortly gives examples how to connect LiberTEM-live to a dectris
-DCU (detector control unit). Depending on you setup, you may want to actively
+DCU. Depending on you setup, you may want to actively
 control the detector parameters, synchronization and triggering, which we call
 :ref:`active mode <dectris active mode>`, or you may just want to listen for ongoing
 acquisitions, and start a reconstruction once the detector is armed and
@@ -24,7 +36,7 @@ See the :ref:`DECTRIS reference section <dectris reference>` for a description o
 the acquisition parameters.
 
 Common to both active and passive mode is the initialization, creating a
-:code:`LiveContext`:
+:code:`LiveContext` and connecting to the DCU:
 
 .. testsetup::
     :skipif: not HAVE_DECTRIS_TESTDATA
@@ -58,6 +70,16 @@ Common to both active and passive mode is the initialization, creating a
 
     ctx = LiveContext(plot_class=BQLive2DPlot)
 
+    # connect to the DECTRIS DCU, and set up a shared memory area:
+    conn = ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+        buffer_size=2048,
+        bytes_per_frame=64*512,
+    )
+
 .. _`dectris active mode`:
 
 Active mode
@@ -69,26 +91,18 @@ with LiberTEM-live. That means it will set detector settings, arm the detector
 and has the possibility to integrate with microscope APIs to trigger the scan.
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
+
     from libertem_live.api import Hooks
 
     class MyHooks(Hooks):
-        def on_ready_for_data(self, aq):
+        def on_ready_for_data(self, env):
             """
             You can trigger the scan here, if you have a microscope control API
             """
             print("Triggering!")
-            height, width = aq.shape.nav
+            height, width = env.aq.shape.nav
             microscope.trigger_scan(width, height, dwelltime=10e-6)
-
-    # connect to the DECTRIS DCU, and set up a shared memory area:
-    conn = ctx.make_connection('dectris').open(
-        api_host="127.0.0.1",
-        api_port=DCU_API_PORT,
-        data_host="127.0.0.1",
-        data_port=DCU_DATA_PORT,
-        buffer_size=2048,
-        bytes_per_frame=64*512,
-    )
 
     # prepare for acquisition, setting up scan parameters etc.
     aq = ctx.make_acquisition(
@@ -100,13 +114,11 @@ and has the possibility to integrate with microscope APIs to trigger the scan.
     )
 
     # run one or more UDFs on the live data stream:
-    # (this can be run multiple times on the same `aq` object)
-    ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
+    ctx.run_udf(dataset=aq, udf=SumUDF())
 
 .. testoutput::
-    :hide:
 
-    ...
+    Triggering!
 
 .. _`dectris passive mode`:
 
@@ -123,15 +135,6 @@ and then start receiving and processing data.
 
 .. testcode::
     :skipif: not HAVE_DECTRIS_TESTDATA
-
-    conn = ctx.make_connection('dectris').open(
-        api_host="127.0.0.1",
-        api_port=DCU_API_PORT,
-        data_host="127.0.0.1",
-        data_port=DCU_DATA_PORT,
-        buffer_size=2048,
-        bytes_per_frame=64*512,
-    )
 
     # NOTE: this is the part that is usually done by an external software,
     # but we include it here to have a running example:
@@ -155,12 +158,7 @@ and then start receiving and processing data.
     )
 
     # run one or more UDFs on the live data stream:
-    ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
-
-.. testoutput::
-    :hide:
-
-    ...
+    ctx.run_udf(dataset=aq, udf=SumUDF())
 
 .. testcleanup::
     :skipif: not HAVE_DECTRIS_TESTDATA

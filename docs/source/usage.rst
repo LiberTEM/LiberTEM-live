@@ -137,6 +137,11 @@ to wait for an acquisition to start:
         data_host="127.0.0.1",
         data_port=DCU_DATA_PORT,
     ) as conn:
+        # NOTE: this is the part that is usually done by an external software,
+        # but we include it here to have a running example:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
         # if the timeout, specified in seconds as float here, is hit,
         # `pending_aq` will be `None`. This is useful if you need to
         # regularly do some other work in your code between acquisitions.
@@ -149,7 +154,7 @@ to wait for an acquisition to start:
         )
 
         # run one or more UDFs on the live data stream:
-        ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
+        ctx.run_udf(dataset=aq, udf=SumUDF())
 
 
 This mode works with all detectors in the same way, the only difference
@@ -194,12 +199,12 @@ microscope, STEM settings, control your scan engine and start a STEM scan etc.
             controller=conn.get_active_controller(
                 # NOTE: parameters here are detector specific
                 trigger_mode='exte',
-                frame_time=55e-6,
+                frame_time=1e-3,
             ),
         )
 
         # run one or more UDFs on the live data stream:
-        ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
+        ctx.run_udf(dataset=aq, udf=SumUDF())
 
 
 Hooks
@@ -244,19 +249,33 @@ holders with heating etc.
             height, width = env.aq.shape.nav
             microscope.trigger_scan(width, height, dwelltime=10e-6)
 
-    aq = ctx.make_acquisition(
-        conn=conn,
-        nav_shape=(128, 128),
-        hooks=MyHooks(),
-    )
+    with conn:
+        aq = ctx.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+            hooks=MyHooks(),
+        )
 
-    # run one or more UDFs on the live data stream:
-    ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
+        # run one or more UDFs on the live data stream:
+        ctx.run_udf(dataset=aq, udf=SumUDF())
+
+.. testoutput::
+
+    Triggering!
 
 :meth:`~libertem_live.hooks.Hooks.on_ready_for_data` is not called for passive
 acquisitions, as we cannot accurately synchronize to the beginning of the acquisition
 in this case. Also, you will probably have different code to execute based on
 active or passive configuration.
+
+Live visualization
+------------------
+
+The easiest way to get a live visualization going, in a jupyter notebook,
+is to
+
+TODO: bqplot, :code:`plots=True`, plotting in the passive mode (placeholder?) etc.
+maybe put the details into their own section
 
 
 Included UDFs
@@ -265,6 +284,40 @@ Included UDFs
 In addition to :ref:`the UDFs included with LiberTEM <libertem:utilify udfs>`,
 we ship :ref:`a few additional UDFs with LiberTEM-live <utility udfs>` that are mostly
 useful for live processing.
+
+.. _`recording`:
+
+Recording data
+--------------
+
+The :class:`~libertem_live.udf.record.RecordUDF` allows to record the input data
+as NPY file.
+
+.. testsetup::
+
+    import os
+    from tempfile import TemporaryDirectory
+
+    d = TemporaryDirectory()
+    filename = os.path.join(d.name, 'numpyfile.npy')
+
+.. testcode::
+
+    from libertem_live.udf.record import RecordUDF
+
+    conn = ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    )
+
+    aq = ctx.make_acquisition(
+        conn=conn,
+        nav_shape=(128, 128),
+    )
+
+    ctx.run_udf(dataset=aq, udf=RecordUDF(filename))
 
 .. testcleanup::
 
