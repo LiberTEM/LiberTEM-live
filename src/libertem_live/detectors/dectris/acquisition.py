@@ -20,6 +20,7 @@ from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from libertem_live.hooks import Hooks, ReadyForDataEnv
 from .controller import DectrisActiveController
 from .common import AcquisitionParams, DetectorConfig
+from .DEigerClient import DEigerClient
 
 import libertem_dectris
 
@@ -177,9 +178,11 @@ class DectrisCommHandler(TaskCommHandler):
 
 # FIXME: naming: native `DetectorConnection` vs this is confusing?
 class DectrisAcquisition(AcquisitionMixin, DataSet):
+    _conn: "DectrisDetectorConnection"
+    _controller: "DectrisActiveController"
     '''
     Acquisition from a DECTRIS detector.
-    Use :meth:`libertem_live.api.LiveContext.make_acquisition`to instantiate this
+    Use :meth:`libertem_live.api.LiveContext.make_acquisition` to instantiate this
     class!
 
     Examples
@@ -273,7 +276,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._sig_shape: Tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None
 
-    def get_api_client(self):
+    def get_api_client(self) -> DEigerClient:
         '''
         Get an API client, which can be used to configure the detector.
         '''
