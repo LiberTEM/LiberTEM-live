@@ -213,7 +213,7 @@ Hooks
 In order to integrate LiberTEM-live into your experimental setup,
 we provide a way to hook into different points at the lifecycle of
 an acquisition. Right now, the most important hook is
-:meth:`~libertem_live.api.Hooks.on_ready_for_data`.
+:meth:`~libertem_live.hooks.Hooks.on_ready_for_data`.
 
 This hook is called in :ref:`active mode <active mode>`, when the LiberTEM is
 ready to receive data. Depending on the setup and the detector, you can then trigger
@@ -253,7 +253,7 @@ holders with heating etc.
     # run one or more UDFs on the live data stream:
     ctx.run_udf(dataset=aq, udf=SumUDF(), plots=True)
 
-:meth:`~libertem_live.api.Hooks.on_ready_for_data` is not called for passive
+:meth:`~libertem_live.hooks.Hooks.on_ready_for_data` is not called for passive
 acquisitions, as we cannot accurately synchronize to the beginning of the acquisition
 in this case. Also, you will probably have different code to execute based on
 active or passive configuration.
