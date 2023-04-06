@@ -131,5 +131,6 @@ See the :ref:`Merlin reference section <merlin reference>` for a description of
 the acquisition parameters.
 
 .. testcleanup::
+    :skipif: not HAVE_MERLIN_TESTDATA
 
     ctx.close()

@@ -226,6 +226,8 @@ a STEM scan, and possibly control other devices, such as signal generators, in-s
 holders with heating etc.
 
 .. testsetup::
+    :skipif: not HAVE_DECTRIS_TESTDATA
+
     conn = ctx.make_connection('dectris').open(
         api_host="127.0.0.1",
         api_port=DCU_API_PORT,
@@ -237,6 +239,7 @@ holders with heating etc.
 
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     from libertem_live.api import Hooks
 
@@ -294,6 +297,7 @@ The :class:`~libertem_live.udf.record.RecordUDF` allows to record the input data
 as NPY file.
 
 .. testsetup::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     import os
     from tempfile import TemporaryDirectory
@@ -302,6 +306,7 @@ as NPY file.
     filename = os.path.join(d.name, 'numpyfile.npy')
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     from libertem_live.udf.record import RecordUDF
 
