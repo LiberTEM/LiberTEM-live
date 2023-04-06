@@ -1,5 +1,15 @@
+.. _`detector reference`:
+
 Reference
 =========
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Detectors
+
+   reference/dectris
+   reference/merlin
+   reference/memory
 
 Live Context
 ~~~~~~~~~~~~
@@ -7,51 +17,25 @@ Live Context
 .. automodule:: libertem_live.api
    :members:
 
-
-Detector connection
-~~~~~~~~~~~~~~~~~~~
-
-.. automodule:: libertem_live.detectors.base.connection
-   :members:
-
-.. _`detector reference`:
-
-Detectors
-~~~~~~~~~
-
-.. _`merlin reference`:
-
-Quantum Detectors Merlin
-........................
-
-.. automodule:: libertem_live.detectors.merlin
-    :members:
-    :undoc-members:
-
-.. _`dectris reference`:
-
-DECTRIS detectors
-.................
-
-.. automodule:: libertem_live.detectors.dectris
-    :members:
-    :undoc-members:
-
-.. _`memory detector`:
-
-Memory
-......
-
-.. automodule:: libertem_live.detectors.memory
-   :members:
-
 .. _`utility udfs`:
 
 UDFs
 ~~~~
 
+We include some utility UDFs in LiberTEM-live that are mostly useful for the live
+processing use-case:
+
 .. automodule:: libertem_live.udf.monitor
    :members:
 
 .. automodule:: libertem_live.udf.record
+   :members:
+
+Base classes
+~~~~~~~~~~~~
+
+.. automodule:: libertem_live.detectors.base.connection
+   :members:
+
+.. automodule:: libertem_live.hooks
    :members:

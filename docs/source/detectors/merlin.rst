@@ -1,7 +1,7 @@
 .. _`merlin detector`:
 
 Quantum Detectors Merlin
-------------------------
+========================
 
 No extra dependencies are needed for using Merlin detectors.
 

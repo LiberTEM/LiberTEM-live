@@ -6,6 +6,10 @@ if TYPE_CHECKING:
 
 
 class ReadyForDataEnv(NamedTuple):
+    """
+    Parameter object used in :meth:`libertem_live.hooks.Hooks.on_ready_for_data`
+    """
+
     aq: "AcquisitionProtocol"
     """
     The acquisition object which will receive the data.
@@ -13,6 +17,10 @@ class ReadyForDataEnv(NamedTuple):
 
 
 class DetermineNavShapeEnv(NamedTuple):
+    """
+    Parameter object used in :meth:`libertem_live.hooks.Hooks.on_determine_nav_shape`
+    """
+
     nimages: int
     """
     The total number of images in the acquisition.

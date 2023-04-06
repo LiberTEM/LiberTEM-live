@@ -220,7 +220,7 @@ class DectrisDetectorConnection(DetectorConnection):
     def bytes_per_frame(self) -> int:
         return self._bytes_per_frame
 
-    def get_api_client(self):
+    def get_api_client(self) -> DEigerClient:
         ec = DEigerClient(self._api_host, port=self._api_port)
         return ec
 
@@ -269,6 +269,11 @@ class DectrisDetectorConnection(DetectorConnection):
 
 
 class DectrisConnectionBuilder:
+    """
+    Builder class that can construct :class:`DectrisDetectorConnection` instances.
+
+    Use the :meth:`open` method to create a connection.
+    """
     def open(
         self,
         api_host: str,

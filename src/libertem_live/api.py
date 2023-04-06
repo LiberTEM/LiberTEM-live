@@ -26,7 +26,11 @@ tracer = trace.get_tracer(__name__)
 
 class LiveContext(LiberTEM_Context):
     '''
-    A :class:`LiveContext` behaves like a :class:`~libertem.api.Context` in most
+    :class:`LiveContext` handles the computational resources needed to run
+    UDFs on live data streams. It is the entry point to most interactions
+    with the LiberTEM-live API.
+
+    A :class:`LiveContext` behaves like a :class:`libertem.api.Context` in most
     circumstances. Notable differences are that it currently starts an
     :class:`~libertem.executor.pipelined.PipelinedExecutor` instead of a
     :class:`~libertem.executor.dask.DaskJobExecutor` if no executor is passed in

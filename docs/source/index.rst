@@ -12,7 +12,7 @@ LiberTEM-live
 
 
 Documentation
-=============
+-------------
 
 .. toctree::
    :maxdepth: 2
@@ -20,6 +20,7 @@ Documentation
 
    usage
    detectors
+   examples
    reference
    changelog
    acknowledgments
