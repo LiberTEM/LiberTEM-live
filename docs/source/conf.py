@@ -237,4 +237,9 @@ DECTRIS_TESTDATA_PATH = os.path.join(
     'dectris', 'zmqdump.dat.128x128-id34-exte-bslz4'
 )
 HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
+
+MERLIN_TESTDATA_PATH = os.path.join(
+    get_testdata_path(), 'default.mib',
+)
+HAVE_MERLIN_TESTDATA = os.path.exists(MERLIN_TESTDATA_PATH)
 '''
