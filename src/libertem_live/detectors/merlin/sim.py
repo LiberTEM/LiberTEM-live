@@ -503,7 +503,7 @@ def wait_with_socket(event: threading.Event, connection):
 class DataSocketServer(ServerThreadMixin, threading.Thread):
     def __init__(self, headers: HeaderSocketSimulator, sim: DataSocketSimulator,
             stop_event, acquisition_event, trigger_event, finish_event,
-            host='0.0.0.0', port=6342, wait_trigger=False, garbage=False):
+            host='0.0.0.0', port=6342, wait_trigger=False, garbage=False, manual_trigger=False):
         self.acquisition_event = acquisition_event
         self.trigger_event = trigger_event
         self.finish_event = finish_event
@@ -514,6 +514,9 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
         self._wait_trigger = wait_trigger
         if garbage and not wait_trigger:
             raise ValueError("Can only send garbage if wait_trigger is set!")
+        self._manual_trigger = manual_trigger
+        if wait_trigger and manual_trigger:
+            raise ValueError('Cannot have both wait softtrigger and manual trigger')
         self._garbage = garbage
 
     def run(self):
@@ -525,7 +528,7 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
 
     def handle_conn(self, connection):
         try:
-            if self._wait_trigger:
+            if self._wait_trigger or self._manual_trigger:
                 if self._garbage:
                     print("Sending some garbage...")
                     connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
@@ -536,7 +539,10 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
                     return
                 self.acquisition_event.clear()
             self._headers.handle_conn(connection)
-            if self._wait_trigger:
+            if self._manual_trigger:
+                _ = input("Press key to trigger...\n")
+                self.trigger_event.set()
+            if self._wait_trigger or self._manual_trigger:
                 print("Waiting for trigger...")
                 if not wait_with_socket(self.trigger_event, connection):
                     print("Readable socket yielded no result, probably closed")
@@ -681,7 +687,7 @@ class CameraSim:
     def __init__(self, path, nav_shape, continuous=False,
             host='0.0.0.0', data_port=6342, control_port=6341,
             trigger_port=6343, wait_trigger=False, garbage=False,
-            cached=None, max_runs=-1):
+            cached=None, max_runs=-1, manual_trigger=False):
         if garbage:
             wait_trigger = True
 
@@ -712,7 +718,7 @@ class CameraSim:
 
         self.server_t = DataSocketServer(
             headers=self.headers, sim=self.sim, host=host, port=data_port,
-            wait_trigger=wait_trigger, garbage=garbage,
+            wait_trigger=wait_trigger, garbage=garbage, manual_trigger=manual_trigger,
             stop_event=self.stop_event,
             acquisition_event=self.acquisition_event,
             trigger_event=self.trigger_event,
@@ -801,16 +807,21 @@ class CameraSim:
          "or a trigger signal on the trigger socket",
 )
 @click.option(
+    '--manual-trigger', default=False, is_flag=True,
+    help="Wait for a manual trigger by user input after ARM",
+)
+@click.option(
     '--garbage', default=False, is_flag=True,
     help="Send garbage before trigger. Implies --wait-trigger"
 )
 @click.option('--max-runs', type=int, default=-1)
 def main(path, nav_shape, continuous,
-        host, data_port, control_port, trigger_port, wait_trigger, garbage, cached, max_runs):
+        host, data_port, control_port, trigger_port, wait_trigger, manual_trigger, garbage, cached, max_runs):
     camera_sim = CameraSim(
         path=path, nav_shape=nav_shape, continuous=continuous,
         host=host, data_port=data_port, control_port=control_port, trigger_port=trigger_port,
-        wait_trigger=wait_trigger, garbage=garbage, cached=cached, max_runs=max_runs
+        wait_trigger=wait_trigger, garbage=garbage, cached=cached, max_runs=max_runs,
+        manual_trigger=manual_trigger,
     )
 
     camera_sim.start()
