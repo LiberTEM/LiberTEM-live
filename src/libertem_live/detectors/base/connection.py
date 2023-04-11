@@ -8,11 +8,12 @@ class PendingAcquisition:
     A token object that can be obtained from
     :meth:`libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition`.
 
-    Currently doesn't carry any user-accessible information.
     Pass this object into :meth:`libertem_live.api.LiveContext.make_acquisition`
     to start processing the incoming data stream.
     """
-    pass
+    @property
+    def nimages(self) -> int:
+        raise NotImplementedError()
 
 
 class DetectorConnection:

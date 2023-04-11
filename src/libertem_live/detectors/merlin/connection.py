@@ -24,6 +24,10 @@ class MerlinPendingAcquisition(PendingAcquisition):
     def header(self):
         return self._header
 
+    @property
+    def nimages(self) -> int:
+        return self.header.frames_in_acquisition
+
 
 class MerlinDetectorConnection(DetectorConnection):
     """

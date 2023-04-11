@@ -74,19 +74,19 @@ def pytest_collectstart(collector):
         collector.skip_compare += 'text/html', 'application/javascript', 'stderr',
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope='session')
 def add_np(doctest_namespace):
     doctest_namespace['np'] = np
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope='session')
 def add_helpers(doctest_namespace, ctx_pipelined):
     from libertem.udf.sum import SumUDF
     doctest_namespace['ctx'] = ctx_pipelined
     doctest_namespace['SumUDF'] = SumUDF
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(autouse=True, scope='session')
 def add_sims(doctest_namespace):
     if not HAVE_DECTRIS_TESTDATA or not HAVE_MIB_TESTDATA:
         # FIXME: add some kind of proxy object that calls

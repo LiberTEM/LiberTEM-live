@@ -1,5 +1,6 @@
 import os
 import concurrent.futures
+from typing import Tuple, Optional
 
 import pytest
 import numpy as np
@@ -437,3 +438,32 @@ def test_control(merlin_control_sim, tmp_path):
         assert c.get("NUMFRAMESTOACQUIRE") == b'23'
         c.send_command_file(path)
         assert c.get("COUNTERDEPTH") == b'12'
+
+
+@pytest.mark.parametrize(
+    ['shape_hint', 'expected'],
+    [
+        (None, (32, 32)),
+        ((-1, -1), (32, 32)),
+        ((16, -1), (16, 64)),
+        ((-1, 16, 16), (4, 16, 16)),
+        ((4, -1, -1), (4, 16, 16)),
+    ]
+)
+def test_passive_auto_nav_shape(
+    ctx_pipelined: LiveContext,
+    default_conn,
+
+    shape_hint: Optional[Tuple[int, ...]],
+    expected: Tuple[int, ...],
+):
+    pending_aq = default_conn.wait_for_acquisition(10.0)
+    assert pending_aq is not None
+
+    aq = ctx_pipelined.make_acquisition(
+        conn=default_conn,
+        pending_aq=pending_aq,
+        nav_shape=shape_hint,
+    )
+    assert tuple(aq.shape.nav) == expected
+    _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())

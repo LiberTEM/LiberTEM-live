@@ -1,4 +1,6 @@
 import os
+from typing import Optional, Tuple
+
 import sparse
 
 from libertem.udf.sumsigudf import SumSigUDF
@@ -6,6 +8,7 @@ from libertem.udf.sum import SumUDF
 from libertem.executor.pipelined import PipelinedExecutor
 import pytest
 from libertem_live.api import LiveContext, Hooks
+from libertem_live.hooks import DetermineNavShapeEnv
 from libertem.io.corrections import CorrectionSet
 import libertem
 
@@ -224,8 +227,7 @@ def test_passive_acquisition(ctx_pipelined: LiveContext, dectris_sim):
         assert pending_aq is not None
         assert pending_aq.series == 34
         assert pending_aq.detector_config is not None
-        # assert pending_aq.detector_config.nimages == 1
-        # assert pending_aq.detector_config.ntrigger == 128 * 128
+        assert pending_aq.nimages == 128 * 128
         # assert pending_aq.detector_config.x_pixels_in_detector == 512
         # assert pending_aq.detector_config.y_pixels_in_detector == 512
         # assert pending_aq.detector_config.bit_depth_image == 16
@@ -479,3 +481,207 @@ def test_hooks(ctx_pipelined: LiveContext, dectris_sim):
         assert not hook_instance._ready_called
         for res in ctx_pipelined.run_udf_iter(dataset=aq, udf=SumUDF()):
             assert hook_instance._ready_called
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_concrete_nav_shape(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    try:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        pending_aq = conn.wait_for_acquisition(10.0)
+        assert pending_aq is not None
+
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+            # non-square to make sure we hit the right test case:
+            nav_shape=(256, 64),
+        )
+        assert tuple(aq.shape.nav) == (256, 64)
+        # run a UDF to "drain" the connection:
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_shape_from_hook(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    class _MyHooks(Hooks):
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[Tuple[int, ...]]:
+            return (64, 256)
+
+    try:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        pending_aq = conn.wait_for_acquisition(10.0)
+        assert pending_aq is not None
+
+        hook_instance = _MyHooks()
+
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+            hooks=hook_instance,
+        )
+        assert tuple(aq.shape.nav) == (64, 256)
+        # run a UDF to "drain" the connection:
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_shape_bad_hook(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    class _MyHooks(Hooks):
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[Tuple[int, ...]]:
+            return (256, 256)  # that's too much for the number of images in the acquisition!
+
+    try:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        pending_aq = conn.wait_for_acquisition(10.0)
+        assert pending_aq is not None
+
+        hook_instance = _MyHooks()
+
+        with pytest.raises(ValueError) as m:
+            aq = ctx_pipelined.make_acquisition(
+                pending_aq=pending_aq,
+                conn=conn,
+                hooks=hook_instance,
+            )
+
+        m.match(r'^Result.* is not compatible with number of images \(16384\)$')
+
+        # again, without the bad hooks:
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+        )
+        # run a UDF to "drain" the connection:
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()
+
+
+@pytest.mark.parametrize(
+    ['shape_hint', 'expected'],
+    [
+        ((-1, -1), (128, 128)),
+        ((64, -1), (64, 256)),
+        ((-1, 64, 64), (4, 64, 64)),
+        ((4, -1, -1), (4, 64, 64)),
+    ]
+)
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_shape_with_placeholders(
+    ctx_pipelined: LiveContext,
+    dectris_sim,
+    shape_hint: Tuple[int, ...],
+    expected: Tuple[int, ...],
+):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    try:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        pending_aq = conn.wait_for_acquisition(10.0)
+        assert pending_aq is not None
+
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+            nav_shape=shape_hint,
+        )
+        assert tuple(aq.shape.nav) == expected
+        # run a UDF to "drain" the connection:
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_shape_with_placeholders_2d(ctx_pipelined: LiveContext, dectris_sim):
+    pass
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_shape_from_controller(ctx_pipelined: LiveContext, dectris_sim):
+    pass
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_square_shape_success(ctx_pipelined: LiveContext, dectris_sim):
+    pass
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_need_shape_in_active_mode(ctx_pipelined: LiveContext, dectris_sim):
+
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    try:
+        with pytest.raises(RuntimeError) as m:
+            aq = ctx_pipelined.make_acquisition(
+                conn=conn,
+            )
+
+        m.match(r'In active mode, please pass the full `nav_shape')
+
+        # again, with a shape,
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+        )
+        # run a UDF to "drain" the connection:
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()

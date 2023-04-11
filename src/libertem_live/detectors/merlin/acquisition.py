@@ -2,7 +2,6 @@ from contextlib import contextmanager
 import logging
 from typing import Generator, Iterator, Tuple, Optional, NamedTuple
 import numpy as np
-from libertem.common.math import prod
 from libertem.common import Shape, Slice
 from libertem.common.executor import (
     TaskProtocol, WorkerQueue, TaskCommHandler, WorkerContext,
@@ -70,15 +69,14 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def __init__(
         self,
         conn: MerlinDetectorConnection,
-        nav_shape: Tuple[int, int],
-        frames_per_partition: Optional[int],
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
         pending_aq: Optional[MerlinPendingAcquisition] = None,
         controller: Optional[MerlinActiveController] = None,
         hooks: Optional[Hooks] = None,
     ):
         if frames_per_partition is None:
             frames_per_partition = 256
-        frames_per_partition = min(frames_per_partition, prod(nav_shape))
         if controller is None and pending_aq is None:
             controller = conn.get_active_controller()
 
