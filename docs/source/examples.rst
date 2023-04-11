@@ -1,3 +1,6 @@
+
+.. _`examples`:
+
 Examples
 ========
 
@@ -15,7 +18,6 @@ This example shows how to access the detector frame stream without using LiberTE
     merlin-lowlevel-example
 
 This example shows a typical use with a DECTRIS detector, using the active API:
-
 
 .. toctree::
 
