@@ -1,8 +1,11 @@
-from typing import NamedTuple, Union
+from typing import NamedTuple, Union, TYPE_CHECKING
 from typing_extensions import Literal
 from libertem_live.detectors.base.connection import (
     PendingAcquisition,
 )
+
+if TYPE_CHECKING:
+    import libertem_dectris
 
 
 TriggerMode = Union[
@@ -25,7 +28,7 @@ class DetectorConfig(NamedTuple):
 
 
 class DectrisPendingAcquisition(PendingAcquisition):
-    def __init__(self, detector_config, series):
+    def __init__(self, detector_config: "libertem_dectris.DetectorConfig", series: int):
         self._detector_config = detector_config
         self._series = series
 
@@ -36,6 +39,10 @@ class DectrisPendingAcquisition(PendingAcquisition):
     @property
     def series(self):
         return self._series
+
+    @property
+    def nimages(self) -> int:
+        return self.detector_config.get_num_frames()
 
     def __repr__(self):
         return f"<DectrisPendingAcquisition series={self.series} config={self.detector_config}>"

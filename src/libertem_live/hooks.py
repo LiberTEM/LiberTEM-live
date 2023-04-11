@@ -1,4 +1,4 @@
-from typing import Tuple, NamedTuple, TYPE_CHECKING
+from typing import Tuple, NamedTuple, TYPE_CHECKING, Optional
 
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class DetermineNavShapeEnv(NamedTuple):
     The total number of images in the acquisition.
     """
 
-    shape_hint: Tuple[int, ...]
+    shape_hint: Optional[Tuple[int, ...]]
     """
     Shape that was passed into :meth:`LiveContext.make_acquisition`, can contain
     placeholders, i.e. :code:`(-1, 256)` or :code:`(-1, -1)`.
@@ -68,7 +68,7 @@ class Hooks:
     def on_determine_nav_shape(
         self,
         env: DetermineNavShapeEnv,
-    ) -> Tuple[int, ...]:
+    ) -> Optional[Tuple[int, ...]]:
         """
         This hook is called to determine the N-D nav shape for the acquisition.
         This is needed as many detectors only know about the 1D shape, i.e. the
@@ -77,7 +77,8 @@ class Hooks:
         or experiment.
 
         The user can give a shape hint when creating the acquisition object,
-        for example by passing :code:`nav_shape=(-1, 256)` to `make_acquisition`.
+        for example by passing :code:`nav_shape=(-1, 256)` to
+        :meth:`~libertem_live.api.LiveContext.make_acquisition`.
 
         If the default behavior is not working as intended, the user can override
         this method for their specific setup. Example: ask the microscope via its
@@ -85,25 +86,16 @@ class Hooks:
 
         Only called in passive mode, as we need a concrete `nav_shape` as user
         input in active mode.
+
+        Order of operations
+        - If the `nav_shape` passed into
+          :meth:`libertem_live.api.LiveContext.make_acquisition` is concrete, i.e.
+          is not `None` and doesn't contain any `-1` values, use that
+        - If this hook is implemented and returns a tuple, use that
+        - If the controller for the specific detector type can give us
+          the concrete `nav_shape`, use that
+        - If none of the above succeed, try to make a square out of the
+          number of frames
+        - If all above fails, raise a `RuntimeError`
         """
-        raise RuntimeError("TODO: move the default behavior somewhere else")
-        # TODO: implement the following behavior:
-        #
-        # Order of operations to determine `nav_shape`:
-        # - If a concrete `nav_shape` is given as `shape_hint`, use that
-        # - If a `nav_shape` with placeholders, i.e. `-1` entries, is given,
-        #   use the number of images to fill these placeholders
-        # - If no `nav_shape` is give, ask the controller
-        # - If the controller doesn't know, try to make a 2D square
-        # - If all above fails, raise an Exception
-
-        # right now, only perform the last step:
-
-        # import math
-        # side = int(math.sqrt(nimages))
-        # if side * side != nimages:
-        #     raise RuntimeError(
-        #         "Can't handle non-square scans by default, please override"
-        #         " `Hooks.determine_nav_shape` or pass in a concrete nav_shape"
-        #     )
-        # return (side, side)
+        pass

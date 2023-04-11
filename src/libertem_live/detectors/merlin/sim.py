@@ -893,13 +893,9 @@ class CameraSim:
 )
 @click.option('--max-runs', type=int, default=-1)
 def main(path, nav_shape, continuous,
-<<<<<<< HEAD
         host, data_port, control_port, trigger_port, wait_trigger,
         manual_trigger, garbage, cached, max_runs):
-=======
-        host, data_port, control_port, trigger_port, wait_trigger, garbage, cached, max_runs):
     logging.basicConfig(level=logging.INFO)
->>>>>>> 9f237f2 (Documentation updates)
     camera_sim = CameraSim(
         path=path, nav_shape=nav_shape, continuous=continuous,
         host=host, data_port=data_port, control_port=control_port, trigger_port=trigger_port,

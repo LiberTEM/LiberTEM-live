@@ -226,6 +226,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     '''
     _conn: "DectrisDetectorConnection"
     _controller: "DectrisActiveController"
+    _pending_aq: "DectrisPendingAcquisition"
 
     def __init__(
         self,
@@ -233,7 +234,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         # this replaces the {api,data}_{host,port} parameters:
         conn: "DectrisDetectorConnection",
 
-        nav_shape: Tuple[int, ...],
+        nav_shape: Optional[Tuple[int, ...]] = None,
         frames_per_partition: int = 128,
 
         # in passive mode, we get this:
@@ -248,7 +249,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     ):
         if frames_per_partition is None:
             frames_per_partition = 512
-        frames_per_partition = min(frames_per_partition, prod(nav_shape))
 
         if controller is None and pending_aq is None:
             # default to active mode, with no settings to change:

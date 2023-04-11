@@ -19,8 +19,9 @@ Hardware and Software Requirements
 ----------------------------------
 
 You can run LiberTEM-live on the PC shipped with the Merlin detector, or you can
-use an external computer connected using a fast network connection (10Gbit
-recommended for fastest frame rates, especially in a quad setup).
+use an external computer connected using a fast network connection (10Gbit+).
+Especially in a quad setup, using an external computer is recommended to keep up
+with the data rates at the fastest frame rates.
 
 Usage examples
 --------------
