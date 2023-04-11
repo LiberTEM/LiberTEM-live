@@ -78,6 +78,7 @@ For example, for DECTRIS SIMPLON based detectors, creating a connection looks
 like this:
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     conn = ctx.make_connection('dectris').open(
         api_host="127.0.0.1",
@@ -96,6 +97,7 @@ Or use the context manager based interface instead, which automatically cleans u
 after the :code:`with`-block:
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     with ctx.make_connection('dectris').open(
         api_host="127.0.0.1",
@@ -217,10 +219,15 @@ Hooks
 
 In order to integrate LiberTEM-live into your experimental setup,
 we provide a way to hook into different points at the lifecycle of
-an acquisition. Right now, the most important hook is
+an acquisition.
+
+`on_ready_for_data`
+...................
+
+Right now, the most important hook is
 :meth:`~libertem_live.hooks.Hooks.on_ready_for_data`.
 
-This hook is called in :ref:`active mode <active mode>`, when the LiberTEM is
+This hook is called in :ref:`active mode <active mode>`, when LiberTEM is
 ready to receive data. Depending on the setup and the detector, you can then trigger
 a STEM scan, and possibly control other devices, such as signal generators, in-situ
 holders with heating etc.
@@ -228,14 +235,17 @@ holders with heating etc.
 .. testsetup::
     :skipif: not HAVE_DECTRIS_TESTDATA
 
+    from libertem_live.api import LiveContext
+    from libertem.udf.sum import SumUDF
+
+    ctx = LiveContext()
+
     conn = ctx.make_connection('dectris').open(
         api_host="127.0.0.1",
         api_port=DCU_API_PORT,
         data_host="127.0.0.1",
         data_port=DCU_DATA_PORT,
     )
-
-    from libertem.udf.sum import SumUDF
 
 
 .. testcode::
@@ -271,15 +281,78 @@ acquisitions, as we cannot accurately synchronize to the beginning of the acquis
 in this case. Also, you will probably have different code to execute based on
 active or passive configuration.
 
+`on_determine_nav_shape`
+........................
+
+Another hook is :meth:`~libertem_live.hooks.Hooks.on_determine_nav_shape`.
+In passive mode, the :code:`nav_shape` is needed to make an acquisition instance.
+As the scanning parameters can change over time, we now have added the possibility
+to leave out the :code:`nav_shape` parameter, or set it to :code:`None`, which means
+it will automatically be determined. As this automatism can fail, for example if you are
+only performing a 1D scan (line scan or generic "time series"), it is now also
+possible to override this with the :meth:`~libertem_live.hooks.Hooks.on_determine_nav_shape`
+method.
+
+.. testsetup::
+    :skipif: not HAVE_DECTRIS_TESTDATA
+
+    from libertem_live.api import LiveContext
+    from libertem.udf.sum import SumUDF
+
+    ctx = LiveContext()
+
+    conn = ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    )
+
+
+.. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
+
+    from libertem_live.api import Hooks
+
+    class MyHooks(Hooks):
+        def on_determine_nav_shape(self, env):
+            print(f"We have {env.nimages} images")
+            return (128, 128)
+
+    with conn:
+        # NOTE: this is the part that is usually done by an external software,
+        # but we include it here to have a running example:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        pending_aq = conn.wait_for_acquisition(timeout=10.0)
+        aq = ctx.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+            hooks=MyHooks(),
+        )
+
+
+.. testoutput::
+
+    We have 16384 images
+
+
+See :class:`~libertem_live.hooks.DetermineNavShapeEnv` for details on the passed
+:code:`env` parameter.
+
+In active mode, this hook method is not called.
+
 Live visualization
 ------------------
 
 The easiest way to get a live visualization going, in a jupyter notebook,
-is to
+is to pass :code:`plots=True` to :meth:`libertem:libertem.api.Context.run_udf`,
+which will automatically add a live-updating plot to the notebook cell output.
 
-TODO: bqplot, :code:`plots=True`, plotting in the passive mode (placeholder?) etc.
-maybe put the details into their own section
-
+In some cases, updating the plot can become a bottleneck - one way to
+circumvent this is to use `bqplot` for visualization. Please see :ref:`the examples <examples>`
+for usage.
 
 Included UDFs
 -------------

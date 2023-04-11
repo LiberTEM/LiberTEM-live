@@ -7,7 +7,7 @@ if TYPE_CHECKING:
 
 class ReadyForDataEnv(NamedTuple):
     """
-    Parameter object used in :meth:`libertem_live.hooks.Hooks.on_ready_for_data`
+    Parameter object used in :meth:`~libertem_live.hooks.Hooks.on_ready_for_data`
     """
 
     aq: "AcquisitionProtocol"
@@ -18,7 +18,7 @@ class ReadyForDataEnv(NamedTuple):
 
 class DetermineNavShapeEnv(NamedTuple):
     """
-    Parameter object used in :meth:`libertem_live.hooks.Hooks.on_determine_nav_shape`
+    Parameter object used in :meth:`~libertem_live.hooks.Hooks.on_determine_nav_shape`
     """
 
     nimages: int
@@ -28,7 +28,7 @@ class DetermineNavShapeEnv(NamedTuple):
 
     shape_hint: Optional[Tuple[int, ...]]
     """
-    Shape that was passed into :meth:`LiveContext.make_acquisition`, can contain
+    Shape that was passed into :meth:`~libertem_live.api.LiveContext.make_acquisition`, can contain
     placeholders, i.e. :code:`(-1, 256)` or :code:`(-1, -1)`.
     """
 
@@ -87,15 +87,16 @@ class Hooks:
         Only called in passive mode, as we need a concrete `nav_shape` as user
         input in active mode.
 
-        Order of operations
-        - If the `nav_shape` passed into
+        Order of operations:
+
+        * If the `nav_shape` passed into
           :meth:`libertem_live.api.LiveContext.make_acquisition` is concrete, i.e.
           is not `None` and doesn't contain any `-1` values, use that
-        - If this hook is implemented and returns a tuple, use that
-        - If the controller for the specific detector type can give us
+        * If this hook is implemented and returns a tuple, use that
+        * If the controller for the specific detector type can give us
           the concrete `nav_shape`, use that
-        - If none of the above succeed, try to make a square out of the
+        * If none of the above succeed, try to make a square out of the
           number of frames
-        - If all above fails, raise a `RuntimeError`
+        * If all above fails, raise a `RuntimeError`
         """
         pass
