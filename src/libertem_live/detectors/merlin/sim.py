@@ -20,84 +20,12 @@ from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
 from libertem_live.detectors.merlin.data import AcquisitionHeader
-from libertem_live.detectors.common import ErrThreadMixin, UndeadException
+from libertem_live.detectors.common import (
+    UndeadException, StopException, ServerThreadMixin,
+)
 
 
 logger = logging.getLogger(__name__)
-
-
-class ServerThreadMixin(ErrThreadMixin):
-    def __init__(self, host, port, name, *args, listen_event=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._host = host
-        self._port = port
-        self._name = name
-        if listen_event is None:
-            listen_event = threading.Event()
-        self.listen_event = listen_event
-
-    def wait_for_listen(self, timeout=30):
-        """
-        To be called from the main thread
-        """
-        t0 = time.time()
-        while time.time() - t0 < timeout:
-            if self.listen_event.wait(timeout=0.1):
-                return
-            self.maybe_raise()
-        if not self.listen_event.is_set():
-            raise RuntimeError("failed to start in %f seconds" % timeout)
-
-    @property
-    def sockname(self):
-        return self._socket.getsockname()
-
-    def handle_conn(self, connection):
-        raise NotImplementedError
-
-    def run(self):
-        try:
-            self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._socket.bind((self._host, self._port))
-            self._socket.settimeout(1)
-            self._socket.listen(1)
-            logger.info(f"{self._name} listening {self.sockname}")
-            self.listen_event.set()
-            while not self.is_stopped():
-                try:
-                    connection, client_addr = self._socket.accept()
-                    with connection:
-                        logger.info(f"{self._name} accepted from %s" % (client_addr,))
-                        self.handle_conn(connection)
-                except socket.timeout:
-                    continue
-                except BrokenPipeError:
-                    continue  # the other end died, but that doesn't mean we have to die
-                except ConnectionResetError:
-                    logger.info(f"{self._name} disconnected")
-                # except BrokenPipeError:
-                #     # catch broken pipe error - allow the server to continue
-                #     # running, even when a client prematurely disconnects
-                #     try:
-                #         connection.close()
-                #     except Exception:
-                #         pass
-                #     print(f"{self._name} disconnected")
-                except RuntimeError as e:
-                    print(f"{self._name} exception %s -> stopping" % e)
-                    self.error(e)
-                    break
-                except StopException:
-                    break
-                except Exception as e:
-                    print(f"{self._name} exception? %s" % e)
-                    self.error(e)
-        except Exception as e:
-            return self.error(e)
-        finally:
-            logger.info(f"{self._name} exiting")
-            self._socket.close()
 
 
 @functools.lru_cache(maxsize=None)
@@ -117,10 +45,6 @@ class MITExecutor:
         return fn(*args, **kwargs)
 
 
-class StopException(Exception):
-    pass
-
-
 class HeaderSocketSimulator:
     def __init__(
         self,
@@ -132,8 +56,8 @@ class HeaderSocketSimulator:
         rois=None,
     ):
         """
-        This class handles sending out acquisition header - calling the `handle_conn` method
-        will send the header to the give connection.
+        This class handles sending out acquisition header - calling the
+        `handle_conn` method will send the header to the give connection.
 
         Parameters
         ----------
