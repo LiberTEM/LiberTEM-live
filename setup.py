@@ -78,7 +78,7 @@ setup(
     zip_safe=False,
     python_requires='>=3.7',
     install_requires=[
-        "libertem>=0.11.0",
+        "libertem>=0.11.0.dev0",
         "numpy",
         "click",
         "tqdm",
@@ -98,6 +98,7 @@ setup(
         'console_scripts': [
             'libertem-live-mib-sim=libertem_live.detectors.merlin.sim:main',
             'libertem-live-dectris-sim=libertem_live.detectors.dectris.sim:main',
+            'libertem-live-asi-tpx-sim=libertem_live.detectors.asi_tpx3.sim:main',
         ]
     },
     cmdclass={
