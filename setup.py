@@ -78,7 +78,7 @@ setup(
     zip_safe=False,
     python_requires='>=3.7',
     install_requires=[
-        "libertem>=0.10.0",
+        "libertem>=0.11.0",
         "numpy",
         "click",
         "tqdm",
@@ -86,6 +86,7 @@ setup(
         "opentelemetry-api",
         "sparseconverter",
         "libertem-dectris",
+        "libertem-asi-tpx3",
     ],
     extras_require={
         'pymemfd': 'pymemfd',
