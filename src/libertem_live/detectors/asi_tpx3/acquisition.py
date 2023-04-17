@@ -149,7 +149,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     --------
 
     >>> with ctx.make_connection('asi_tpx3').open(
-    ...     uri=f'127.0.0.1:{TPX3_PORT}',
+    ...     data_port=TPX3_PORT,
     ... ) as conn:
     ...     pending_aq = conn.wait_for_acquisition(1.0)
     ...     aq = ctx.make_acquisition(

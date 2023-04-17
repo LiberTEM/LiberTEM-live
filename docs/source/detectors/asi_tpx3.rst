@@ -42,10 +42,11 @@ Example
     ctx = LiveContext(plot_class=BQLive2DPlot)
 
     with ctx.make_connection('asi_tpx3').open(
-        uri=f"127.0.0.1:{TPX3_DATA_PORT}",
+        data_host="127.0.0.1",
+        data_port=TPX3_DATA_PORT,
         chunks_per_stack=16,
         bytes_per_chunk=1500000,
-        num_slots=1000,
+        buffer_size=2048,  # MiB
     ) as conn:
 
         # If the timeout is hit, pending_aq is None.

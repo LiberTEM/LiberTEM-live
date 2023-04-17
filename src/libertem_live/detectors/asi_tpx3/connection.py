@@ -33,18 +33,33 @@ class AsiTpx3PendingAcquisition(PendingAcquisition):
 
 
 class AsiTpx3DetectorConnection(DetectorConnection):
+    """
+    Connection to the ASI TPX3 software.
+
+    Please see :class:`libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder`
+    for a description of the parameters, and use
+    :meth:`libertem_live.api.LiveContext.make_connection` to create a connection.
+    """
     def __init__(
         self,
-        uri: str,
-        num_slots: int,
-        bytes_per_chunk: int,
+        data_host: str,
+        data_port: int,
+        buffer_size: int = 2048,
+        bytes_per_chunk: Optional[int] = None,
         chunks_per_stack: int = 24,
         huge_pages: bool = False,
     ):
         self._passive_started = False
-        self._uri = uri
+        self._data_host = data_host
+        self._data_port = data_port
 
-        self._num_slots = num_slots
+        if bytes_per_chunk is None:
+            bytes_per_chunk = 1024 * 1024
+
+        # approx:
+        slot_size = bytes_per_chunk * chunks_per_stack
+        self._num_slots = 1024 * 1024 * buffer_size // slot_size
+
         self._bytes_per_chunk = bytes_per_chunk
         self._huge_pages = huge_pages
         self._chunks_per_stack = chunks_per_stack
@@ -54,7 +69,7 @@ class AsiTpx3DetectorConnection(DetectorConnection):
     def _connect(self):
         handle_path = self._make_handle_path()
         return ASITpx3Connection(
-            uri=self._uri,
+            uri=f"{self._data_host}:{self._data_port}",
             chunks_per_stack=self._chunks_per_stack,
             num_slots=self._num_slots,
             bytes_per_chunk=self._bytes_per_chunk,
@@ -118,21 +133,25 @@ class AsiTpx3ConnectionBuilder:
     """
     def open(
         self,
-        uri: str,
-        num_slots: int,
-        bytes_per_chunk: int,
+        data_host: str = "127.0.0.1",
+        data_port: int = 8283,
+        buffer_size: int = 2048,
+        bytes_per_chunk: Optional[int] = None,
         chunks_per_stack: int = 24,
         huge_pages: bool = False,
     ) -> AsiTpx3DetectorConnection:
         """
-        Connect to the ASI TPX3 detector software.
+        Connect to the ASI TPX3 detector software (Accos).
 
         Parameters
         ----------
-        uri
-            host and port to connect to (example: "localhost:1234")
-        num_slots
-            Number of shm slots to allocate
+        data_host
+            The hostname or IP address of the computer running Accos
+        data_port
+            The TCP port to connect to
+        buffer_size
+            The total receive buffer in MiB that is used to stream data to worker
+            processes.
         bytes_per_chunk
             How large is each chunk, in bytes. Approximate value, as
             this can change depending on events per scan position
@@ -150,12 +169,10 @@ class AsiTpx3ConnectionBuilder:
             See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`
             can be useful to check your configuration.
         """
-        # FIXME: tweak parameters a bit
-        # - uri -> data_host + data_port for consistency with other detectors
-        # - num_slots -> buffer_size: total size in megabytes (see dectris)
         return AsiTpx3DetectorConnection(
-            uri=uri,
-            num_slots=num_slots,
+            data_host=data_host,
+            data_port=data_port,
+            buffer_size=buffer_size,
             bytes_per_chunk=bytes_per_chunk,
             chunks_per_stack=chunks_per_stack,
             huge_pages=huge_pages,

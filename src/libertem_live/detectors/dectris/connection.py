@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 class DectrisDetectorConnection(DetectorConnection):
     '''
-    Connect to a DECTRIS DCU, both for detector configuration and for accessing
+    Connection to a DECTRIS DCU, both for detector configuration and for accessing
     the data stream.
 
     Please see :class:`libertem_live.detectors.dectris.DectrisConnectionBuilder`
