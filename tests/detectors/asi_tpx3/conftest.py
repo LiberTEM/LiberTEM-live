@@ -14,6 +14,8 @@ HAVE_TPX3_TESTDATA = os.path.exists(TPX3_TESTDATA_PATH)
 
 
 def run_tpx_sim(*args, path=TPX3_TESTDATA_PATH, **kwargs):
+    if not HAVE_TPX3_TESTDATA:
+        pytest.skip("need ASI TPX3 testdata")
     from libertem_live.detectors.asi_tpx3.sim import TpxCameraSim
     return run_camera_sim(
         cls=TpxCameraSim,
