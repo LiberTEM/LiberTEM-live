@@ -5,11 +5,10 @@ Reference
 
 .. toctree::
    :maxdepth: 2
+   :glob:
    :caption: Detectors
 
-   reference/dectris
-   reference/merlin
-   reference/memory
+   reference/*
 
 Live Context
 ~~~~~~~~~~~~
