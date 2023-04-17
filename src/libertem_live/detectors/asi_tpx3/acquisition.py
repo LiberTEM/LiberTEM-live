@@ -142,22 +142,37 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     '''
     Acquisition from a ASI TPX3 detector
 
+    Use :meth:`libertem_live.api.LiveContext.make_acquisition` to instantiate this
+    class!
+
+    Examples
+    --------
+
+    >>> with ctx.make_connection('asi_tpx3').open(
+    ...     uri=f'127.0.0.1:{TPX3_PORT}',
+    ... ) as conn:
+    ...     pending_aq = conn.wait_for_acquisition(1.0)
+    ...     aq = ctx.make_acquisition(
+    ...         conn=conn,
+    ...         pending_aq=pending_aq,
+    ...     )
+
+
     Parameters
     ----------
     conn
         An existing `AsiDetectorConnection` instance
-    trigger_mode
-        The strings 'exte', 'inte', 'exts', 'ints', as defined in the manual
-    trigger : function
-        See :meth:`~libertem_live.api.LiveContext.prepare_acquisition`
-        and :ref:`trigger` for details!
+    nav_shape
+        The number of scan positions as a 2-tuple :code:`(height, width)`
     frames_per_partition
         A tunable for configuring the feedback rate - more frames per partition
         means slower feedback, but less computational overhead. Might need to be tuned
         to adapt to the dwell time.
-    name_pattern
-        If given, file writing is enabled and the name pattern is set to the
-        given string. Please see the DECTRIS documentation for details!
+    pending_aq
+        A pending acquisition in passive mode, obtained from
+        :meth:`AsiTpx3DetectorConnection.wait_for_acquisition`.
+    hooks
+        Acquisition hooks to react to certain events
     '''
     def __init__(
         self,
@@ -192,6 +207,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
         self._acquisition_header = pending_aq.header
 
     def initialize(self, executor) -> "DataSet":
+        ''
         self._sig_shape = self._acquisition_header.get_sig_shape()
         self._nav_shape = self._acquisition_header.get_nav_shape()
         self._meta = DataSetMeta(
@@ -236,29 +252,31 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
             yield
 
     def check_valid(self):
+        ""
         pass
 
     def need_decode(self, read_dtype, roi, corrections):
+        ""
         return True  # FIXME: we just do this to get a large tile size
 
     def adjust_tileshape(self, tileshape, roi):
+        ""
         depth = 512  # FIXME: hardcoded, hmm...
         return (depth, *self.meta.shape.sig)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
 
     def get_max_io_size(self):
+        ""
         # return 12*256*256*8
         # FIXME magic numbers?
         return 1200000*np.prod(self.meta.shape.sig)*8
 
     def get_base_shape(self, roi):
+        ""
         return (1, *self.meta.shape.sig)
 
-    @property
-    def acquisition_state(self):
-        return self._acq_state
-
     def get_partitions(self):
+        ""
         # FIXME: only works for inline executor or similar, as we are using a zeromq socket
         # which is not safe to be passed to other threads
         num_frames = np.prod(self._nav_shape, dtype=np.uint64)

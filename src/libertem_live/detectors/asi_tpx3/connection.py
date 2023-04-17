@@ -92,6 +92,11 @@ class AsiTpx3DetectorConnection(DetectorConnection):
             self._conn.close()
             self._conn = None
 
+    def __enter__(self):
+        if self._conn is None:
+            self._connect()
+        return self
+
     def reconnect(self):
         if self._conn is not None:
             self.close()
@@ -106,6 +111,11 @@ class AsiTpx3DetectorConnection(DetectorConnection):
 
 
 class AsiTpx3ConnectionBuilder:
+    """
+    Builder class that can construct :class:`AsiTpx3DetectorConnection` instances.
+
+    Use the :meth:`open` method to create a connection.
+    """
     def open(
         self,
         uri: str,
@@ -113,10 +123,36 @@ class AsiTpx3ConnectionBuilder:
         bytes_per_chunk: int,
         chunks_per_stack: int = 24,
         huge_pages: bool = False,
-    ):
+    ) -> AsiTpx3DetectorConnection:
+        """
+        Connect to the ASI TPX3 detector software.
+
+        Parameters
+        ----------
+        uri
+            host and port to connect to (example: "localhost:1234")
+        num_slots
+            Number of shm slots to allocate
+        bytes_per_chunk
+            How large is each chunk, in bytes. Approximate value, as
+            this can change depending on events per scan position
+        chunks_per_stack
+            How many chunks should we assemble to a chunk stack?
+        huge_pages
+            Set to True to allocate shared memory in huge pages. This can improve performance
+            by reducing the page fault cost. Currently only available on Linux. Enabling this
+            requires reserving huge pages, either at system start, or before connecting.
+
+            For example, to reserve 10000 huge pages, you can run:
+
+            :code:`echo 10000 | sudo tee /proc/sys/vm/nr_hugepages`
+
+            See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`
+            can be useful to check your configuration.
+        """
         # FIXME: tweak parameters a bit
-        # - uri -> host + port for consistency with other detectors
-        # - num_slots -> total size in megabytes (see dectris)
+        # - uri -> data_host + data_port for consistency with other detectors
+        # - num_slots -> buffer_size: total size in megabytes (see dectris)
         return AsiTpx3DetectorConnection(
             uri=uri,
             num_slots=num_slots,
