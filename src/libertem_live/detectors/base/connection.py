@@ -1,4 +1,4 @@
-from typing import Optional, Type
+from typing import Optional, Type, Tuple
 
 from .acquisition import AcquisitionProtocol
 
@@ -13,7 +13,17 @@ class PendingAcquisition:
     """
     @property
     def nimages(self) -> int:
+        """
+        The total number of images that are expected for this acquisition
+        """
         raise NotImplementedError()
+
+    @property
+    def nav_shape(self) -> Optional[Tuple[int, ...]]:
+        """
+        The concrete `nav_shape`, if it is known by the detector
+        """
+        return None
 
 
 class DetectorConnection:

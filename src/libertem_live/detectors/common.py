@@ -78,14 +78,18 @@ class ServerThreadMixin(ErrThreadMixin):
     def sockname(self):
         return self._socket.getsockname()
 
-    def handle_conn(self, connection):
+    @property
+    def port(self) -> int:
+        return self.sockname[1]
+
+    def handle_conn(self, connection: socket.socket):
         raise NotImplementedError
 
     def run(self):
         try:
             self._socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._socket.bind((self._host, self._port))
-            self._socket.settimeout(1)
+            self._socket.settimeout(0.1)
             self._socket.listen(1)
             logger.info(f"{self._name} listening {self.sockname}")
             self.listen_event.set()

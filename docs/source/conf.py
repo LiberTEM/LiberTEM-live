@@ -242,4 +242,10 @@ MERLIN_TESTDATA_PATH = os.path.join(
     get_testdata_path(), 'default.mib',
 )
 HAVE_MERLIN_TESTDATA = os.path.exists(MERLIN_TESTDATA_PATH)
+
+TPX3_TESTDATA_PATH = os.path.join(
+    get_testdata_path(),
+    'asi-tpx3', 'header_data_with_padding_vals32bits.scr',
+)
+HAVE_TPX3_TESTDATA = os.path.exists(TPX3_TESTDATA_PATH)
 '''

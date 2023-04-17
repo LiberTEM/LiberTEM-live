@@ -73,7 +73,7 @@ def determine_nav_shape(
     # - 2) Call `Hooks.on_determine_nav_shape` and use that if possible
     # - 3) If a `nav_shape` with placeholders, i.e. `-1` entries, is given,
     #   use the number of images to fill these placeholders
-    # - 4) If no `nav_shape` is give, ask the controller
+    # - 4) If no `nav_shape` is give, ask the pending acquisition or controller
     # - 5) If the controller doesn't know, try to make a 2D square
     # - 6) If all above fails, raise an Exception
 
@@ -103,7 +103,11 @@ def determine_nav_shape(
             nimages=nimages,
         )
 
-    # case 4: ask the controller, if we have one
+    # case 4.0: ask the `PendingAcquisition`:
+    if pending_aq.nav_shape is not None:
+        return pending_aq.nav_shape
+
+    # case 4.1: ask the controller, if we have one
     if controller is not None:
         try:
             new_shape = controller.determine_nav_shape(
@@ -154,6 +158,7 @@ class AcquisitionMixin:
                 shape_hint=nav_shape,
                 pending_aq=pending_aq,
             )
+            logger.info(f"determined nav_shape: {nav_shape}")
 
         self._nav_shape = nav_shape
         frames_per_partition = min(frames_per_partition, prod(nav_shape))

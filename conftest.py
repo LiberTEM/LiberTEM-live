@@ -16,6 +16,7 @@ from libertem.viz.base import Dummy2DPlot
 
 from libertem_live.detectors.dectris.sim import DectrisSim
 from libertem_live.detectors.merlin.sim import CameraSim
+from libertem_live.detectors.asi_tpx3.sim import TpxCameraSim
 from libertem_live import api as ltl
 # A bit of gymnastics to import the test utilities since this
 # conftest.py file is shared between the doctests and unit tests
@@ -34,6 +35,13 @@ DECTRIS_TESTDATA_PATH = os.path.join(
 HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
 MIB_TESTDATA_PATH = os.path.join(utils.get_testdata_path(), 'default.mib')
 HAVE_MIB_TESTDATA = os.path.exists(MIB_TESTDATA_PATH)
+
+
+TPX3_TESTDATA_PATH = os.path.join(
+    utils.get_testdata_path(),
+    'asi-tpx3', 'header_data_with_padding_vals32bits.scr',
+)
+HAVE_TPX3_TESTDATA = os.path.exists(TPX3_TESTDATA_PATH)
 
 
 @pytest.fixture
@@ -116,7 +124,13 @@ def add_sims(doctest_namespace):
             'IMAGEY': "256",
             'COUNTERDEPTH': '12',
         },
-    ) as merlin_runner:
+    ) as merlin_runner, sim(
+        cls=TpxCameraSim,
+        paths=[TPX3_TESTDATA_PATH],
+        cached='MEM',
+        sleep=0.0,
+        port=0,
+    ) as tpx_runner:
         dectris_api_port, dectris_data_port = dectris_runner.port, dectris_runner.zmqport
         merlin_api_port, merlin_data_port = (
             merlin_runner.control_t.sockname[1],
@@ -128,5 +142,7 @@ def add_sims(doctest_namespace):
 
         doctest_namespace['MERLIN_API_PORT'] = merlin_api_port
         doctest_namespace['MERLIN_DATA_PORT'] = merlin_data_port
+
+        doctest_namespace['TPX3_PORT'] = tpx_runner.server_t.port
 
         yield

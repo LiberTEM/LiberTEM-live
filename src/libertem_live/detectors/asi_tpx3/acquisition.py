@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import os
 import logging
 import time
-from typing import Tuple
+from typing import Tuple, Optional
 import tempfile
 
 import scipy
@@ -20,7 +20,9 @@ from libertem.io.dataset.base import (
 from libertem.corrections.corrset import CorrectionSet
 
 from libertem_live.detectors.base.acquisition import AcquisitionMixin
-from .connection import AsiDetectorConnection, AsiPendingAcquisition
+from libertem_live.detectors.base.controller import AcquisitionController
+from libertem_live.hooks import ReadyForDataEnv, Hooks
+from .connection import AsiTpx3DetectorConnection, AsiTpx3PendingAcquisition
 
 from libertem_asi_tpx3 import CamClient, ChunkStackHandle
 
@@ -67,7 +69,7 @@ def get_chunk_stacks(worker_context: WorkerContext):
 class AsiCommHandler(TaskCommHandler):
     def __init__(
         self,
-        conn: "AsiDetectorConnection",
+        conn: "AsiTpx3DetectorConnection",
     ):
         self.conn = conn.get_conn_impl()
 
@@ -153,9 +155,6 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
         A tunable for configuring the feedback rate - more frames per partition
         means slower feedback, but less computational overhead. Might need to be tuned
         to adapt to the dwell time.
-    enable_corrections
-        Automatically correct defect pixels, downloading the pixel mask from the
-        detector configuration.
     name_pattern
         If given, file writing is enabled and the name pattern is set to the
         given string. Please see the DECTRIS documentation for details!
@@ -163,20 +162,33 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     def __init__(
         self,
 
-        conn: AsiDetectorConnection,
+        conn: AsiTpx3DetectorConnection,
+
+        hooks: Optional[Hooks] = None,
 
         # in passive mode, we get this:
-        pending_aq: AsiPendingAcquisition,
+        pending_aq: Optional[AsiTpx3PendingAcquisition] = None,
 
-        frames_per_partition: int = 4096,
-        enable_corrections: bool = False,
+        # this is for future compatibility with an active mode:
+        controller: Optional[AcquisitionController] = None,
+
+        nav_shape: Optional[Tuple[int, ...]] = None,
+
+        frames_per_partition: Optional[int] = None,
     ):
-        super().__init__()
+        assert pending_aq is not None, "only supporting passive mode for now"
+        assert controller is None, "only supporting passive mode for now"
+        if frames_per_partition is None:
+            frames_per_partition = 4096
+        super().__init__(
+            conn=conn,
+            frames_per_partition=frames_per_partition,
+            nav_shape=nav_shape,
+            controller=None,
+            pending_aq=pending_aq,
+            hooks=hooks,
+        )
         self._sig_shape: Tuple[int, ...] = ()
-        self._frames_per_partition = frames_per_partition
-        self._enable_corrections = enable_corrections
-
-        self._conn = conn
         self._acquisition_header = pending_aq.header
 
     def initialize(self, executor) -> "DataSet":
@@ -217,7 +229,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     def acquire(self):
         with tracer.start_as_current_span('acquire'):
             with tracer.start_as_current_span("AsiAcquisition.trigger"):
-                self.trigger()
+                self._hooks.on_ready_for_data(ReadyForDataEnv(aq=self))
             yield
 
     def check_valid(self):
