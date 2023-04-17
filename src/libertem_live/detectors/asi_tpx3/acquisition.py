@@ -157,7 +157,6 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     ...         pending_aq=pending_aq,
     ...     )
 
-
     Parameters
     ----------
     conn
@@ -235,6 +234,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
         return self._meta
 
     def get_correction_data(self):
+        ''
         return CorrectionSet()
 
     @contextmanager

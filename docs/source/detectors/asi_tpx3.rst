@@ -13,6 +13,9 @@ At this time, only the passive mode is implemented, which relies
 on configuring the detector and acquisition from the outside.
 Adding active mode support is planned for the future.
 
+Example
+~~~~~~~
+
 .. testsetup::
     :skipif: not HAVE_TPX3_TESTDATA
 
