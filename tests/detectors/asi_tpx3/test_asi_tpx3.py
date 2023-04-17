@@ -8,10 +8,7 @@ from libertem.udf.sumsigudf import SumSigUDF
 
 def test_smoke(ctx_pipelined: LiveContext, tpx_sim):
     with ctx_pipelined.make_connection('asi_tpx3').open(
-        uri=f"127.0.0.1:{tpx_sim}",
-        num_slots=1000,
-        bytes_per_chunk=1500000,
-        chunks_per_stack=16,
+        data_port=tpx_sim,
     ) as conn:
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
@@ -38,10 +35,7 @@ def test_hooks(ctx_pipelined: LiveContext, tpx_sim):
             self.ready_called = True
 
     with ctx_pipelined.make_connection('asi_tpx3').open(
-        uri=f"127.0.0.1:{tpx_sim}",
-        num_slots=1000,
-        bytes_per_chunk=1500000,
-        chunks_per_stack=16,
+        data_port=tpx_sim,
     ) as conn:
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
