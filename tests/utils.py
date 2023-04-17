@@ -1,6 +1,7 @@
 import os
 import sys
 from contextlib import contextmanager
+from typing import Generator
 
 import pytest
 from libertem.common.backend import get_use_cpu, get_use_cuda, set_use_cpu, set_use_cuda
@@ -18,7 +19,7 @@ def get_testdata_path():
     )
 
 
-def run_camera_sim(*args, cls, **kwargs):
+def run_camera_sim(*args, cls, **kwargs) -> Generator:
     server = cls(
         *args, **kwargs
     )

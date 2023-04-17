@@ -8,7 +8,6 @@ import sys
 import os
 
 import numpy as np
-import memfd
 import click
 
 from libertem_live.detectors.common import (
@@ -46,6 +45,7 @@ class MemfdCachedSource(CachedDataSource):
         self._cache_data(paths)
 
     def _cache_data(self, paths: List[str]):
+        import memfd  # local import so it works without it
         logger.info("populating cache...")
         cache_fd = memfd.memfd_create("tpx_cache", 0)
         total_size = 0
@@ -124,7 +124,7 @@ class TpxSim:
         try:
             while True:
                 if self.stop_event.is_set():
-                    logger.info("stopping")
+                    break
                 logger.info("sending full file...")
                 t0 = time.perf_counter()
                 size = self._data_source.send_data(conn)
@@ -177,10 +177,12 @@ class TpxCameraSim:
         )
 
         self.server_t = DataSocketSimulator(
+            stop_event=self.stop_event,
             host='localhost',
             port=port,
             sim=sim,
         )
+        self.server_t.daemon = True
 
     def start(self):
         self.server_t.start()
@@ -190,6 +192,9 @@ class TpxCameraSim:
 
     def maybe_raise(self):
         self.server_t.maybe_raise()
+
+    def wait_for_listen(self):
+        self.server_t.wait_for_listen()
 
     def stop(self):
         logger.info("Stopping...")
@@ -206,6 +211,8 @@ class TpxCameraSim:
                 # when this main thread finishes. This is at the discretion of the caller.
                 raise UndeadException("Server threads won't die")
             time.sleep(0.1)
+
+        logger.info(f"stopping took {time.time() - start}s")
 
 
 @click.command()
@@ -244,11 +251,11 @@ def main(cached: str, paths, sleep: float, port: int = 8283):
         # Just to not print "Aborted!"" from click
         sys.exit(0)
     finally:
-        print("Stopping...")
+        logger.info("Stopping...")
         try:
             sim.stop()
         except UndeadException:
-            print("Killing server threads")
+            logger.warn("Killing server threads")
             # Since the threads are daemon threads, they will die abruptly
             # when this main thread finishes.
             return

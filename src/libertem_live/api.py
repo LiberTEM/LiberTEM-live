@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from libertem_live.detectors.merlin.connection import MerlinDetectorConnection
     from libertem_live.detectors.memory import MemoryConnectionBuilder, MemoryAcquisition
     from libertem_live.detectors.memory.acquisition import MemoryConnection
+    from libertem_live.detectors.asi_tpx3 import (
+        AsiTpx3DetectorConnection, AsiTpx3ConnectionBuilder, AsiTpx3Acquisition,
+    )
 
 tracer = trace.get_tracer(__name__)
 
@@ -60,6 +63,13 @@ class LiveContext(LiberTEM_Context):
     @overload
     def make_connection(
         self,
+        detector_type: Literal['asi_tpx3'],
+    ) -> "AsiTpx3ConnectionBuilder":
+        ...
+
+    @overload
+    def make_connection(
+        self,
         detector_type: Literal['dectris'],
     ) -> "DectrisConnectionBuilder":
         ...
@@ -81,11 +91,17 @@ class LiveContext(LiberTEM_Context):
     def make_connection(
         self,
         detector_type: Union[
+            Literal['asi_tpx3'],
             Literal['dectris'],
             Literal['merlin'],
             Literal['memory']
         ],
-    ) -> Union["DectrisConnectionBuilder", "MerlinConnectionBuilder", "MemoryConnectionBuilder"]:
+    ) -> Union[
+        "AsiTpx3ConnectionBuilder",
+        "DectrisConnectionBuilder",
+        "MerlinConnectionBuilder",
+        "MemoryConnectionBuilder",
+    ]:
         """
         Connect to a detector system.
 
@@ -107,6 +123,9 @@ class LiveContext(LiberTEM_Context):
         if detector_type == 'dectris':
             from libertem_live.detectors.dectris import DectrisConnectionBuilder
             return DectrisConnectionBuilder()
+        if detector_type == 'asi_tpx3':
+            from libertem_live.detectors.asi_tpx3 import AsiTpx3ConnectionBuilder
+            return AsiTpx3ConnectionBuilder()
         elif detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinConnectionBuilder
             return MerlinConnectionBuilder()
@@ -117,6 +136,19 @@ class LiveContext(LiberTEM_Context):
             raise NotImplementedError(
                 f"Detector type {detector_type} doesn't support this API"
             )
+
+    @overload
+    def make_acquisition(
+        self,
+        *,
+        conn: "AsiTpx3DetectorConnection",
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
+        controller: Optional[AcquisitionController] = None,
+        pending_aq: Optional[PendingAcquisition] = None,
+        hooks: Optional[Hooks] = None,
+    ) -> "AsiTpx3Acquisition":
+        ...
 
     @overload
     def make_acquisition(
@@ -166,7 +198,12 @@ class LiveContext(LiberTEM_Context):
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,
         hooks: Optional[Hooks] = None,
-    ) -> Union["MerlinAcquisition", "DectrisAcquisition", "MemoryAcquisition"]:
+    ) -> Union[
+        "AsiTpx3Acquisition",
+        "DectrisAcquisition",
+        "MerlinAcquisition",
+        "MemoryAcquisition",
+    ]:
         """
         Create an acquisition object.
 
