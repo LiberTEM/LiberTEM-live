@@ -1,4 +1,8 @@
-from libertem_live.api import LiveContext
+from typing import Optional, Tuple
+import numpy as np
+
+from libertem_live.api import LiveContext, Hooks
+from libertem_live.hooks import ReadyForDataEnv, DetermineNavShapeEnv
 from libertem.udf.sumsigudf import SumSigUDF
 
 
@@ -15,4 +19,40 @@ def test_smoke(ctx_pipelined: LiveContext, tpx_sim):
             conn=conn,
             pending_aq=pending_aq,
         )
-        ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+        res = ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+        assert not np.allclose(res['intensity'], 0)
+
+
+def test_hooks(ctx_pipelined: LiveContext, tpx_sim):
+
+    class MyHooks(Hooks):
+        def __init__(self):
+            self.ready_called = False
+            self.det_shape_called = False
+
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[Tuple[int, ...]]:
+            self.det_shape_called = True
+            return None
+
+        def on_ready_for_data(self, env: ReadyForDataEnv):
+            self.ready_called = True
+
+    with ctx_pipelined.make_connection('asi_tpx3').open(
+        uri=f"127.0.0.1:{tpx_sim}",
+        num_slots=1000,
+        bytes_per_chunk=1500000,
+        chunks_per_stack=16,
+    ) as conn:
+        pending_aq = conn.wait_for_acquisition(10.0)
+        assert pending_aq is not None
+        hooks = MyHooks()
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+            hooks=hooks,
+        )
+        assert not hooks.ready_called
+        res = ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+        assert not hooks.ready_called
+        assert hooks.det_shape_called
+        assert not np.allclose(res['intensity'], 0)
