@@ -97,14 +97,23 @@ class ServerThreadMixin(ErrThreadMixin):
                 try:
                     connection, client_addr = self._socket.accept()
                     with connection:
-                        logger.info(f"{self._name} accepted from %s" % (client_addr,))
+                        logger.info(f"{self._name}: accepted from %s" % (client_addr,))
                         self.handle_conn(connection)
+                        logger.info(f"{self._name}: handling done for %s" % (client_addr,))
                 except socket.timeout:
                     continue
                 except BrokenPipeError:
+                    if "client_addr" in locals():
+                        logger.info(f"BrokenPipeError: {locals()['client_addr']}")
+                    else:
+                        logger.info("BrokenPipeError")
+
                     continue  # the other end died, but that doesn't mean we have to die
                 except ConnectionResetError:
-                    logger.info(f"{self._name} disconnected")
+                    if "client_addr" in locals():
+                        logger.info(f"{self._name}: client {locals()['client_addr']} disconnected")
+                    else:
+                        logger.info(f"{self._name}: client disconnected")
                 # except BrokenPipeError:
                 #     # catch broken pipe error - allow the server to continue
                 #     # running, even when a client prematurely disconnects
