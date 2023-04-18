@@ -1,9 +1,7 @@
 from contextlib import contextmanager
-import os
 import logging
 import time
 from typing import Tuple, Optional
-import tempfile
 
 import scipy
 import scipy.sparse
@@ -72,11 +70,6 @@ class AsiCommHandler(TaskCommHandler):
         conn: "AsiTpx3DetectorConnection",
     ):
         self.conn = conn.get_conn_impl()
-
-    @classmethod
-    def _make_handle_path(cls):
-        temp_path = tempfile.mkdtemp()
-        return os.path.join(temp_path, 'asi-shm-socket')
 
     def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
         with tracer.start_as_current_span("AsiCommHandler.handle_task") as span:

@@ -1,6 +1,7 @@
 import os
 from typing import Optional, Type, Tuple
 import tempfile
+import logging
 
 from libertem.common.math import prod
 
@@ -10,6 +11,8 @@ from libertem_live.detectors.base.connection import (
 )
 
 from libertem_asi_tpx3 import ASITpx3Connection
+
+logger = logging.getLogger(__name__)
 
 
 class AsiTpx3PendingAcquisition(PendingAcquisition):
@@ -54,7 +57,7 @@ class AsiTpx3DetectorConnection(DetectorConnection):
         self._data_port = data_port
 
         if bytes_per_chunk is None:
-            bytes_per_chunk = 1024 * 1024
+            bytes_per_chunk = 16*1024
 
         # approx:
         slot_size = bytes_per_chunk * chunks_per_stack
@@ -68,8 +71,10 @@ class AsiTpx3DetectorConnection(DetectorConnection):
 
     def _connect(self):
         handle_path = self._make_handle_path()
+        uri = f"{self._data_host}:{self._data_port}"
+        logger.info(f"connecting to {uri} with shared memory handle {handle_path}")
         return ASITpx3Connection(
-            uri=f"{self._data_host}:{self._data_port}",
+            uri=uri,
             chunks_per_stack=self._chunks_per_stack,
             num_slots=self._num_slots,
             bytes_per_chunk=self._bytes_per_chunk,
@@ -104,12 +109,14 @@ class AsiTpx3DetectorConnection(DetectorConnection):
 
     def close(self):
         if self._conn is not None:
+            logger.info(f"closing connection to {self._data_host}:{self._data_port}")
             self._conn.close()
+            self._passive_started = False
             self._conn = None
 
     def __enter__(self):
         if self._conn is None:
-            self._connect()
+            self._conn = self._connect()
         return self
 
     def reconnect(self):
