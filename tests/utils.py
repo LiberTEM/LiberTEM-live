@@ -1,13 +1,15 @@
 import os
-import sys
 from contextlib import contextmanager
 from typing import Generator
+import logging
 
 import pytest
 from libertem.common.backend import get_use_cpu, get_use_cuda, set_use_cpu, set_use_cuda
 from libertem.utils.devices import detect
 
 from libertem_live.detectors.common import UndeadException
+
+logger = logging.getLogger(__name__)
 
 
 def get_testdata_path():
@@ -25,11 +27,11 @@ def run_camera_sim(*args, cls, **kwargs) -> Generator:
     )
     server.start()
     server.wait_for_listen()
-    print("camera sim started", file=sys.stderr)
+    logger.info(f"{cls.__name__}: camera sim started")
     yield server
-    print("cleaning up server thread", file=sys.stderr)
+    logger.info(f"{cls.__name__}: cleaning up server thread")
     server.maybe_raise()
-    print("stopping server thread", file=sys.stderr)
+    logger.info(f"{cls.__name__}: stopping server thread")
     try:
         server.stop()
     except UndeadException:
@@ -57,7 +59,7 @@ def set_device_class(device_class):
             set_use_cuda(cudas[0])
         else:
             set_use_cpu(0)
-        print(f'running with {device_class}')
+        logger.info(f'running with {device_class}')
         yield
     finally:
         if prev_cpu_id is not None:
