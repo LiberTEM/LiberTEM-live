@@ -202,7 +202,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     conn
         An existing `DectrisDetectorConnection` instance
     nav_shape
-        The number of scan positions as a 2-tuple :code:`(height, width)`
+        The navigation shape as a tuple, for example :code:`(height, width)`
+        for a 2D STEM scan.
     frames_per_partition
         A tunable for configuring the feedback rate - more frames per partition
         means slower feedback, but less computational overhead. Might need to be tuned

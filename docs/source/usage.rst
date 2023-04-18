@@ -109,6 +109,30 @@ after the :code:`with`-block:
         pass
     # `conn` is closed here
 
+Coordinating live processing
+----------------------------
+
+As a general design goal, LiberTEM should behave similarly between offline and
+live processing. Once created, live acquisition objects can be used very
+similarly to offline datasets. However, the creation process is different: In
+offline processing, most relevant parameters are pre-determined by an existing
+dataset, and most datasets share very similar user-controlled parameters.
+Datasets backed by files can be read at any time and in any sequence.
+
+In contrast, parameters and actions for live processing are dynamic and have to
+be coordinated correctly in a sequence between microscope, scan engine, detector
+and LiberTEM processing so that the setup generates the data that LiberTEM
+expects to receive. Data can only be read sequentially and has to be consumed in
+a short time window to prevent dropping frames. Furthermore, the parameters and
+actions can be rather different between different setups and may have to be
+customized to a higher degree than offline datasets.
+
+Live acquisitions are therefore created in a multi-step procedure to separate
+concerns of detector interface, detector parameters, hooks for synchronization
+and customization, and generic LiberTEM parameters. Both an "active mode" where
+LiberTEM sets parameters and initiates an acquisition, and a "passive mode"
+where LiberTEM reads parameters and waits for an acquisition are available.
+
 .. _`passive mode`:
 
 Passive mode
@@ -294,6 +318,9 @@ only performing a 1D scan (line scan or generic "time series"), it is now also
 possible to override this with the :meth:`~libertem_live.hooks.Hooks.on_determine_nav_shape`
 method.
 
+In active mode, this hook method is not called, as the full :code:`nav_shape`
+is passed to :meth:`~libertem_live.api.LiveContext.make_acquisition`.
+
 .. testsetup::
     :skipif: not HAVE_DECTRIS_TESTDATA
 
@@ -347,7 +374,20 @@ method.
 See :class:`~libertem_live.hooks.DetermineNavShapeEnv` for details on the passed
 :code:`env` parameter.
 
-In active mode, this hook method is not called.
+.. note::
+
+    If you don't override this hook, LiberTEM-live tries to determine or guess the
+    :code:`nav_shape` based on the following method:
+
+    #. If a concrete tuple of integers is passed into :meth:`~libertem_live.api.LiveContext.make_acquisition`,
+       this tuple is used as-is.
+    #. The :code:`nav_shape` can contain placeholders, i.e. values of :code:`-1`. These are handled
+       similarly as numpy does for reshaping arrays, so if you give :code:`(-1, 64)` for an acquisition of 16384 images,
+       the final shape will be :code:`(256, 64)`. For :code:`(4, -1, -1)`, it would be :code:`(4, 64, 64)`,
+       so two placeholders are filled with a square shape. Up to two placeholders are allowed.
+    #. If no :code:`nav_shape` is given, it is either determined by asking the detector API,
+       or, if this is not available, it is assumed to be a 2D square.
+
 
 Live visualization
 ------------------

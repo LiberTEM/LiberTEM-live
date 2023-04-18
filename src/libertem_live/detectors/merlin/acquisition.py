@@ -42,7 +42,8 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     conn
         An existing :class:`MerlinDetectorConnection` instance
     nav_shape
-        The number of scan positions as a 2-tuple :code:`(height, width)`
+        The navigation shape as a tuple, for example :code:`(height, width)`
+        for a 2D STEM scan.
     frames_per_partition
         Number of frames to process before performing a merge operation. Decreasing this number
         increases the update rate, but can decrease performance.
