@@ -606,7 +606,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                 )
             else:
                 raise RuntimeError("Unknown method %s", method)
-            logger.info("Control response: {str(response)}")
+            logger.info(f"Control response: {str(response)}")
             connection.send(response)
 
 
