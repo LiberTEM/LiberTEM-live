@@ -18,17 +18,17 @@ this computer depend on the computation you want to run and the framerate you
 want to run it at. For reference, a 10-core system was sufficient for live
 processing using the QUADRO at full speed; for ARINA, we used a 24-core AMD EPYC.
 
-We have tested on both Linux and Windows - if you have a choice, Linux should be
-preferred.
+We have tested on both Linux and Windows. If you have a choice, Linux should be
+preferred since it achieved good performance more consistently during our tests.
 
 Usage examples
 --------------
 
-This section shortly gives examples how to connect LiberTEM-live to a dectris
+This section shortly gives examples how to connect LiberTEM-live to a DECTRIS
 DCU. Depending on you setup, you may want to actively
 control the detector parameters, synchronization and triggering, which we call
 :ref:`active mode <dectris active mode>`, or you may just want to listen for ongoing
-acquisitions, and start a reconstruction once the detector is armed and
+acquisitions, and start processing once the detector is armed and
 triggered, which we call the :ref:`passive mode <dectris passive mode>`.
 
 
@@ -86,7 +86,7 @@ Active mode
 ...........
 
 In active mode, the acquisition is controlled actively from the same
-Python script or notebook that also controls the reconstruction
+Python script or notebook that also controls the processing
 with LiberTEM-live. That means it will set detector settings, arm the detector
 and has the possibility to integrate with microscope APIs to trigger the scan.
 
