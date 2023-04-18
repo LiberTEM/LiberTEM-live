@@ -167,3 +167,20 @@ and then start receiving and processing data.
     conn.close()
     server.stop()
     server.maybe_raise()
+
+Implementation notes
+--------------------
+
+The receiving code is written in Rust with Python bindings, and is available in the
+`LiberTEM-dectris package, in the LiberTEM-rs repository <https://github.com/LiberTEM/LiberTEM-rs/tree/main/libertem_dectris>`_.
+This includes development tools, for example for capturing dumps of the raw
+stream of zeromq messages, and tools for inspecting and manipulating such dumps.
+There is also a command-line tool installed with LiberTEM-live, called
+:code:`libertem-live-dectris-sim`, which can replay these dumps and effectively
+simulate a DECTRIS detector.
+
+If you are encountering errors while using our DECTRIS support, you can enable logging
+of low-level events by setting the environment variable
+:code:`LIBERTEM_DECTRIS_LOG_LEVEL` to :code:`WARN`, :code:`DEBUG` or even
+:code:`TRACE`. The latter can output a huge amount of messages, so it is not
+recommended to be used from a jupyter notebook.
