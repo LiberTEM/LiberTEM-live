@@ -24,7 +24,7 @@ We currently support the following detectors:
 
 Computations on the live stream use the LiberTEM user-defined functions (UDF) interface.
 There are some useful UDFs shipped with both LiberTEM and LiberTEM-live, or you can
-implement your own, custom reconstruction methods.
+implement your own, custom processing methods.
 
 Common setup code
 -----------------
@@ -117,7 +117,7 @@ Passive mode
 .. versionadded:: 0.2
 
 Possibly the easiest way of using LiberTEM-live is by passively listening
-to events on the detector, and starting a reconstruction once the data
+to events on the detector, and starting processing once the data
 starts to arrive. Configuration, arming and triggering is assumed
 to be done by an external program, for example from the detector vendor.
 
@@ -149,14 +149,15 @@ to wait for an acquisition to start:
         # regularly do some other work in your code between acquisitions.
         pending_aq = conn.wait_for_acquisition(timeout=10.0)
 
-        aq = ctx.make_acquisition(
-            conn=conn,
-            pending_aq=pending_aq,
-            nav_shape=(128, 128),
-        )
+        if pending_aq is not None:
+            aq = ctx.make_acquisition(
+                conn=conn,
+                pending_aq=pending_aq,
+                nav_shape=(128, 128),
+            )
 
-        # run one or more UDFs on the live data stream:
-        ctx.run_udf(dataset=aq, udf=SumUDF())
+            # run one or more UDFs on the live data stream:
+            ctx.run_udf(dataset=aq, udf=SumUDF())
 
 
 This mode works with all detectors in the same way, the only difference
@@ -199,7 +200,7 @@ microscope, STEM settings, control your scan engine and start a STEM scan etc.
             conn=conn,
             nav_shape=(128, 128),
             controller=conn.get_active_controller(
-                # NOTE: parameters here are detector specific
+                # NOTE: parameters here are detector-specific
                 trigger_mode='exte',
                 frame_time=1e-3,
             ),
@@ -218,7 +219,7 @@ Hooks
     for future improvements while being backwards-compatible.
 
 In order to integrate LiberTEM-live into your experimental setup,
-we provide a way to hook into different points at the lifecycle of
+we provide a way to hook into different points during the lifecycle of
 an acquisition.
 
 `on_ready_for_data`
@@ -317,7 +318,12 @@ method.
     class MyHooks(Hooks):
         def on_determine_nav_shape(self, env):
             print(f"We have {env.nimages} images")
-            return (128, 128)
+            # We return the actual nav shape we want. It should match the
+            # number of images.
+            if env.nimages == 16384:
+                return (64, 256)
+            else:
+                raise RuntimeError(f"Expected 16384 images, got {env.nimages}")
 
     with conn:
         # NOTE: this is the part that is usually done by an external software,
@@ -346,7 +352,7 @@ In active mode, this hook method is not called.
 Live visualization
 ------------------
 
-The easiest way to get a live visualization going, in a jupyter notebook,
+The easiest way to get a live visualization going in a Jupyter notebook
 is to pass :code:`plots=True` to :meth:`libertem:libertem.api.Context.run_udf`,
 which will automatically add a live-updating plot to the notebook cell output.
 
