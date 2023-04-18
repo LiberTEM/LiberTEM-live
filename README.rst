@@ -55,12 +55,15 @@ installing LiberTEM.
 Detectors
 ---------
 
-* `Quantum Detectors Merlin
-  <https://libertem.github.io/LiberTEM-live/detectors.html#merlin-detector>`_
-* `DECTRIS EIGER2-based
-  <https://libertem.github.io/LiberTEM-live/detectors.html#dectris-detectors>`_
+* Quantum Detectors Merlin
+* DECTRIS EIGER2-based
+* Amsterdam Scientific Instruments CheeTah TPX3
 
-Support for the Gatan K2 IS and X-Spectrum cameras is currently under development.
+See `the documentation <https://libertem.github.io/LiberTEM-live/detectors.html>`_
+for details.
+
+Support for the Gatan K2 IS, ASI MPX3, and X-Spectrum cameras is currently
+under development.
 
 License
 -------
