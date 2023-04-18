@@ -35,3 +35,8 @@ def tpx_runner():
 @pytest.fixture(scope='module')
 def tpx_sim(tpx_runner):
     return tpx_runner.server_t.port
+
+
+@pytest.fixture
+def tpx_testdata_path():
+    return TPX3_TESTDATA_PATH

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from libertem.udf.base import NoOpUDF
 
@@ -47,3 +48,8 @@ def test_dataset(ltl_ctx):
     res = ltl_ctx.run_udf(dataset=ds, udf=udf)
 
     assert np.all(res['intensity'].data == data[-1, -1])
+
+
+def test_removed_api(ltl_ctx):
+    with pytest.raises(RuntimeError):
+        ltl_ctx.prepare_acquisition('merlin')

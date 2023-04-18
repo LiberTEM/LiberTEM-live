@@ -706,6 +706,8 @@ class DectrisSim:
                 raise UndeadException("Server threads won't die")
             time.sleep(0.1)
 
+        logger.info(f"stopping took {time.time() - start}s")
+
 
 @click.command()
 @click.argument('path', type=click.Path(exists=True))

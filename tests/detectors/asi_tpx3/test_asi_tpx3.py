@@ -50,3 +50,53 @@ def test_hooks(ctx_pipelined: LiveContext, tpx_sim):
         assert not hooks.ready_called
         assert hooks.det_shape_called
         assert not np.allclose(res['intensity'], 0)
+
+
+def test_multiple_with_stmt(ctx_pipelined: LiveContext, tpx_sim):
+    conn = ctx_pipelined.make_connection('asi_tpx3').open(
+        data_port=tpx_sim,
+    )
+
+    with conn:
+        pending_aq = conn.wait_for_acquisition(1.0)
+        assert pending_aq is not None
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+        )
+        ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+
+    with conn:
+        pending_aq = conn.wait_for_acquisition(1.0)
+        assert pending_aq is not None
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+        )
+        ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+
+
+def test_reconnect(ctx_pipelined: LiveContext, tpx_sim):
+    conn = ctx_pipelined.make_connection('asi_tpx3').open(
+        data_port=tpx_sim,
+    )
+
+    try:
+        pending_aq = conn.wait_for_acquisition(1.0)
+        assert pending_aq is not None
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+        )
+        ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+        conn.reconnect()
+
+        pending_aq = conn.wait_for_acquisition(2.0)
+        assert pending_aq is not None
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            pending_aq=pending_aq,
+        )
+        ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
+    finally:
+        conn.close()

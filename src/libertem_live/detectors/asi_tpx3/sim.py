@@ -127,7 +127,11 @@ class TpxSim:
                     break
                 logger.info("sending full file...")
                 t0 = time.perf_counter()
-                size = self._data_source.send_data(conn)
+                try:
+                    size = self._data_source.send_data(conn)
+                except Exception as e:
+                    logger.error("exception while sending data: %s", str(e))
+                    raise
                 t1 = time.perf_counter()
                 thp = size / 1024 / 1024 / (t1-t0)
                 total_sent_this_conn += size
