@@ -1,4 +1,0 @@
-[Obsolescence] Remove support for Python 3.6
-============================================
-
-* Remove support for Python 3.6. (https://github.com/LiberTEM/LiberTEM/issues/1369, https://github.com/LiberTEM/LiberTEM/pull/1380).
