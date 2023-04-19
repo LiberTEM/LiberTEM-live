@@ -19,6 +19,30 @@
         "contribution": "Help with implementing and testing DECTRIS support"
     },
     {
+        "displayname": "Dmitry Byelov",
+        "authorname": "Byelov, Dmitry",
+        "affiliation": "Amsterdam Scientific Instruments",
+        "contribution": "Help with ASI TPX3 support"
+    },
+    {
+        "displayname": "Chen Huang",
+        "authorname": "Huang, Chen",
+        "affiliation": "Rosalind Franklin Institute, Correlated Imaging",
+        "contribution": "Help with improving Merlin Medipix support"
+    },
+    {
+        "displayname": "Maurits Kelder",
+        "authorname": "Kelder, Maurits",
+        "affiliation": "Amsterdam Scientific Instruments",
+        "contribution": "Help with ASI TPX3 support"
+    },
+    {
+        "displayname": "Emanuela Liberti",
+        "authorname": "Liberti, Emanuela",
+        "affiliation": "Rosalind Franklin Institute, Correlated Imaging",
+        "contribution": "Help with improving Merlin Medipix support"
+    },
+    {
         "displayname": "Matthias Meffert",
         "authorname": "Meffert, Matthias",
         "affiliation": "DECTRIS",
@@ -31,6 +55,12 @@
         "contribution": "Help with implementing and testing DECTRIS support"
     },
     {
+        "displayname": "Elisabeth Müller",
+        "authorname": "Mueller, Elisabeth",
+        "affiliation": "PSI, Electron Microscopy Facility",
+        "contribution": "Collaboration on DECTRIS ARINA support"
+    },
+    {
         "displayname": "Daniel Stroppa",
         "authorname": "Stroppa, Daniel",
         "affiliation": "DECTRIS",
@@ -41,6 +71,18 @@
         "authorname": "Töllner, Maximilian",
         "affiliation": "KIT, Electron Microscopy and Spectroscopy Laboratory",
         "contribution": "Help with implementing and testing DECTRIS support"
+    },
+    {
+        "displayname": "Emiliya Poghosyan",
+        "authorname": "Poghosyan, Emiliya",
+        "affiliation": "PSI, Electron Microscopy Facility",
+        "contribution": "Collaboration on DECTRIS ARINA support"
+    },
+    {
+        "displayname": "Rick Watertor",
+        "authorname": "Watertor, Rick",
+        "affiliation": "Amsterdam Scientific Instruments",
+        "contribution": "Help with ASI TPX3 support"
     },
     {
         "displayname": "Rafal E. Dunin-Borkowski",
