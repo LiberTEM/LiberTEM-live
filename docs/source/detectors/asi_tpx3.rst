@@ -55,12 +55,9 @@ Usage examples
         pending_aq = conn.wait_for_acquisition(timeout=10.0)
 
         # prepare for acquisition
-        # note that we still have to set the nav_shape here, because
-        # we don't get this from the detector - it's controlled by
-        # the scan engine or the microscope.
         aq = ctx.make_acquisition(
             conn=conn,
-            frames_per_partition=512,
+            frames_per_partition=4096,
             pending_aq=pending_aq,
         )
 
