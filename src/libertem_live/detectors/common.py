@@ -4,6 +4,11 @@ from typing import Optional
 import socket
 import time
 
+try:
+    import prctl
+except ImportError:
+    prctl = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -91,6 +96,7 @@ class ServerThreadMixin(ErrThreadMixin):
             self._socket.bind((self._host, self._port))
             self._socket.settimeout(0.1)
             self._socket.listen(1)
+            set_thread_name(f'server:{self._name}')
             logger.info(f"{self._name} listening {self.sockname}")
             self.listen_event.set()
             while not self.is_stopped():
@@ -136,3 +142,17 @@ class ServerThreadMixin(ErrThreadMixin):
         finally:
             logger.info(f"{self._name} exiting")
             self._socket.close()
+
+
+def set_thread_name(name: str):
+    """
+    Set a thread name; mostly useful for using system tools for profiling
+
+    Parameters
+    ----------
+    name : str
+        The thread name
+    """
+    if prctl is None:
+        return
+    prctl.set_name(name)

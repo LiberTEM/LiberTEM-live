@@ -16,7 +16,9 @@ import numpy as np
 from flask import Flask, request, Blueprint, current_app
 from werkzeug.serving import make_server
 
-from libertem_live.detectors.common import ErrThreadMixin, UndeadException
+from libertem_live.detectors.common import (
+    ErrThreadMixin, UndeadException, set_thread_name,
+)
 
 if TYPE_CHECKING:
     import socket
@@ -44,22 +46,6 @@ logger = logging.getLogger(__name__)
 
 class StopException(Exception):
     pass
-
-
-def set_thread_name(name: str):
-    """
-    Set a thread name; mostly useful for using system tools for profiling
-
-    Parameters
-    ----------
-    name : str
-        The thread name
-    """
-    try:
-        import prctl
-        prctl.set_name(name)
-    except ImportError:
-        pass
 
 
 def chunks(mm: mmap.mmap) -> Generator[Tuple[bytes, int], None, None]:
@@ -128,6 +114,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             raise RuntimeError("failed to start in %f seconds" % timeout)
 
     def run(self):
+        set_thread_name('ZMQReplay')
         headers = read_headers(self._path)
 
         def send_line(index, zmq_socket, mm, more: Optional[bool] = None):
@@ -566,6 +553,7 @@ def run_api(
     port, headers, arm_event, trigger_event,
     listen_event, port_value, detector_config=None,
 ):
+    set_thread_name('dectris.sim:run_api')
     app = Flask("zmqreplay")
     app.config['headers'] = headers
     app.config['arm_event'] = arm_event
