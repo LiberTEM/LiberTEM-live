@@ -42,7 +42,10 @@ Common to both active and passive mode is the initialization, creating a
     :skipif: not HAVE_DECTRIS_TESTDATA
 
     from libertem_live.detectors.dectris.sim import DectrisSim
-    server = DectrisSim(path=DECTRIS_TESTDATA_PATH, port=0, zmqport=0, verbose=False)
+    server = DectrisSim(
+        path=DECTRIS_TESTDATA_PATH, port=0, zmqport=0, verbose=False,
+        tolerate_timeouts=False,
+    )
     server.start()
     server.wait_for_listen()
     DCU_API_PORT = server.port

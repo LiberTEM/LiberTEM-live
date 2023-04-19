@@ -110,6 +110,7 @@ def add_sims(doctest_namespace):
         path=path,
         port=0,
         zmqport=0,
+        tolerate_timeouts=False,
     ) as dectris_runner, sim(
         cls=CameraSim,
         host='127.0.0.1',

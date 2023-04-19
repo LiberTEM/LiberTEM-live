@@ -29,7 +29,9 @@ pytestmark = [
 def run_dectris_sim(*args, path=DECTRIS_TESTDATA_PATH, **kwargs):
     from libertem_live.detectors.dectris.sim import DectrisSim
     return run_camera_sim(
-        cls=DectrisSim, verbose=True, path=path, port=0, zmqport=0, **kwargs
+        cls=DectrisSim, verbose=True, path=path, port=0, zmqport=0,
+        tolerate_timeouts=False,
+        **kwargs
     )
 
 
