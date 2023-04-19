@@ -21,6 +21,10 @@ DECTRIS_TESTDATA_PATH = os.path.join(
 )
 HAVE_DECTRIS_TESTDATA = os.path.exists(DECTRIS_TESTDATA_PATH)
 
+pytestmark = [
+    pytest.mark.data,
+]
+
 
 def run_dectris_sim(*args, path=DECTRIS_TESTDATA_PATH, **kwargs):
     from libertem_live.detectors.dectris.sim import DectrisSim

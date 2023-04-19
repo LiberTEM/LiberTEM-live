@@ -13,6 +13,10 @@ from libertem.udf.sumsigudf import SumSigUDF
 
 from utils import run_camera_sim
 
+pytestmark = [
+    pytest.mark.data,
+]
+
 
 def test_memfd_smoke(ctx_pipelined: LiveContext, tpx_testdata_path):
     try:
