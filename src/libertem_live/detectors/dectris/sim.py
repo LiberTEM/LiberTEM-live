@@ -81,6 +81,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
             trigger_event: EventClass,
             data_filter=None,
             verbose=True,
+            tolerate_timeouts=True,
             *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._uri = uri
@@ -96,6 +97,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                 return data
         self._data_filter = data_filter
         self._verbose = verbose
+        self._tolerate_timeouts = tolerate_timeouts
 
     @property
     def port(self):
@@ -247,9 +249,16 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
 
 
 class RustedReplay(ZMQReplay):
-    def __init__(self, *args, dwelltime: Optional[int] = None, **kwargs):
+    def __init__(
+        self,
+        *args,
+        dwelltime: Optional[int] = None,
+        tolerate_timeouts=True,
+        **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.dwelltime = dwelltime
+        self._tolerate_timeouts = tolerate_timeouts
 
     def run(self):
         try:
@@ -345,6 +354,8 @@ class RustedReplay(ZMQReplay):
                         _sim.send_footer()
 
                 except libertem_dectris.TimeoutError:
+                    if not self._tolerate_timeouts:
+                        raise
                     if self._verbose:
                         logging.info("Timeout, resetting")
                     self._trigger_event.clear()
@@ -579,6 +590,7 @@ class DectrisSim:
         zmqport: int,
         dwelltime: Optional[int] = None,
         data_filter=None,
+        tolerate_timeouts: bool = True,
         verbose: bool = True,
     ) -> None:
         """
@@ -594,6 +606,8 @@ class DectrisSim:
             Take at least this much time for sending each frame, in microseconds
         verbose
             Print progress messages to stdout
+        tolerate_timeouts
+            If True, raise on timeouts instead of resetting simulator
         """
         headers = read_headers(path)
 
@@ -616,6 +630,7 @@ class DectrisSim:
                 stop_event=self.stop_event,
                 data_filter=data_filter,
                 dwelltime=dwelltime,
+                tolerate_timeouts=tolerate_timeouts,
                 verbose=verbose,
             )
         else:
@@ -628,6 +643,7 @@ class DectrisSim:
                 trigger_event=trigger_event,
                 stop_event=self.stop_event,
                 data_filter=data_filter,
+                tolerate_timeouts=tolerate_timeouts,
                 verbose=verbose,
             )
 
