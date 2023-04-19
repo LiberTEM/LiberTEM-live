@@ -193,7 +193,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
                             nimages = headers[1]['nimages']
                         else:
                             raise RuntimeError(f"Unknown trigger mode {headers[1]['trigger_mode']}")
-                        logger.info(f"Waiting for arm; will send {nimages} frames")
+                        logger.info(f"ZMQReplay: Waiting for arm; will send {nimages} frames")
                         while not self._arm_event.wait(timeout=0.1):
                             if self.is_stopped():
                                 raise StopException("Server is stopped")
@@ -283,7 +283,7 @@ class RustedReplay(ZMQReplay):
             self.listen_event.set()
             while True:
                 if self._verbose:
-                    logger.info("Waiting for arm")
+                    logger.info("RustedReplay: Waiting for arm")
                 while not self._arm_event.wait(timeout=0.1):
                     if self.is_stopped():
                         raise StopException("Server is stopped")
@@ -687,7 +687,7 @@ class DectrisSim:
 
     def stop(self):
         if self.verbose:
-            print("Stopping...")
+            logger.info("Stopping...")
         self.stop_event.set()
         self.api_server.terminate()
         timeout = 2

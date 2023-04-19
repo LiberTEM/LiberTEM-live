@@ -1,4 +1,5 @@
 from typing import Optional, Tuple, TYPE_CHECKING
+import logging
 
 from libertem.common.math import prod
 from .common import TriggerMode
@@ -7,6 +8,8 @@ from ..base.controller import AcquisitionController
 
 if TYPE_CHECKING:
     from .acquisition import DectrisDetectorConnection
+
+logger = logging.getLogger(__name__)
 
 
 class DectrisActiveController(AcquisitionController):
@@ -108,8 +111,10 @@ class DectrisActiveController(AcquisitionController):
             ec.setFileWriterConfig("mode", "disabled")
 
     def arm(self) -> int:
+        logger.info("arming detector")
         ec = self.get_api_client()
         result = ec.sendDetectorCommand('arm')
+        logger.info("detector armed successfully")
         return result['sequence id']
 
     def handle_start(self, conn: "DectrisDetectorConnection", series: int):
