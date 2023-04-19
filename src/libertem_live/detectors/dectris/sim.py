@@ -694,7 +694,7 @@ class DectrisSim:
             logger.info("Stopping...")
         self.stop_event.set()
         self.api_server.terminate()
-        timeout = 2
+        timeout = 32
         start = time.time()
         while True:
             self.maybe_raise()
