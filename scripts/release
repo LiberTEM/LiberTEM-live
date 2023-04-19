@@ -125,6 +125,14 @@ def get_current_tags():
     return subprocess.check_output(cmd, text="utf-8").strip().split("\n")
 
 
+def get_all_tags():
+    """
+    returns list of all tags in the repository
+    """
+    cmd = ["git", "tag"]
+    return subprocess.check_output(cmd, text="utf-8").strip().split("\n")
+
+
 def get_release_tag():
     """
     A commit can have more than one tag (but should only have one version tag).
@@ -151,6 +159,17 @@ def get_latest_tag():
         return subprocess.check_output(cmd, text="utf-8").strip()
     except subprocess.CalledProcessError:
         return ""
+
+
+def get_latest_stable_tag():
+    tags = get_all_tags()
+    sorted_stable_tags = list(
+        sorted(
+            filter(STABLE_VERSION_PAT.match, tags),
+            key=parse_version
+        )
+    )
+    return sorted_stable_tags[-1]
 
 
 def tag_matches(tags):
@@ -298,12 +317,17 @@ def upload_to_github(verbose, files, token, release):
             "draft": False,
             "prerelease": True,
         })
-        # first, delete existing continuous tag and release:
+        # first, delete existing continuous tag and release(s):
         try:
-            cont_release = repo.get_release("continuous")
-            cont_release.delete_release()
-            if verbose:
-                print("deleted existing continuous release")
+            continuous_releases = [
+                r
+                for r in repo.get_releases()
+                if r.tag_name == "continuous"
+            ]
+            for cont_release in continuous_releases:
+                cont_release.delete_release()
+                if verbose:
+                    print("deleted existing continuous release")
         except UnknownObjectException:
             pass
         try:
@@ -320,7 +344,7 @@ def upload_to_github(verbose, files, token, release):
         release_data.update({
             "tag": tag['full'],
             "name": "Release Candidate %s" % tag['full'],
-            "draft": False,
+            "draft": True,
             "prerelease": True,
         })
         if verbose:
@@ -330,7 +354,7 @@ def upload_to_github(verbose, files, token, release):
         release_data.update({
             "tag": tag['full'],
             "name": "Release %s" % tag['full'],
-            "draft": False,
+            "draft": True,
             "prerelease": False,
         })
         if verbose:
@@ -363,6 +387,15 @@ def prepare_upload(verbose):
 
     if verbose and out:
         print(out.decode("utf-8"))
+
+
+def run_twine_check(verbose):
+    cmd = ["twine", "check"]
+    cmd.extend(get_py_release_files())
+    out = subprocess.check_output(cmd)
+
+    if verbose:
+        print(out)
 
 
 def upload_to_pypi(verbose, user, password):
@@ -437,6 +470,8 @@ def upload(ctx, dry_run, pypi_user, pypi_password, pypi_test_user, pypi_test_pas
     if dry_run:
         print("NOTE: running in dry-run mode, specify --no-dry-run to really upload!")
 
+    print("environment: %s" % env)
+
     is_rc = current_version_tag_is_rc()
     is_release = current_version_tag_is_release()
 
@@ -455,6 +490,8 @@ def upload(ctx, dry_run, pypi_user, pypi_password, pypi_test_user, pypi_test_pas
     # validate zenodo-upload.json:
     with open(join(BASE_DIR, 'packaging/zenodo-upload.json')) as f:
         json.load(f)
+
+    run_twine_check(ctx.obj['verbose'])
 
     if not dry_run:
         if is_release:
