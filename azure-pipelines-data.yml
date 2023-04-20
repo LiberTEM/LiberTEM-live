@@ -251,6 +251,9 @@ stages:
         displayName: 'Use Python 3.9'
         inputs:
           versionSpec: '3.9'
+      - script: |  # need to get rid of old build stuff, packages etc.
+          rm -rf ./build/
+          rm -rf ./dist/
       - bash: pip install -U tox && pip install -r scripts/requirements.txt
         displayName: 'install requirements'
       - bash: python scripts/release --verbose upload --no-dry-run
