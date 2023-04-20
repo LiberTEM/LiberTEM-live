@@ -8,6 +8,14 @@
         "orcid": "0000-0002-9555-7455"
     },
     {
+        "displayname": "Matthew Bryan",
+        "authorname": "Bryan, Matthew",
+        "affiliation": "CEA-Leti",
+        "github": "matbryan52",
+        "orcid": "0000-0001-9134-384X",
+        "contribution": "Manual triggering for Merlin simulator"
+    },
+    {
         "displayname": "Volker Pilipp",
         "authorname": "Pilipp, Volker",
         "affiliation": "DECTRIS Ltd",
