@@ -16,7 +16,7 @@
 .. _zenodo: https://doi.org/10.5281/zenodo.4916315
 
 LiberTEM-live is an extension module for `LiberTEM
-<https://libertem.github.io/LiberTEM/>`_ :cite:`Clausen2018` that allows live
+<https://libertem.github.io/>`_ :cite:`Clausen2018` that allows live
 data processing.
 
 .. note::
@@ -70,3 +70,12 @@ License
 
 LiberTEM-live is licensed under GPLv3. The I/O parts are also available under
 the MIT license, please see LICENSE files in the subdirectories for details.
+
+Acknowledgements
+----------------
+
+We are very grateful for your continuing support for LiberTEM-live!
+
+See `the acknowledgement page
+<https://libertem.github.io/acknowledgements.html#libertem-live>`_ for a list of
+authors and contributors to LiberTEM-live and other LiberTEM projects.
