@@ -18,6 +18,7 @@ Documentation
    :maxdepth: 2
    :caption: Contents:
 
+   installation
    usage
    detectors
    examples
