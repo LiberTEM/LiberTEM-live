@@ -1,3 +1,5 @@
+.. _`detectors`:
+
 Supported Detectors
 ===================
 
