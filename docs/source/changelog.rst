@@ -6,8 +6,8 @@ Changelog
 .. _latest:
 .. _`v0-2-0`:
 
-0.2.0 (2023-04-19)
-##################
+0.2.0 (in preparation)
+######################
 
 This release implements updates LiberTEM-live to use the new features of
 LiberTEM v0.11 and the pipelined executor (:pr:`51`), and adds support for streaming data from two new detectors.
@@ -15,7 +15,7 @@ It introduces a new, more convenient API for connecting to detectors and running
 UDFs in an active or passive way. It also includes enhancements for
 Merlin Medipix support.
 
-Certain parts of LiberTEM-live are now implemented in rust with Python bindings,
+Certain parts of LiberTEM-live are now implemented in Rust with Python bindings,
 these now live in `the LiberTEM-rs repository
 <https://github.com/LiberTEM/LiberTEM-rs/>`_. Among other things, this includes
 receiving data directly into a shared memory area.
