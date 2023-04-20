@@ -78,4 +78,6 @@ We are very grateful for your continuing support for LiberTEM-live!
 
 See `the acknowledgement page
 <https://libertem.github.io/acknowledgements.html#libertem-live>`_ for a list of
-authors and contributors to LiberTEM-live and other LiberTEM projects.
+authors and contributors to LiberTEM-live and other LiberTEM projects. See also
+our info on `funding <https://libertem.github.io/#funding>`_ and `industry
+partners <https://libertem.github.io/#industry-partners>`_.
