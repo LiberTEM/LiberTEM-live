@@ -351,6 +351,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         ''
         with tracer.start_as_current_span('acquire'):
             if self._controller is not None:
+                self._conn.prepare_for_active()
                 self._controller.apply_file_writing()
                 self._controller.apply_scan_settings(self._nav_shape)
                 self._controller.apply_misc_settings()

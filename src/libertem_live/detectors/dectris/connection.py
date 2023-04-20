@@ -149,7 +149,14 @@ class DectrisDetectorConnection(DetectorConnection):
             self._conn.start_passive()
             self._passive_started = True
         self._ensure_basic_settings()
-        config_series = self._conn.wait_for_arm(timeout)
+        if timeout is None:
+            timeout = 1.0
+            while True:
+                config_series = self._conn.wait_for_arm(timeout)
+                if config_series is not None:
+                    break
+        else:
+            config_series = self._conn.wait_for_arm(timeout)
         if config_series is None:
             return None
         config, series = config_series
@@ -268,6 +275,11 @@ class DectrisDetectorConnection(DetectorConnection):
         ec = self.get_api_client()
         ec.setStreamConfig('mode', 'enabled')
         ec.setStreamConfig('header_detail', 'basic')
+
+    def prepare_for_active(self):
+        if self._passive_started:
+            # get the background thread into the correct state:
+            self.reconnect()
 
     def start_series(self, series: int):
         if self._passive_started:

@@ -1,6 +1,7 @@
 import os
 from typing import Optional, Tuple
 
+import numpy as np
 import sparse
 
 from libertem.udf.sumsigudf import SumSigUDF
@@ -691,5 +692,76 @@ def test_need_shape_in_active_mode(ctx_pipelined: LiveContext, dectris_sim):
         )
         # run a UDF to "drain" the connection:
         _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()
+
+
+@pytest.mark.timeout(120)  # may wait forever in case of issues
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_timeout_none(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    try:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        # should wait indefinitely:
+        pending_aq = conn.wait_for_acquisition()
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+            nav_shape=(128, 128),
+            frames_per_partition=512,
+        )
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+    finally:
+        conn.close()
+
+
+@pytest.mark.timeout(120)
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_active_after_passive_mode(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    try:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        # passive:
+        pending_aq = conn.wait_for_acquisition(1.0)
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+            nav_shape=(128, 128),
+            frames_per_partition=512,
+        )
+        res1 = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+
+        # active:
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+            frames_per_partition=512,
+        )
+        res2 = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+
+        assert np.allclose(
+            res1['intensity'].data,
+            res2['intensity'].data,
+        )
     finally:
         conn.close()
