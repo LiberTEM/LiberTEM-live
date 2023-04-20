@@ -311,16 +311,16 @@ class RustedReplay(ZMQReplay):
                 #       fast as we can send the data
                 try:
                     if self._verbose:
-                        logging.info("sending acquisition headers")
+                        logger.info("sending acquisition headers")
                     _sim.send_headers()
                     if self._verbose:
-                        logging.info("headers sent")
+                        logger.info("headers sent")
                     det_config = _sim.get_detector_config()
                     trigger_mode = det_config.get_trigger_mode()
                     if trigger_mode == libertem_dectris.TriggerMode.INTE:
                         # FIXME: check stop event from _sim in send_frames
                         if self._verbose:
-                            logging.info("sending one frame per trigger")
+                            logger.info("sending one frame per trigger")
                         for _ in range(det_config.ntrigger):
                             while not self._trigger_event.wait(timeout=0.1):
                                 if self.is_stopped():
@@ -335,7 +335,7 @@ class RustedReplay(ZMQReplay):
                     ):
                         # FIXME: check stop event from _sim in send_frames
                         if self._verbose:
-                            logging.info("sending all frames")
+                            logger.info("sending all frames")
                         _sim.send_frames()
                         _sim.send_footer()
                     elif trigger_mode in (
@@ -348,7 +348,7 @@ class RustedReplay(ZMQReplay):
                                         raise StopException("Server is stopped")
                                 self._trigger_event.clear()
                             if self._verbose:
-                                logging.info("sending next series")
+                                logger.info("sending next series")
                             # FIXME: check stop event from _sim in send_frames
                             _sim.send_frames(det_config.get_num_frames())
                         _sim.send_footer()
@@ -357,7 +357,7 @@ class RustedReplay(ZMQReplay):
                     if not self._tolerate_timeouts:
                         raise
                     if self._verbose:
-                        logging.info("Timeout, resetting")
+                        logger.info("Timeout, resetting")
                     self._trigger_event.clear()
         except StopException:
             pass
