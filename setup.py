@@ -89,6 +89,7 @@ setup(
         "libertem-asi-tpx3",
     ],
     extras_require={
+        'sim': ['flask'],
         'pymemfd': 'pymemfd',
         'pytango': 'pytango',
     },
