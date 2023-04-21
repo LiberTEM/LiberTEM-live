@@ -10,7 +10,6 @@ import pytest
 from libertem_live.api import LiveContext, Hooks
 from libertem_live.hooks import DetermineNavShapeEnv
 from libertem.io.corrections import CorrectionSet
-import libertem
 
 from utils import get_testdata_path, run_camera_sim
 
@@ -406,12 +405,6 @@ def test_passive_timeout(dectris_sim):
 @pytest.mark.data
 @pytest.mark.timeout(120)  # May lock up because of an executor bug
 def test_frame_skip(skipped_dectris_sim, dectris_sim):
-    # Only newer 0.10.0 because of a bug in the PipelinedExecutor
-    _version_bits = libertem.__version__.split('.')
-    version_tuple = tuple(int(b) for b in _version_bits[:3])
-    if version_tuple <= (0, 10, 0):
-        pytest.skip(reason="LiberTEM version too old")
-
     # uses its own executor to not potentially bring
     # the `ctx_pipelined` executor into a bad state
     executor = None
