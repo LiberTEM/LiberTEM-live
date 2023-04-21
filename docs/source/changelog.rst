@@ -20,7 +20,7 @@ Changelog
 .. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.7853129.svg
    :target: https://doi.org/10.5281/zenodo.7853129
 
-This release implements updates LiberTEM-live to use the new features of
+This release updates LiberTEM-live to use the new features of
 LiberTEM v0.11 and the pipelined executor (:pr:`51`), and adds support for streaming data from two new detectors.
 It introduces a new, more convenient API for connecting to detectors and running
 UDFs in an active or passive way. It also includes enhancements for
