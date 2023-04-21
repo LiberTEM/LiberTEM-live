@@ -3,11 +3,22 @@ Changelog
 
 .. _continuous:
 
+0.3.0.dev0
+##########
+
+.. toctree::
+  :glob:
+
+  changelog/*/*
+
 .. _latest:
 .. _`v0-2-0`:
 
-0.2.0 (in preparation)
-######################
+0.2.0 / 2023-04-21
+##################
+
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.7853129.svg
+   :target: https://doi.org/10.5281/zenodo.7853129
 
 This release implements updates LiberTEM-live to use the new features of
 LiberTEM v0.11 and the pipelined executor (:pr:`51`), and adds support for streaming data from two new detectors.
@@ -71,7 +82,7 @@ Obsolescence
 
 .. _`v0-1-0`:
 
-0.1.0 (2021-06-29)
+0.1.0 / 2021-06-29
 ##################
 
 .. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.4916316.svg
