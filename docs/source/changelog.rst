@@ -12,6 +12,14 @@ Changelog
   changelog/*/*
 
 .. _latest:
+
+.. _`v0-2-1`:
+
+0.2.1 / 2023-04-25
+##################
+
+Updated the packaging to include the tests in the sdist (:pr:`99`).
+
 .. _`v0-2-0`:
 
 0.2.0 / 2023-04-21
