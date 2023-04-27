@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 import threading
-from typing import Optional, List
+from typing import Optional, List, Tuple
 import logging
 import socket
+import mmap
 import time
 import sys
 import os
@@ -14,6 +15,7 @@ from libertem_live.detectors.common import (
     ServerThreadMixin,
     UndeadException,
 )
+from libertem.common.math import prod
 
 logger = logging.getLogger(__name__)
 
@@ -39,42 +41,45 @@ class CachedDataSource:
         raise NotImplementedError()
 
 
-class MemfdCachedSource(CachedDataSource):
-    def __init__(self, paths: List[str]):
-        self._paths = paths
-        self._cache_data(paths)
-
-    def _cache_data(self, paths: List[str]):
-        import memfd  # local import so it works without it
-        logger.info("populating cache...")
-        cache_fd = memfd.memfd_create("tpx_cache", 0)
-        total_size = 0
-        for path in paths:
-            written = 0
-            logger.info(f"reading {path}")
-            with open(path, "rb") as f:
-                in_bytes = f.read()
-                while written < len(in_bytes):
-                    written += os.write(cache_fd, in_bytes[written:])
-            total_size += written
-        os.lseek(cache_fd, 0, 0)
-        self._cache_fd = cache_fd
-        self._total_size = total_size
-        logger.info(f"cache populated, total_size={total_size}")
-
-    def send_data(self, conn: socket.socket) -> int:
-        send_full_file(self._cache_fd, self._total_size, conn)
-        return self.full_size
-
-    @property
-    def full_size(self) -> int:
-        return self._total_size
-
-
 class BufferedCachedSource(CachedDataSource):
-    def __init__(self, paths: List[str]):
+    def __init__(
+        self,
+        paths: Optional[List[str]] = None,
+        mock_nav_shape: Optional[Tuple[int, int]] = None
+    ):
         self._paths = paths
-        self._cache_data(paths)
+        if paths is not None:
+            self._cache_data(paths)
+        if mock_nav_shape is not None:
+            self._cache_data_mock(mock_nav_shape)
+
+    def _make_cache(self, total_size_bytes: int):
+        self._cache = np.empty(total_size_bytes, dtype=np.uint8)
+
+    def _get_cache_view(self):
+        return memoryview(self._cache)  # type: ignore
+
+    def _cache_data_mock(self, mock_nav_shape: Tuple[int, int]):
+        data = self._make_mock_data(mock_nav_shape)
+        total_size = len(data)
+        self._make_cache(total_size)
+        cache_view = self._get_cache_view()
+        cache_view[:] = data
+        self._total_size = total_size
+
+    def _make_mock_data(self, mock_nav_shape: Tuple[int, int]) -> np.ndarray:
+        import sparse
+        import sparseconverter
+        from libertem_asi_tpx3 import make_sim_data
+        sig_shape = (512, 512)
+        full_shape_flat = (prod(mock_nav_shape), prod(sig_shape))
+        arr = sparse.DOK(shape=full_shape_flat, dtype=np.uint32)
+        sig_size = prod(sig_shape)
+        for idx in range(prod(mock_nav_shape)):
+            arr[idx, idx % sig_size] = idx
+        c = sparseconverter.for_backend(arr, 'scipy.sparse.csr_matrix', strict=True)
+        mock_data = np.array(make_sim_data((32, 32), c.indptr, c.indices, c.data), dtype='uint8')
+        return mock_data
 
     def _cache_data(self, paths: List[str]):
         logger.info("populating cache...")
@@ -82,10 +87,10 @@ class BufferedCachedSource(CachedDataSource):
         for path in paths:
             total_size += os.stat(path).st_size
 
-        self._cache = np.empty(total_size, dtype=np.uint8)
+        self._make_cache(total_size)
+        cache_view = self._get_cache_view()
 
         for path in paths:
-            cache_view = memoryview(self._cache)  # type: ignore
             offset = 0
             with open(path, "rb") as f:
                 in_bytes = f.read()
@@ -99,6 +104,41 @@ class BufferedCachedSource(CachedDataSource):
     def send_data(self, conn: socket.socket) -> int:
         cache_view = memoryview(self._cache)  # type: ignore
         conn.sendall(cache_view)
+        return self.full_size
+
+    @property
+    def full_size(self) -> int:
+        return self._total_size
+
+
+class MemfdCachedSource(BufferedCachedSource):
+    def __init__(
+        self,
+        paths: Optional[List[str]] = None,
+        mock_nav_shape: Optional[Tuple[int, int]] = None
+    ):
+        self._mmap = None
+        super().__init__(paths=paths, mock_nav_shape=mock_nav_shape)
+
+    def _make_cache(self, total_size_bytes: int):
+        import memfd  # local import so the other classes work without it
+        cache_fd = memfd.memfd_create("tpx_cache", 0)
+        os.truncate(cache_fd, total_size_bytes)
+        self._cache_fd = cache_fd
+
+    def _get_cache_view(self):
+        if self._mmap is None:
+            self._mmap = mmap.mmap(
+                self._cache_fd,
+                length=0,
+                flags=mmap.MAP_SHARED,
+                prot=mmap.PROT_WRITE | mmap.PROT_READ,
+            )
+        return memoryview(self._mmap)
+
+    def send_data(self, conn: socket.socket) -> int:
+        os.lseek(self._cache_fd, 0, 0)
+        send_full_file(self._cache_fd, self._total_size, conn)
         return self.full_size
 
     @property
@@ -159,16 +199,18 @@ class DataSocketSimulator(ServerThreadMixin, threading.Thread):
 class TpxCameraSim:
     def __init__(
         self,
-        paths: List[str],
+        *,
         cached: str,
         port: int,
         sleep: float,
+        paths: Optional[List[str]] = None,
+        mock_nav_shape: Optional[Tuple[int, int]] = None,
     ):
         src: CachedDataSource
         if cached.lower() == 'mem':
-            src = BufferedCachedSource(paths=paths)
+            src = BufferedCachedSource(paths=paths, mock_nav_shape=mock_nav_shape)
         elif cached.lower() == 'memfd':
-            src = MemfdCachedSource(paths=paths)
+            src = MemfdCachedSource(paths=paths, mock_nav_shape=mock_nav_shape)
         else:
             raise ValueError(f"unknown cache type: {cached}")
 

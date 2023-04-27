@@ -99,6 +99,13 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         self._verbose = verbose
         self._tolerate_timeouts = tolerate_timeouts
 
+    def read_headers(self):
+        """
+        Get header with type 'dheader-1.0'. Can be called from outside of this
+        thread.
+        """
+        return read_headers(self._path)
+
     @property
     def port(self):
         return self._port
@@ -254,23 +261,52 @@ class RustedReplay(ZMQReplay):
         *args,
         dwelltime: Optional[int] = None,
         tolerate_timeouts=True,
+        num_mock_frames: Optional[int] = None,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
         self.dwelltime = dwelltime
         self._tolerate_timeouts = tolerate_timeouts
+        self._num_mock_frames = num_mock_frames
+        if self._path is None and self._num_mock_frames is None:
+            raise ValueError("Need either `path` or `num_mock_frames`")
+        if self._path is not None and self._num_mock_frames is not None:
+            raise ValueError("Either `path` or `num_mock_frames` must be None")
 
-    def run(self):
-        try:
-            import libertem_dectris
-            set_thread_name("RustedReplay")
+    def read_headers(self):
+        """
+        Get header with type 'dheader-1.0'. Can be called from outside of this
+        thread.
+        """
+        return [
+            json.loads(self.sim.get_dheader_raw()),
+            json.loads(self.sim.get_detector_config_raw()),
+        ]
+
+    @property
+    def sim(self):
+        import libertem_dectris
+        if self._path is None and self._num_mock_frames is not None:
+            _sim = libertem_dectris.DectrisSim.new_mocked(
+                uri=self._uri,
+                num_frames=self._num_mock_frames,
+                dwelltime=self.dwelltime,
+                random_port=self._random_port,
+            )
+        else:
             _sim = libertem_dectris.DectrisSim(
                 uri=self._uri,
                 filename=self._path,
                 dwelltime=self.dwelltime,
                 random_port=self._random_port,
             )
+        return _sim
 
+    def run(self):
+        try:
+            import libertem_dectris
+            set_thread_name("RustedReplay")
+            _sim = self.sim
             real_uri = _sim.get_uri()
             self._port = urllib.parse.urlparse(real_uri).port
             if self._verbose:
@@ -585,9 +621,11 @@ def run_api(
 class DectrisSim:
     def __init__(
         self,
-        path: str,
+        *,
         port: int,
         zmqport: int,
+        path: Optional[str] = None,
+        num_mock_frames: Optional[int] = None,
         dwelltime: Optional[int] = None,
         data_filter=None,
         tolerate_timeouts: bool = True,
@@ -598,6 +636,8 @@ class DectrisSim:
         ----------
         path
             _description_
+        num_mock_frames:
+            If path is not given, send this number of mocked frames
         port
             HTTP REST API port
         zmqport
@@ -609,8 +649,6 @@ class DectrisSim:
         tolerate_timeouts
             If True, raise on timeouts instead of resetting simulator
         """
-        headers = read_headers(path)
-
         arm_event = multiprocessing.Event()
         trigger_event = multiprocessing.Event()
         self.stop_event = multiprocessing.Event()
@@ -618,6 +656,7 @@ class DectrisSim:
         self.api_port = multiprocessing.Value('l', -1)
         self.dwelltime = dwelltime
         self.verbose = verbose
+        self._num_mock_frames = num_mock_frames
 
         if data_filter is None:
             self.zmq_replay = RustedReplay(
@@ -632,8 +671,10 @@ class DectrisSim:
                 dwelltime=dwelltime,
                 tolerate_timeouts=tolerate_timeouts,
                 verbose=verbose,
+                num_mock_frames=num_mock_frames,
             )
         else:
+            assert path is not None
             self.zmq_replay = ZMQReplay(
                 uri=f"tcp://127.0.0.1:{zmqport}" if zmqport else "tcp://127.0.0.1",
                 random_port=not bool(zmqport),
@@ -646,6 +687,7 @@ class DectrisSim:
                 tolerate_timeouts=tolerate_timeouts,
                 verbose=verbose,
             )
+        headers = self.zmq_replay.read_headers()
 
         self.zmq_replay.daemon = True
 
