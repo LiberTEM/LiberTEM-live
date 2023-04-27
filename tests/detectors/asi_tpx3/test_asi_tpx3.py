@@ -12,9 +12,9 @@ pytestmark = [
 ]
 
 
-def test_smoke(ctx_pipelined: LiveContext, tpx_sim_mock):
+def test_smoke(ctx_pipelined: LiveContext, tpx_sim):
     with ctx_pipelined.make_connection('asi_tpx3').open(
-        data_port=tpx_sim_mock,
+        data_port=tpx_sim,
     ) as conn:
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
@@ -26,7 +26,7 @@ def test_smoke(ctx_pipelined: LiveContext, tpx_sim_mock):
         assert not np.allclose(res['intensity'], 0)
 
 
-def test_hooks(ctx_pipelined: LiveContext, tpx_sim_mock):
+def test_hooks(ctx_pipelined: LiveContext, tpx_sim):
 
     class MyHooks(Hooks):
         def __init__(self):
@@ -41,7 +41,7 @@ def test_hooks(ctx_pipelined: LiveContext, tpx_sim_mock):
             self.ready_called = True
 
     with ctx_pipelined.make_connection('asi_tpx3').open(
-        data_port=tpx_sim_mock,
+        data_port=tpx_sim,
     ) as conn:
         pending_aq = conn.wait_for_acquisition(10.0)
         assert pending_aq is not None
@@ -58,9 +58,9 @@ def test_hooks(ctx_pipelined: LiveContext, tpx_sim_mock):
         assert not np.allclose(res['intensity'], 0)
 
 
-def test_multiple_with_stmt(ctx_pipelined: LiveContext, tpx_sim_mock):
+def test_multiple_with_stmt(ctx_pipelined: LiveContext, tpx_sim):
     conn = ctx_pipelined.make_connection('asi_tpx3').open(
-        data_port=tpx_sim_mock,
+        data_port=tpx_sim,
     )
 
     with conn:
@@ -82,9 +82,9 @@ def test_multiple_with_stmt(ctx_pipelined: LiveContext, tpx_sim_mock):
         ctx_pipelined.run_udf(dataset=aq, udf=SumSigUDF())
 
 
-def test_reconnect(ctx_pipelined: LiveContext, tpx_sim_mock):
+def test_reconnect(ctx_pipelined: LiveContext, tpx_sim):
     conn = ctx_pipelined.make_connection('asi_tpx3').open(
-        data_port=tpx_sim_mock,
+        data_port=tpx_sim,
     )
 
     try:
