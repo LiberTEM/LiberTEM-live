@@ -85,8 +85,8 @@ setup(
         "numba",
         "opentelemetry-api",
         "sparseconverter",
-        "libertem-dectris",
-        "libertem-asi-tpx3",
+        "libertem-dectris>=0.2.10",
+        "libertem-asi-tpx3>=0.2.10",
     ],
     extras_require={
         'sim': ['flask'],
