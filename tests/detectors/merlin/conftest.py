@@ -295,7 +295,7 @@ def mock_merlin_ds(mock_mib_ds):
 
 
 @pytest.fixture(scope='module')
-def mock_merlin_triggered_sim_threads(mock_mib_ds):
+def mock_merlin_sim_threads(mock_mib_ds):
     '''
     Untriggered non-garbage simulator.
     '''
@@ -313,19 +313,19 @@ def mock_merlin_triggered_sim_threads(mock_mib_ds):
 
 
 @pytest.fixture(scope='module')
-def mock_merlin_detector_sim(mock_merlin_triggered_sim_threads):
+def mock_merlin_detector_sim(mock_merlin_sim_threads):
     '''
     Host, port tuple of the untriggered default simulator
     '''
-    return mock_merlin_triggered_sim_threads.server_t.sockname
+    return mock_merlin_sim_threads.server_t.sockname
 
 
 @pytest.fixture(scope='module')
-def mock_merlin_control_sim(mock_merlin_triggered_sim_threads):
+def mock_merlin_control_sim(mock_merlin_sim_threads):
     '''
     Host, port tuple of the control port for the triggered simulator
     '''
-    return mock_merlin_triggered_sim_threads.control_t.sockname
+    return mock_merlin_sim_threads.control_t.sockname
 
 
 @pytest.fixture(scope='function')
@@ -344,3 +344,51 @@ def mock_ds_conn(
         drain=False,
     ) as conn:
         yield conn
+
+
+@pytest.fixture(scope='module')
+def mock_merlin_triggered_garbage(mock_mib_ds):
+    '''
+    Triggered simulator with garbage.
+    '''
+    hdr_path, shape, counter_depth = mock_mib_ds
+    sigy, sigx = shape.sig
+    cached = None
+    if platform.system() == 'Linux':
+        cached = 'MEMFD'
+    yield from run_merlin_sim(
+        path=hdr_path,
+        cached=cached,
+        wait_trigger=True,
+        garbage=True,
+        nav_shape=tuple(shape.nav),
+        initial_params={
+            'IMAGEX': f"{sigx}",
+            'IMAGEY': f"{sigy}",
+            'COUNTERDEPTH': f'{counter_depth}',
+        },
+    )
+
+
+@pytest.fixture(scope='module')
+def mock_merlin_detector_sim_garbage(mock_merlin_triggered_garbage):
+    '''
+    Host, port tuple of the untriggered default simulator
+    '''
+    return mock_merlin_triggered_garbage.server_t.sockname
+
+
+@pytest.fixture(scope='module')
+def mock_merlin_control_sim_garbage(mock_merlin_triggered_garbage):
+    '''
+    Host, port tuple of the control port for the triggered simulator
+    '''
+    return mock_merlin_triggered_garbage.control_t.sockname
+
+
+@pytest.fixture(scope='module')
+def mock_merlin_trigger_sim_garbage(mock_merlin_triggered_garbage):
+    '''
+    Host, port tuple of the control port for the triggered simulator
+    '''
+    return mock_merlin_triggered_garbage.trigger_t.sockname
