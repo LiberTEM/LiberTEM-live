@@ -15,10 +15,11 @@ Changelog
 
 .. _`v0-2-1`:
 
-0.2.1 / 2023-04-26
+0.2.1 / 2023-04-27
 ##################
 
-Updated the packaging to include the tests in the sdist (:pr:`99`).
+Updated the packaging to include the tests in the sdist (:pr:`99`),
+and add tests that don't require "real" test data (:pr:`102`, :pr:`103`).
 
 .. _`v0-2-0`:
 
