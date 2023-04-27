@@ -1,15 +1,10 @@
 from typing import Optional, Tuple
 
 import numpy as np
-import pytest
 
 from libertem_live.api import LiveContext, Hooks
 from libertem_live.hooks import ReadyForDataEnv, DetermineNavShapeEnv
 from libertem.udf.sumsigudf import SumSigUDF
-
-pytestmark = [
-    pytest.mark.data,
-]
 
 
 def test_smoke(ctx_pipelined: LiveContext, tpx_sim_mock):

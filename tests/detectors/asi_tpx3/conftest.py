@@ -40,3 +40,21 @@ def tpx_sim(tpx_runner):
 @pytest.fixture
 def tpx_testdata_path():
     return TPX3_TESTDATA_PATH
+
+
+@pytest.fixture(scope='module')
+def tpx_runner_mock():
+    from libertem_live.detectors.asi_tpx3.sim import TpxCameraSim
+    mock_sim = run_camera_sim(
+        cls=TpxCameraSim,
+        mock_nav_shape=(32, 32),
+        port=0,
+        sleep=0.1,
+        cached='MEM',
+    )
+    yield from mock_sim
+
+
+@pytest.fixture(scope='module')
+def tpx_sim_mock(tpx_runner_mock):
+    return tpx_runner_mock.server_t.port
