@@ -355,7 +355,7 @@ def mock_merlin_triggered_garbage(mock_mib_ds):
     sigy, sigx = shape.sig
     cached = None
     if platform.system() == 'Linux':
-        cached = 'MEMFD'
+        cached = 'MEM'
     yield from run_merlin_sim(
         path=hdr_path,
         cached=cached,
