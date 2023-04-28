@@ -354,8 +354,12 @@ def mock_merlin_triggered_garbage(mock_mib_ds):
     hdr_path, shape, counter_depth = mock_mib_ds
     sigy, sigx = shape.sig
     cached = None
-    if platform.system() == 'Linux':
+    try:
+        import pymemfd  # noqa
         cached = 'MEMFD'
+    except ImportError:
+        if platform.system() == 'Linux':
+            cached = 'MEM'
     yield from run_merlin_sim(
         path=hdr_path,
         cached=cached,

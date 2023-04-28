@@ -79,11 +79,10 @@ class TriggerHooks(Hooks):
         control = MerlinControl(*self._control_t)
         with control:
             control.cmd('STARTACQUISITION')
-        tr = TriggerClient(*self._trigger_t)
-        print("Trigger connection:", self._trigger_t)
-        tr.connect()
-        tr.trigger()
-        tr.close()
+
+        with TriggerClient(*self._trigger_t) as tr:
+            print("Trigger connection:", self._trigger_t)
+            tr.trigger()
 
 
 def test_acquisition_triggered_garbage(

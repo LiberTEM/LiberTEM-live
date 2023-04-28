@@ -643,6 +643,14 @@ class TriggerClient():
         self._port = port
         self._socket = None
 
+    def __enter__(self):
+        if self._socket is None:
+            self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
     def connect(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect((self._host, self._port))

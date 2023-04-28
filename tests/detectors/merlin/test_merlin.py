@@ -402,7 +402,7 @@ def test_datasource(
                 for chunk in source.inline_stream():
                     res += chunk.sum(axis=0)
             else:
-                for chunk in source.stream(num_frames=32*32):
+                for chunk in source.stream(num_frames=32 * 32):
                     res += chunk.buf.sum(axis=0)
         udf = SumUDF()
         ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
