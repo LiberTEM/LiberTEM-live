@@ -53,8 +53,12 @@ def test_memfd_smoke(ctx_pipelined: LiveContext, tpx_testdata_path):
 def test_memfd_mock_data(ctx_pipelined: LiveContext):
 
     cached = None
-    if platform.system() == 'Linux':
-        cached = 'MEM'
+    try:
+        import pymemfd  # noqa
+        cached = 'MEMFD'
+    except ImportError:
+        if platform.system() == 'Linux':
+            cached = 'MEM'
 
     sim_ctx_mgr = contextmanager(run_camera_sim)
 
