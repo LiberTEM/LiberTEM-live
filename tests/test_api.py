@@ -9,13 +9,13 @@ from libertem_live.udf.monitor import SignalMonitorUDF
 
 def test_default_ctx():
     data = np.random.random((13, 17, 19, 23))
-    ctx = LiveContext()
-    with ctx.make_connection('memory').open(data=data) as conn:
-        aq = ctx.make_acquisition(conn=conn)
-        udf1 = NoOpUDF()
-        ctx.run_udf(dataset=aq, udf=udf1)
-        for _ in ctx.run_udf_iter(dataset=aq, udf=udf1):
-            pass
+    with LiveContext() as ctx:
+        with ctx.make_connection('memory').open(data=data) as conn:
+            aq = ctx.make_acquisition(conn=conn)
+            udf1 = NoOpUDF()
+            ctx.run_udf(dataset=aq, udf=udf1)
+            for _ in ctx.run_udf_iter(dataset=aq, udf=udf1):
+                pass
 
 
 def test_trigger(ltl_ctx):
