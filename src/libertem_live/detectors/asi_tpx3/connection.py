@@ -57,7 +57,7 @@ class AsiTpx3DetectorConnection(DetectorConnection):
         self._data_port = data_port
 
         if bytes_per_chunk is None:
-            bytes_per_chunk = 16*1024
+            bytes_per_chunk = 16 * 1024
 
         # approx:
         slot_size = bytes_per_chunk * chunks_per_stack

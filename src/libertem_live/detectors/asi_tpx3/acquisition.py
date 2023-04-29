@@ -262,7 +262,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
         ""
         # return 12*256*256*8
         # FIXME magic numbers?
-        return 1200000*np.prod(self.meta.shape.sig)*8
+        return 1200000 * prod(self.meta.shape.sig) * 8
 
     def get_base_shape(self, roi):
         ""
