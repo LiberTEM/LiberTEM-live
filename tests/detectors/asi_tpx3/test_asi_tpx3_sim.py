@@ -2,7 +2,6 @@
 Extra tests to get coverage for the simulator configurations
 """
 import os
-import platform
 from contextlib import contextmanager
 
 import pytest
@@ -51,14 +50,10 @@ def test_memfd_smoke(ctx_pipelined: LiveContext, tpx_testdata_path):
 
 
 def test_memfd_mock_data(ctx_pipelined: LiveContext):
-
-    cached = None
     try:
-        import pymemfd  # noqa
-        cached = 'MEMFD'
+        import memfd  # noqa
     except ImportError:
-        if platform.system() == 'Linux':
-            cached = 'MEM'
+        pytest.skip("need pymemfd for this test (Linux only)")
 
     sim_ctx_mgr = contextmanager(run_camera_sim)
 
@@ -67,7 +62,7 @@ def test_memfd_mock_data(ctx_pipelined: LiveContext):
         mock_nav_shape=(32, 32),
         port=0,
         sleep=0.1,
-        cached=cached,
+        cached='MEMFD',
     ) as tpx_sim:
         with ctx_pipelined.make_connection('asi_tpx3').open(
             data_port=tpx_sim.server_t.port,
