@@ -95,7 +95,7 @@ class BufferedCachedSource(CachedDataSource):
             with open(path, "rb") as f:
                 in_bytes = f.read()
                 length = len(in_bytes)
-                cache_view[offset:offset+length] = in_bytes
+                cache_view[offset:offset + length] = in_bytes
                 offset += length
 
         self._total_size = total_size
@@ -173,12 +173,12 @@ class TpxSim:
                     logger.error("exception while sending data: %s", str(e))
                     raise
                 t1 = time.perf_counter()
-                thp = size / 1024 / 1024 / (t1-t0)
+                thp = size / 1024 / 1024 / (t1 - t0)
                 total_sent_this_conn += size
                 logger.info(f"done in {t1-t0:.3f}s, throughput={thp:.3f}MiB/s")
                 time.sleep(self._sleep)
                 t2 = time.perf_counter()
-                thp_with_sleep = size / 1024 / 1024 / (t2-t0)
+                thp_with_sleep = size / 1024 / 1024 / (t2 - t0)
                 logger.info(f"throughput_with_sleep={thp_with_sleep:.3f}MiB/s")
         finally:
             total = total_sent_this_conn / 1024 / 1024 / 1024
@@ -274,16 +274,24 @@ class TpxCameraSim:
 @click.option('--cached', default='MEM', type=click.Choice(
     ['MEM', 'MEMFD'], case_sensitive=False)
 )
-def main(cached: str, paths, sleep: float, port: int = 8283):
+@click.option('--mock-nav-shape', type=(int, int), default=None)
+def main(cached: str, paths, sleep: float, port: int = 8283, mock_nav_shape=None):
     logging.basicConfig(level=logging.INFO)
 
     logger.info(f"port={port}")
+
+    if not paths:
+        # Otherwise empty tuple
+        paths = None
+    if paths is None and mock_nav_shape is None:
+        raise ValueError('Need one of paths or mock_nav_shape')
 
     sim = TpxCameraSim(
         paths=paths,
         cached=cached,
         port=port,
         sleep=sleep,
+        mock_nav_shape=mock_nav_shape,
     )
     sim.start()
 
