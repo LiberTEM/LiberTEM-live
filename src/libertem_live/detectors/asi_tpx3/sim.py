@@ -171,7 +171,7 @@ class TpxSim:
                     size = self._data_source.send_data(conn)
                 except Exception as e:
                     logger.error("exception while sending data: %s", str(e))
-                    break
+                    raise
                 t1 = time.perf_counter()
                 thp = size / 1024 / 1024 / (t1 - t0)
                 total_sent_this_conn += size
