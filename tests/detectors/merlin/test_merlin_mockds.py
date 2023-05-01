@@ -7,6 +7,7 @@ from libertem.io.dataset.base import DataSet
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
 from libertem_live.detectors.merlin.control import MerlinControl
+from libertem_live.detectors.merlin.sim import TriggerClient
 
 
 class MyHooks(Hooks):
@@ -78,7 +79,10 @@ class TriggerHooks(Hooks):
         control = MerlinControl(*self._control_t)
         with control:
             control.cmd('STARTACQUISITION')
-            control.cmd('SOFTTRIGGER')
+
+        with TriggerClient(*self._trigger_t) as tr:
+            print("Trigger connection:", self._trigger_t)
+            tr.trigger()
 
 
 def test_acquisition_triggered_garbage(

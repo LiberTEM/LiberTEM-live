@@ -18,6 +18,7 @@ from libertem_live.hooks import ReadyForDataEnv
 from libertem_live.detectors.merlin import (
     MerlinControl, MerlinDataSource,
 )
+from libertem_live.detectors.merlin.sim import TriggerClient
 
 from utils import get_testdata_path
 
@@ -290,17 +291,20 @@ def test_acquisition_triggered_garbage(
             control = MerlinControl(*merlin_control_sim)
             with control:
                 control.cmd('STARTACQUISITION')
+            tr = TriggerClient(*trigger_sim)
+            print("Trigger connection:", trigger_sim)
+            tr.connect()
+            tr.trigger()
 
             def do_scan():
                 '''
                 Emulated blocking scan function using the Merlin simulator
                 '''
                 print("do_scan()")
-                with control:
-                    control.cmd('SOFTTRIGGER')
 
             fut = pool.submit(do_scan)
             trig_res[0] = fut
+            tr.close()
 
     host, port = garbage_sim
     api_host, api_port = merlin_control_sim
