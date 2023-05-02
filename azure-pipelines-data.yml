@@ -2,10 +2,10 @@ trigger:
   branches:
     include:
       - master
-      - 'v*'
+      - "v*"
   tags:
     include:
-      - 'v*'
+      - "v*"
 
 variables:
   - group: Packaging
