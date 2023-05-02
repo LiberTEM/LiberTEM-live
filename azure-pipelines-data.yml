@@ -3,6 +3,9 @@ trigger:
     include:
       - master
       - 'v*'
+  tags:
+    include:
+      - 'v*'
 
 variables:
   - group: Packaging
