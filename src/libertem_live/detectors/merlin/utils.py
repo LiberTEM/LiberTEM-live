@@ -12,7 +12,7 @@ def encode_u1(inp, out):
         out[y] = inp[y]
 
 
-@numba.jit(cache=True)
+@numba.njit(cache=True)
 def encode_u2(inp, out):
     for y in range(out.shape[0]):
         row_out = out[y]
