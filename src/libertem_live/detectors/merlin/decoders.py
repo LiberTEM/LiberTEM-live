@@ -1,7 +1,7 @@
 import numba
 
 
-@numba.jit(cache=True)
+@numba.njit(cache=True)
 def decode_u2(inp, out):
     for y in range(out.shape[0]):
         row_out = out[y]
@@ -34,7 +34,7 @@ def decode_multi_u1(input_bytes, out, header_size_bytes, num_frames):
         out_for_frame[:] = in_for_frame
 
 
-@numba.jit(cache=True)
+@numba.njit(cache=True)
 def decode_r1(inp, out):
     """
     Decode a number of 1bit raw encoded rows of input data.
@@ -53,7 +53,7 @@ def decode_r1(inp, out):
                     row_out[outpos] = (inp_byte >> bitpos) & 1
 
 
-@numba.jit(nogil=True, cache=True, parallel=False)
+@numba.njit(nogil=True, cache=True, parallel=False)
 def decode_multi_r1(input_bytes, out, header_size_bytes, num_frames):
     """
     input_bytes: shape (num_frames, num_rows, -1), with headers already cut off.
@@ -118,7 +118,7 @@ def decode_r6(inp, out):
             row_out[out_pos] = row_in[i]
 
 
-@numba.jit(nogil=True, cache=True, parallel=False)
+@numba.njit(nogil=True, cache=True, parallel=False)
 def decode_multi_r6(input_bytes, out, header_size_bytes, num_frames):
     """
     input_bytes: shape (num_frames, num_rows, -1), with headers already cut off.
@@ -186,7 +186,7 @@ def decode_r12(inp, out):
             row_out[out_pos] = (row_in[i * 2] << 8) + (row_in[i * 2 + 1] << 0)
 
 
-@numba.jit(nogil=True, cache=True, parallel=False)
+@numba.njit(nogil=True, cache=True, parallel=False)
 def decode_multi_r12(input_bytes, out, header_size_bytes, num_frames):
     """
     input_bytes: shape (num_frames, num_rows, -1), with headers already cut off.
