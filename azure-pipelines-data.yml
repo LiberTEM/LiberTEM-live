@@ -3,6 +3,7 @@ trigger:
     include:
       - master
       - "v*"
+      - "refs/tags/v*"
   tags:
     include:
       - "v*"
