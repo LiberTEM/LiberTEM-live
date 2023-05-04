@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Usage &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Supported Detectors" href="detectors.html" />
+    <link rel="prev" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#common-setup-code">Common setup code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#coordinating-live-processing">Coordinating live processing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#passive-mode">Passive mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#active-mode">Active mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#hooks">Hooks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#on-ready-for-data"><cite>on_ready_for_data</cite></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#on-determine-nav-shape"><cite>on_determine_nav_shape</cite></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#live-visualization">Live visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#included-udfs">Included UDFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recording-data">Recording data</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Usage</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/usage.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="usage">
+<span id="id1"></span><h1>Usage<a class="headerlink" href="#usage" title="Permalink to this heading"></a></h1>
+<p>Currently, LiberTEM-live can be used within Jupyter notebooks or other
+applications that allow Python scripting. Support for live data processing in
+the web GUI is not implemented at this time.</p>
+<p>Usage is deliberately similar to the LiberTEM <a class="reference external" href="https://libertem.github.io/LiberTEM/api.html#api-documentation" title="(in LiberTEM v0.12)"><span>Python API</span></a>.
+It differs in only a few aspects:</p>
+<ul class="simple">
+<li><p>It uses the <a class="reference internal" href="reference.html#libertem_live.api.LiveContext" title="libertem_live.api.LiveContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext</span></code></a> that extends the
+<a class="reference external" href="https://libertem.github.io/LiberTEM/reference/api.html#libertem.api.Context" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">libertem.api.Context</span></code></a> with methods to prepare and run live
+acquisitions on top of loading offline datasets.</p></li>
+<li><p>The concept of a LiberTEM <a class="reference external" href="https://libertem.github.io/LiberTEM/reference/dataset.html#libertem.io.dataset.base.DataSet" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">DataSet</span></code></a> is
+adapted to acquiring data from a detector instead of reading
+from a file.</p></li>
+</ul>
+<p>We currently support the following detectors:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="detectors/merlin.html#merlin-detector"><span class="std std-ref">Merlin Medipix</span></a>, including 2x2 quad configuration</p></li>
+<li><p><a class="reference internal" href="detectors/dectris.html#dectris-detectors"><span class="std std-ref">DECTRIS EIGER2-based detectors</span></a>, like ARINA or QUADRO</p></li>
+</ul>
+<p>Computations on the live stream use the LiberTEM user-defined functions (UDF) interface.
+There are some useful UDFs shipped with both LiberTEM and LiberTEM-live, or you can
+implement your own, custom processing methods.</p>
+<section id="common-setup-code">
+<h2>Common setup code<a class="headerlink" href="#common-setup-code" title="Permalink to this heading"></a></h2>
+<p>As with LiberTEM itself, we have a main entry point for all interaction,
+which is the <a class="reference internal" href="reference.html#libertem_live.api.LiveContext" title="libertem_live.api.LiveContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">LiveContext</span></code></a>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">LiveContext</span>
+
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">LiveContext</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This creates the appropriate resources for computation, in other words, it
+starts worker processes and prepares them for receiving data.</p>
+<p>The next step is to prepare a connection to the detector system; in most cases
+you’ll specify network hostnames, IP addresses and/or ports here.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">conn</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;your_detector_type&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">key</span><span class="o">=</span><span class="n">value</span><span class="p">,</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>For example, for DECTRIS SIMPLON based detectors, creating a connection looks
+like this:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">conn</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The connection is usually persistent, so it’s important to clean up after yourself:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Or use the context manager based interface instead, which automatically cleans up
+after the <code class="code docutils literal notranslate"><span class="pre">with</span></code>-block:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>  <span class="c1"># 80 by default</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>  <span class="c1"># 9999 by default</span>
+<span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+    <span class="c1"># your code using the connection here</span>
+    <span class="k">pass</span>
+<span class="c1"># `conn` is closed here</span>
+</pre></div>
+</div>
+</section>
+<section id="coordinating-live-processing">
+<h2>Coordinating live processing<a class="headerlink" href="#coordinating-live-processing" title="Permalink to this heading"></a></h2>
+<p>As a general design goal, LiberTEM should behave similarly between offline and
+live processing. Once created, live acquisition objects can be used very
+similarly to offline datasets. However, the creation process is different: In
+offline processing, most relevant parameters are pre-determined by an existing
+dataset, and most datasets share very similar user-controlled parameters.
+Datasets backed by files can be read at any time and in any sequence.</p>
+<p>In contrast, parameters and actions for live processing are dynamic and have to
+be coordinated correctly in a sequence between microscope, scan engine, detector
+and LiberTEM processing so that the setup generates the data that LiberTEM
+expects to receive. Data can only be read sequentially and has to be consumed in
+a short time window to prevent dropping frames. Furthermore, the parameters and
+actions can be rather different between different setups and may have to be
+customized to a higher degree than offline datasets.</p>
+<p>Live acquisitions are therefore created in a multi-step procedure to separate
+concerns of detector interface, detector parameters, hooks for synchronization
+and customization, and generic LiberTEM parameters. Both an “active mode” where
+LiberTEM sets parameters and initiates an acquisition, and a “passive mode”
+where LiberTEM reads parameters and waits for an acquisition are available.</p>
+</section>
+<section id="passive-mode">
+<span id="id2"></span><h2>Passive mode<a class="headerlink" href="#passive-mode" title="Permalink to this heading"></a></h2>
+<div class="versionadded">
+<p><span class="versionmodified added">New in version 0.2.</span></p>
+</div>
+<p>Possibly the easiest way of using LiberTEM-live is by passively listening
+to events on the detector, and starting processing once the data
+starts to arrive. Configuration, arming and triggering is assumed
+to be done by an external program, for example from the detector vendor.</p>
+<p>See below for the description
+of the <a class="reference internal" href="#active-mode"><span class="std std-ref">active mode</span></a>, where the detector is configured and the
+acquisition is actively controlled via LiberTEM-live.</p>
+<p>In passive mode, you usually use the <a class="reference internal" href="reference.html#libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition" title="libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">wait_for_acquisition()</span></code></a>
+to wait for an acquisition to start:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem.udf.sum</span> <span class="kn">import</span> <span class="n">SumUDF</span>
+
+<span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+    <span class="c1"># NOTE: this is the part that is usually done by an external software,</span>
+    <span class="c1"># but we include it here to have a running example:</span>
+    <span class="n">ec</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">get_api_client</span><span class="p">()</span>
+    <span class="n">ec</span><span class="o">.</span><span class="n">sendDetectorCommand</span><span class="p">(</span><span class="s1">&#39;arm&#39;</span><span class="p">)</span>
+
+    <span class="c1"># if the timeout, specified in seconds as float here, is hit,</span>
+    <span class="c1"># `pending_aq` will be `None`. This is useful if you need to</span>
+    <span class="c1"># regularly do some other work in your code between acquisitions.</span>
+    <span class="n">pending_aq</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_for_acquisition</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">pending_aq</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+            <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+            <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+            <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># run one or more UDFs on the live data stream:</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>This mode works with all detectors in the same way, the only difference
+will be the connection parameters.</p>
+</section>
+<section id="active-mode">
+<span id="id3"></span><h2>Active mode<a class="headerlink" href="#active-mode" title="Permalink to this heading"></a></h2>
+<div class="versionchanged">
+<p><span class="versionmodified changed">Changed in version 0.2: </span>The API has changed in 0.2 to seamlessly support different detectors,
+and to allow connecting independently of the acquisition object.</p>
+</div>
+<p>Passive mode is a good way to use LiberTEM-live, if you already have configuration,
+arming and triggering set up externally. If you want to integrate this more tightly,
+and control everything from one place, you can use active mode instead.</p>
+<p>In active mode, the acquisition is actively controlled by LiberTEM-live.
+That includes setting detector settings, up to arming the detector.
+Depending on your setup, you can also integrate configuration of your
+microscope, STEM settings, control your scan engine and start a STEM scan etc.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem.udf.sum</span> <span class="kn">import</span> <span class="n">SumUDF</span>
+
+<span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+    <span class="c1"># NOTE: we are no longer passing `pending_aq`, like in the passive mode.</span>
+    <span class="c1"># Instead we pass a controller object:</span>
+    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+        <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+        <span class="n">controller</span><span class="o">=</span><span class="n">conn</span><span class="o">.</span><span class="n">get_active_controller</span><span class="p">(</span>
+            <span class="c1"># NOTE: parameters here are detector-specific</span>
+            <span class="n">trigger_mode</span><span class="o">=</span><span class="s1">&#39;exte&#39;</span><span class="p">,</span>
+            <span class="n">frame_time</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># run one or more UDFs on the live data stream:</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+<section id="hooks">
+<h2>Hooks<a class="headerlink" href="#hooks" title="Permalink to this heading"></a></h2>
+<div class="versionchanged">
+<p><span class="versionmodified changed">Changed in version 0.2: </span>This is a replacement for the previously used <code class="code docutils literal notranslate"><span class="pre">trigger</span></code> function,
+and should be an equivalent replacement. The new hooks API is more open
+for future improvements while being backwards-compatible.</p>
+</div>
+<p>In order to integrate LiberTEM-live into your experimental setup,
+we provide a way to hook into different points during the lifecycle of
+an acquisition.</p>
+<section id="on-ready-for-data">
+<h3><cite>on_ready_for_data</cite><a class="headerlink" href="#on-ready-for-data" title="Permalink to this heading"></a></h3>
+<p>Right now, the most important hook is
+<a class="reference internal" href="reference.html#libertem_live.hooks.Hooks.on_ready_for_data" title="libertem_live.hooks.Hooks.on_ready_for_data"><code class="xref py py-meth docutils literal notranslate"><span class="pre">on_ready_for_data()</span></code></a>.</p>
+<p>This hook is called in <a class="reference internal" href="#active-mode"><span class="std std-ref">active mode</span></a>, when LiberTEM is
+ready to receive data. Depending on the setup and the detector, you can then trigger
+a STEM scan, and possibly control other devices, such as signal generators, in-situ
+holders with heating etc.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">Hooks</span>
+
+<span class="k">class</span> <span class="nc">MyHooks</span><span class="p">(</span><span class="n">Hooks</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_ready_for_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        You can trigger the scan here, if you have a microscope control API</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Triggering!&quot;</span><span class="p">)</span>
+        <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">aq</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">nav</span>
+        <span class="n">microscope</span><span class="o">.</span><span class="n">trigger_scan</span><span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">dwelltime</span><span class="o">=</span><span class="mf">10e-6</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="n">conn</span><span class="p">:</span>
+    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+        <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+        <span class="n">hooks</span><span class="o">=</span><span class="n">MyHooks</span><span class="p">(),</span>
+    <span class="p">)</span>
+
+    <span class="c1"># run one or more UDFs on the live data stream:</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+</pre></div>
+</div>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Triggering!
+</pre></div>
+</div>
+<p><a class="reference internal" href="reference.html#libertem_live.hooks.Hooks.on_ready_for_data" title="libertem_live.hooks.Hooks.on_ready_for_data"><code class="xref py py-meth docutils literal notranslate"><span class="pre">on_ready_for_data()</span></code></a> is not called for passive
+acquisitions, as we cannot accurately synchronize to the beginning of the acquisition
+in this case. Also, you will probably have different code to execute based on
+active or passive configuration.</p>
+</section>
+<section id="on-determine-nav-shape">
+<h3><cite>on_determine_nav_shape</cite><a class="headerlink" href="#on-determine-nav-shape" title="Permalink to this heading"></a></h3>
+<p>Another hook is <a class="reference internal" href="reference.html#libertem_live.hooks.Hooks.on_determine_nav_shape" title="libertem_live.hooks.Hooks.on_determine_nav_shape"><code class="xref py py-meth docutils literal notranslate"><span class="pre">on_determine_nav_shape()</span></code></a>.
+In passive mode, the <code class="code docutils literal notranslate"><span class="pre">nav_shape</span></code> is needed to make an acquisition instance.
+As the scanning parameters can change over time, we now have added the possibility
+to leave out the <code class="code docutils literal notranslate"><span class="pre">nav_shape</span></code> parameter, or set it to <code class="code docutils literal notranslate"><span class="pre">None</span></code>, which means
+it will automatically be determined. As this automatism can fail, for example if you are
+only performing a 1D scan (line scan or generic “time series”), it is now also
+possible to override this with the <a class="reference internal" href="reference.html#libertem_live.hooks.Hooks.on_determine_nav_shape" title="libertem_live.hooks.Hooks.on_determine_nav_shape"><code class="xref py py-meth docutils literal notranslate"><span class="pre">on_determine_nav_shape()</span></code></a>
+method.</p>
+<p>In active mode, this hook method is not called, as the full <code class="code docutils literal notranslate"><span class="pre">nav_shape</span></code>
+is passed to <a class="reference internal" href="reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">make_acquisition()</span></code></a>.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">Hooks</span>
+
+<span class="k">class</span> <span class="nc">MyHooks</span><span class="p">(</span><span class="n">Hooks</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_determine_nav_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;We have </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">nimages</span><span class="si">}</span><span class="s2"> images&quot;</span><span class="p">)</span>
+        <span class="c1"># We return the actual nav shape we want. It should match the</span>
+        <span class="c1"># number of images.</span>
+        <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">nimages</span> <span class="o">==</span> <span class="mi">16384</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="mi">64</span><span class="p">,</span> <span class="mi">256</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Expected 16384 images, got </span><span class="si">{</span><span class="n">env</span><span class="o">.</span><span class="n">nimages</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="k">with</span> <span class="n">conn</span><span class="p">:</span>
+    <span class="c1"># NOTE: this is the part that is usually done by an external software,</span>
+    <span class="c1"># but we include it here to have a running example:</span>
+    <span class="n">ec</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">get_api_client</span><span class="p">()</span>
+    <span class="n">ec</span><span class="o">.</span><span class="n">sendDetectorCommand</span><span class="p">(</span><span class="s1">&#39;arm&#39;</span><span class="p">)</span>
+
+    <span class="n">pending_aq</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_for_acquisition</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+        <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+        <span class="n">hooks</span><span class="o">=</span><span class="n">MyHooks</span><span class="p">(),</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>We have 16384 images
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="reference.html#libertem_live.hooks.DetermineNavShapeEnv" title="libertem_live.hooks.DetermineNavShapeEnv"><code class="xref py py-class docutils literal notranslate"><span class="pre">DetermineNavShapeEnv</span></code></a> for details on the passed
+<code class="code docutils literal notranslate"><span class="pre">env</span></code> parameter.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you don’t override this hook, LiberTEM-live tries to determine or guess the
+<code class="code docutils literal notranslate"><span class="pre">nav_shape</span></code> based on the following method:</p>
+<ol class="arabic simple">
+<li><p>If a concrete tuple of integers is passed into <a class="reference internal" href="reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">make_acquisition()</span></code></a>,
+this tuple is used as-is.</p></li>
+<li><p>The <code class="code docutils literal notranslate"><span class="pre">nav_shape</span></code> can contain placeholders, i.e. values of <code class="code docutils literal notranslate"><span class="pre">-1</span></code>. These are handled
+similarly as numpy does for reshaping arrays, so if you give <code class="code docutils literal notranslate"><span class="pre">(-1,</span> <span class="pre">64)</span></code> for an acquisition of 16384 images,
+the final shape will be <code class="code docutils literal notranslate"><span class="pre">(256,</span> <span class="pre">64)</span></code>. For <code class="code docutils literal notranslate"><span class="pre">(4,</span> <span class="pre">-1,</span> <span class="pre">-1)</span></code>, it would be <code class="code docutils literal notranslate"><span class="pre">(4,</span> <span class="pre">64,</span> <span class="pre">64)</span></code>,
+so two placeholders are filled with a square shape. Up to two placeholders are allowed.</p></li>
+<li><p>If no <code class="code docutils literal notranslate"><span class="pre">nav_shape</span></code> is given, it is either determined by asking the detector API,
+or, if this is not available, it is assumed to be a 2D square.</p></li>
+</ol>
+</div>
+</section>
+</section>
+<section id="live-visualization">
+<h2>Live visualization<a class="headerlink" href="#live-visualization" title="Permalink to this heading"></a></h2>
+<p>The easiest way to get a live visualization going in a Jupyter notebook
+is to pass <code class="code docutils literal notranslate"><span class="pre">plots=True</span></code> to <a class="reference external" href="https://libertem.github.io/LiberTEM/reference/api.html#libertem.api.Context.run_udf" title="(in LiberTEM v0.12)"><code class="docutils literal notranslate"><span class="pre">libertem.api.Context.run_udf()</span></code></a>,
+which will automatically add a live-updating plot to the notebook cell output.</p>
+<p>In some cases, updating the plot can become a bottleneck - one way to
+circumvent this is to use <cite>bqplot</cite> for visualization. Please see <a class="reference internal" href="examples.html#examples"><span class="std std-ref">the examples</span></a>
+for usage.</p>
+</section>
+<section id="included-udfs">
+<h2>Included UDFs<a class="headerlink" href="#included-udfs" title="Permalink to this heading"></a></h2>
+<p>In addition to <a class="reference external" href="https://libertem.github.io/LiberTEM/reference/udf.html#utilify-udfs" title="(in LiberTEM v0.12)"><span class="xref std std-ref">the UDFs included with LiberTEM</span></a>,
+we ship <a class="reference internal" href="reference.html#utility-udfs"><span class="std std-ref">a few additional UDFs with LiberTEM-live</span></a> that are mostly
+useful for live processing.</p>
+</section>
+<section id="recording-data">
+<span id="recording"></span><h2>Recording data<a class="headerlink" href="#recording-data" title="Permalink to this heading"></a></h2>
+<p>The <a class="reference internal" href="reference.html#libertem_live.udf.record.RecordUDF" title="libertem_live.udf.record.RecordUDF"><code class="xref py py-class docutils literal notranslate"><span class="pre">RecordUDF</span></code></a> allows to record the input data
+as NPY file.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem_live.udf.record</span> <span class="kn">import</span> <span class="n">RecordUDF</span>
+
+<span class="n">conn</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+    <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+    <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">RecordUDF</span><span class="p">(</span><span class="n">filename</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="detectors.html" class="btn btn-neutral float-right" title="Supported Detectors" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

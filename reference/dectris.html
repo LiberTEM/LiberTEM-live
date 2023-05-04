@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DECTRIS reference &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Memory “detector” reference" href="memory.html" />
+    <link rel="prev" title="ASI TPX3 reference" href="asi_tpx3.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../reference.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="asi_tpx3.html">ASI TPX3 reference</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">DECTRIS reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisAcquisition"><code class="docutils literal notranslate"><span class="pre">DectrisAcquisition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisAcquisition.dtype"><code class="docutils literal notranslate"><span class="pre">DectrisAcquisition.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisAcquisition.get_api_client"><code class="docutils literal notranslate"><span class="pre">DectrisAcquisition.get_api_client()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisAcquisition.get_detector_config"><code class="docutils literal notranslate"><span class="pre">DectrisAcquisition.get_detector_config()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisAcquisition.shape"><code class="docutils literal notranslate"><span class="pre">DectrisAcquisition.shape</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisConnectionBuilder"><code class="docutils literal notranslate"><span class="pre">DectrisConnectionBuilder</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisConnectionBuilder.open"><code class="docutils literal notranslate"><span class="pre">DectrisConnectionBuilder.open()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection"><code class="docutils literal notranslate"><span class="pre">DectrisDetectorConnection</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.close"><code class="docutils literal notranslate"><span class="pre">DectrisDetectorConnection.close()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller"><code class="docutils literal notranslate"><span class="pre">DectrisDetectorConnection.get_active_controller()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.wait_for_acquisition"><code class="docutils literal notranslate"><span class="pre">DectrisDetectorConnection.wait_for_acquisition()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisPendingAcquisition"><code class="docutils literal notranslate"><span class="pre">DectrisPendingAcquisition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisPendingAcquisition.nimages"><code class="docutils literal notranslate"><span class="pre">DectrisPendingAcquisition.nimages</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="memory.html">Memory “detector” reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="merlin.html">Quantum detectors Merlin Medipix reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.api">Live Context</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#udfs">UDFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.detectors.base.connection">Base classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.hooks">Hooks</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../reference.html">Reference</a></li>
+      <li class="breadcrumb-item active">DECTRIS reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/reference/dectris.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dectris-reference">
+<span id="id1"></span><h1>DECTRIS reference<a class="headerlink" href="#dectris-reference" title="Permalink to this heading"></a></h1>
+<span class="target" id="module-libertem_live.detectors.dectris"></span><dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisAcquisition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.dectris.</span></span><span class="sig-name descname"><span class="pre">DectrisAcquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection" title="libertem_live.detectors.dectris.DectrisDetectorConnection"><span class="pre">DectrisDetectorConnection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">128</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisPendingAcquisition" title="libertem_live.detectors.dectris.DectrisPendingAcquisition"><span class="pre">DectrisPendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DectrisActiveController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../reference.html#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/acquisition.html#DectrisAcquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisAcquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Acquisition from a DECTRIS detector.
+Use <a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a> to instantiate this
+class!</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">api_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+<span class="gp">... </span>    <span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>conn</strong> – An existing <cite>DectrisDetectorConnection</cite> instance</p></li>
+<li><p><strong>nav_shape</strong> – The navigation shape as a tuple, for example <code class="code docutils literal notranslate"><span class="pre">(height,</span> <span class="pre">width)</span></code>
+for a 2D STEM scan.</p></li>
+<li><p><strong>frames_per_partition</strong> – A tunable for configuring the feedback rate - more frames per partition
+means slower feedback, but less computational overhead. Might need to be tuned
+to adapt to the dwell time.</p></li>
+<li><p><strong>pending_aq</strong> – A pending acquisition in passive mode, obtained from
+<a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.wait_for_acquisition" title="libertem_live.detectors.dectris.DectrisDetectorConnection.wait_for_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">DectrisDetectorConnection.wait_for_acquisition()</span></code></a>.
+If this is not provided, it’s assumed that the detector should be
+actively armed and triggered.</p></li>
+<li><p><strong>controller</strong> – A <cite>DectrisActiveController</cite> instance, which can be obtained
+from <a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller" title="libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller"><code class="xref py py-meth docutils literal notranslate"><span class="pre">DectrisDetectorConnection.get_active_controller()</span></code></a>.
+You can pass additional parameters to
+<a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller" title="libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller"><code class="xref py py-meth docutils literal notranslate"><span class="pre">DectrisDetectorConnection.get_active_controller()</span></code></a> in order
+to change detector settings.
+If no controller is passed in, and <cite>pending_aq</cite> is also not
+given, then the acquisition will be started in active
+mode, leaving all detector settings unchanged.</p></li>
+<li><p><strong>hooks</strong> – Acquisition hooks to react to certain events</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisAcquisition.dtype">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisAcquisition.dtype" title="Permalink to this definition"></a></dt>
+<dd><p>The “native” data type
+(either one matching the data on disk, or one that is closest)</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisAcquisition.get_api_client">
+<span class="sig-name descname"><span class="pre">get_api_client</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DEigerClient</span></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/acquisition.html#DectrisAcquisition.get_api_client"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisAcquisition.get_api_client" title="Permalink to this definition"></a></dt>
+<dd><p>Get an API client, which can be used to configure the detector.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisAcquisition.get_detector_config">
+<span class="sig-name descname"><span class="pre">get_detector_config</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">DetectorConfig</span></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/acquisition.html#DectrisAcquisition.get_detector_config"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisAcquisition.get_detector_config" title="Permalink to this definition"></a></dt>
+<dd><p>Get (very limited subset of) detector configuration</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisAcquisition.shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisAcquisition.shape" title="Permalink to this definition"></a></dt>
+<dd><p>The shape of the DataSet, as it makes sense for the application domain
+(for example, 4D for pixelated STEM)</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisConnectionBuilder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.dectris.</span></span><span class="sig-name descname"><span class="pre">DectrisConnectionBuilder</span></span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/connection.html#DectrisConnectionBuilder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisConnectionBuilder" title="Permalink to this definition"></a></dt>
+<dd><p>Builder class that can construct <a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection" title="libertem_live.detectors.dectris.DectrisDetectorConnection"><code class="xref py py-class docutils literal notranslate"><span class="pre">DectrisDetectorConnection</span></code></a> instances.</p>
+<p>Use the <a class="reference internal" href="#libertem_live.detectors.dectris.DectrisConnectionBuilder.open" title="libertem_live.detectors.dectris.DectrisConnectionBuilder.open"><code class="xref py py-meth docutils literal notranslate"><span class="pre">open()</span></code></a> method to create a connection.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisConnectionBuilder.open">
+<span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2048</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bytes_per_frame</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame_stack_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">24</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">huge_pages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisDetectorConnection" title="libertem_live.detectors.dectris.connection.DectrisDetectorConnection"><span class="pre">DectrisDetectorConnection</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/connection.html#DectrisConnectionBuilder.open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisConnectionBuilder.open" title="Permalink to this definition"></a></dt>
+<dd><p>Connect to a DECTRIS DCU, both for detector configuration and for accessing
+the data stream.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>api_host</strong> – The hostname or IP address of the DECTRIS DCU for the REST API</p></li>
+<li><p><strong>api_port</strong> – The port of the REST API</p></li>
+<li><p><strong>data_host</strong> – The hostname or IP address of the DECTRIS DCU for the zeromq data stream</p></li>
+<li><p><strong>data_port</strong> – The zeromq port to use</p></li>
+<li><p><strong>buffer_size</strong> – The total receive buffer in MiB that is used to stream data to worker
+processes.</p></li>
+<li><p><strong>bytes_per_frame</strong> – <p>Roughtly how many bytes should be reserved per frame</p>
+<p>If this is None, a rough guess will be calculated from the detector size.
+You can check the <code class="xref py py-attr docutils literal notranslate"><span class="pre">bytes_per_frame</span></code> property to see if the guess
+matches reality, and adjust this parameter if it doesn’t.</p>
+</p></li>
+<li><p><strong>frame_stack_size</strong> – How many frames should be stacked together and put into a shared memory slot?
+If this is chosen too small, it might cause slowdowns because of having
+to handle many small objects; if it is chosen too large, it again may be
+slower due to having to split frame stacks more often in boundary conditions.
+When in doubt, leave this value at it’s default.</p></li>
+<li><p><strong>huge_pages</strong> – <p>Set to True to allocate shared memory in huge pages. This can improve performance
+by reducing the page fault cost. Currently only available on Linux. Enabling this
+requires reserving huge pages, either at system start, or before connecting.</p>
+<p>For example, to reserve 10000 huge pages, you can run:</p>
+<p><code class="code docutils literal notranslate"><span class="pre">echo</span> <span class="pre">10000</span> <span class="pre">|</span> <span class="pre">sudo</span> <span class="pre">tee</span> <span class="pre">/proc/sys/vm/nr_hugepages</span></code></p>
+<p>See also the <code class="code docutils literal notranslate"><span class="pre">hugeadm</span></code> utility, especially <code class="code docutils literal notranslate"><span class="pre">hugeadm</span> <span class="pre">--explain</span></code>
+can be useful to check your configuration.</p>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisDetectorConnection">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.dectris.</span></span><span class="sig-name descname"><span class="pre">DectrisDetectorConnection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">api_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2048</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bytes_per_frame</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame_stack_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">24</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">huge_pages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/connection.html#DectrisDetectorConnection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisDetectorConnection" title="Permalink to this definition"></a></dt>
+<dd><p>Connection to a DECTRIS DCU, both for detector configuration and for accessing
+the data stream.</p>
+<p>Please see <a class="reference internal" href="#libertem_live.detectors.dectris.DectrisConnectionBuilder" title="libertem_live.detectors.dectris.DectrisConnectionBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">libertem_live.detectors.dectris.DectrisConnectionBuilder</span></code></a>
+for a description of the parameters, and use
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_connection" title="libertem_live.api.LiveContext.make_connection"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_connection()</span></code></a> to create a connection.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">LiveContext</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">LiveContext</span><span class="p">()</span> <span class="k">as</span> <span class="n">ctx</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">api_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;connected!&quot;</span><span class="p">)</span>
+<span class="go">connected!</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisDetectorConnection.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/connection.html#DectrisDetectorConnection.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.close" title="Permalink to this definition"></a></dt>
+<dd><p>Close the connection. It’s important to call this function once
+you don’t need the connection anymore, as an open connection
+might interfere with other software using the detector.</p>
+<p>If possible, use this object as a context manager instead,
+using a <code class="code docutils literal notranslate"><span class="pre">with</span></code>-statement.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller">
+<span class="sig-name descname"><span class="pre">get_active_controller</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">trigger_mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'exte'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'exts'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'ints'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'inte'</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">count_time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frame_time</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_y_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">roi_bit_depth</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_file_writing</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">compression</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name_pattern</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nimages_per_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_corrections</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mask_to_zero</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/connection.html#DectrisDetectorConnection.get_active_controller"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller" title="Permalink to this definition"></a></dt>
+<dd><p>Create a controller object that knows about the detector settings
+to apply when the acquisition starts.</p>
+<p>Any settings left out or set to None will be left unchanged.</p>
+<p>In general, please consult your detector manual for details!</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>trigger_mode</strong> – One of ‘exte’, ‘inte’, ‘exts’, ‘ints’, as defined in the manual.</p></li>
+<li><p><strong>count_time</strong> – Exposure time per image in seconds</p></li>
+<li><p><strong>frame_time</strong> – The interval between start of image acquisitions in seconds. Must be
+greater than or equal to <cite>count_time</cite>.</p></li>
+<li><p><strong>roi_mode</strong> – <p>Configure ROI mode. Set to the string ‘disabled’ to disable ROI mode.
+The allowed values depend on the detector.</p>
+<p>For example, for ARINA, to bin to frames of 96x96,
+set <cite>roi_mode</cite> to ‘merge2x2’.</p>
+<p>For QUADRO and other supported detectors, to select a subset of
+lines as active, set <cite>roi_mode</cite> to ‘lines’. Then, additionally set
+<cite>roi_y_size</cite> to one of the supported values.</p>
+</p></li>
+<li><p><strong>roi_bit_depth</strong> – For QUADRO, this can be either 8 or 16. Setting to 8 bit is required
+to reach the highest frame rates.</p></li>
+<li><p><strong>roi_y_size</strong> – <p>Select a subset of lines. For QUADRO, this has to be between 2 and
+256, inclusive. Note that the image size is then two times this
+value, plus two pixels, for example if you select 64 lines, it will
+result in images with 130 pixels height and the full width.</p>
+<p>Starting with DECTRIS software version “release-2022.1”, this is the
+total height instead, so any even number between 4 and 512,
+inclusive.</p>
+</p></li>
+<li><p><strong>enable_file_writing</strong> – Enable file writing on the DCU. If set to <cite>False</cite>, explicitly
+disable file writing.</p></li>
+<li><p><strong>compression</strong> – The type of compression to enable. Can be, for example,
+‘bslz4’, or ‘lz4’.</p></li>
+<li><p><strong>name_pattern</strong> – If given, the name pattern is set to the given string. Only set if
+file writing is enabled.</p></li>
+<li><p><strong>nimages_per_file</strong> – If file writing is enabled, split the written files such that at
+maximum this number of images are saved per file. The default is not
+to split into multiple files.</p></li>
+<li><p><strong>enable_corrections</strong> – Let LiberTEM automatically correct defect pixels, downloading the
+pixel mask from the detector configuration.</p></li>
+<li><p><strong>mask_to_zero</strong> – <p>When set to <cite>True</cite>, the bad pixels that are configured in the
+detector software are set to zero instead of MAX_INT. This is
+using the detector-internal correction facilities, not those
+of LiberTEM.</p>
+<p>Needs a current version of the DECTRIS software to work correctly
+(at least “release-2022.1.2”).</p>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisDetectorConnection.wait_for_acquisition">
+<span class="sig-name descname"><span class="pre">wait_for_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#libertem_live.detectors.dectris.DectrisPendingAcquisition" title="libertem_live.detectors.dectris.common.DectrisPendingAcquisition"><span class="pre">DectrisPendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/connection.html#DectrisDetectorConnection.wait_for_acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisDetectorConnection.wait_for_acquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Wait for at most <cite>timeout</cite> seconds for an acquisition to start. This
+does not perform any triggering itself and expects something external
+to arm and trigger the acquisition.</p>
+<p>Once the detector is armed, this function returns a <cite>PendingAcquisition</cite>,
+which can be converted to a full <cite>Acquisition</cite> object using
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a>.</p>
+<p>The function returns <cite>None</cite> on timeout.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>timeout</strong> – Timeout in seconds. If <cite>None</cite>, wait indefinitely.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">api_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="c1"># NOTE: this is the part that is usually done by an external software,</span>
+<span class="gp">... </span>    <span class="c1"># but we include it here to have a running example:</span>
+<span class="gp">... </span>    <span class="n">ec</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">get_api_client</span><span class="p">()</span>
+<span class="gp">... </span>    <span class="n">arm_response</span> <span class="o">=</span> <span class="n">ec</span><span class="o">.</span><span class="n">sendDetectorCommand</span><span class="p">(</span><span class="s1">&#39;arm&#39;</span><span class="p">)</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="n">pending_aq</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_for_acquisition</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="k">assert</span> <span class="n">pending_aq</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;timeout&quot;</span>
+<span class="gp">...</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="p">)</span>
+<span class="gp">... </span>    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+<span class="go">{&#39;intensity&#39;: ...}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisPendingAcquisition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.dectris.</span></span><span class="sig-name descname"><span class="pre">DectrisPendingAcquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">detector_config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">libertem_dectris.DetectorConfig</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">series</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/dectris/common.html#DectrisPendingAcquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisPendingAcquisition" title="Permalink to this definition"></a></dt>
+<dd><dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.dectris.DectrisPendingAcquisition.nimages">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nimages</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></em><a class="headerlink" href="#libertem_live.detectors.dectris.DectrisPendingAcquisition.nimages" title="Permalink to this definition"></a></dt>
+<dd><p>The total number of images that are expected for this acquisition</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="asi_tpx3.html" class="btn btn-neutral float-left" title="ASI TPX3 reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="memory.html" class="btn btn-neutral float-right" title="Memory “detector” reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

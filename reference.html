@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reference &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="ASI TPX3 reference" href="reference/asi_tpx3.html" />
+    <link rel="prev" title="Run UDFs on DECTRIS live streams" href="dectris-acquisition-example.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/asi_tpx3.html">ASI TPX3 reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/dectris.html">DECTRIS reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/memory.html">Memory “detector” reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/merlin.html">Quantum detectors Merlin Medipix reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#module-libertem_live.api">Live Context</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.api.LiveContext"><code class="docutils literal notranslate"><span class="pre">LiveContext</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.api.LiveContext.make_acquisition"><code class="docutils literal notranslate"><span class="pre">LiveContext.make_acquisition()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.api.LiveContext.make_connection"><code class="docutils literal notranslate"><span class="pre">LiveContext.make_connection()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.api.LiveContext.prepare_acquisition"><code class="docutils literal notranslate"><span class="pre">LiveContext.prepare_acquisition()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#udfs">UDFs</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.udf.monitor.PartitionMonitorUDF"><code class="docutils literal notranslate"><span class="pre">PartitionMonitorUDF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.udf.monitor.SignalMonitorUDF"><code class="docutils literal notranslate"><span class="pre">SignalMonitorUDF</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.udf.record.RecordUDF"><code class="docutils literal notranslate"><span class="pre">RecordUDF</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-libertem_live.detectors.base.connection">Base classes</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.base.connection.DetectorConnection"><code class="docutils literal notranslate"><span class="pre">DetectorConnection</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.base.connection.DetectorConnection.close"><code class="docutils literal notranslate"><span class="pre">DetectorConnection.close()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition"><code class="docutils literal notranslate"><span class="pre">DetectorConnection.wait_for_acquisition()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition"><code class="docutils literal notranslate"><span class="pre">PendingAcquisition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition.nav_shape"><code class="docutils literal notranslate"><span class="pre">PendingAcquisition.nav_shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition.nimages"><code class="docutils literal notranslate"><span class="pre">PendingAcquisition.nimages</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#module-libertem_live.hooks">Hooks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.hooks.DetermineNavShapeEnv"><code class="docutils literal notranslate"><span class="pre">DetermineNavShapeEnv</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.hooks.DetermineNavShapeEnv.nimages"><code class="docutils literal notranslate"><span class="pre">DetermineNavShapeEnv.nimages</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.hooks.DetermineNavShapeEnv.shape_hint"><code class="docutils literal notranslate"><span class="pre">DetermineNavShapeEnv.shape_hint</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.hooks.Hooks"><code class="docutils literal notranslate"><span class="pre">Hooks</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.hooks.Hooks.on_determine_nav_shape"><code class="docutils literal notranslate"><span class="pre">Hooks.on_determine_nav_shape()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.hooks.Hooks.on_ready_for_data"><code class="docutils literal notranslate"><span class="pre">Hooks.on_ready_for_data()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.hooks.ReadyForDataEnv"><code class="docutils literal notranslate"><span class="pre">ReadyForDataEnv</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.hooks.ReadyForDataEnv.aq"><code class="docutils literal notranslate"><span class="pre">ReadyForDataEnv.aq</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/reference.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="reference">
+<span id="detector-reference"></span><h1>Reference<a class="headerlink" href="#reference" title="Permalink to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Detectors</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="reference/asi_tpx3.html">ASI TPX3 reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition"><code class="docutils literal notranslate"><span class="pre">AsiTpx3Acquisition</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder"><code class="docutils literal notranslate"><span class="pre">AsiTpx3ConnectionBuilder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection"><code class="docutils literal notranslate"><span class="pre">AsiTpx3DetectorConnection</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition"><code class="docutils literal notranslate"><span class="pre">AsiTpx3PendingAcquisition</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference/dectris.html">DECTRIS reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisAcquisition"><code class="docutils literal notranslate"><span class="pre">DectrisAcquisition</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisConnectionBuilder"><code class="docutils literal notranslate"><span class="pre">DectrisConnectionBuilder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisDetectorConnection"><code class="docutils literal notranslate"><span class="pre">DectrisDetectorConnection</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisPendingAcquisition"><code class="docutils literal notranslate"><span class="pre">DectrisPendingAcquisition</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference/memory.html">Memory “detector” reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/memory.html#libertem_live.detectors.memory.MemoryAcquisition"><code class="docutils literal notranslate"><span class="pre">MemoryAcquisition</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference/merlin.html">Quantum detectors Merlin Medipix reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinAcquisition"><code class="docutils literal notranslate"><span class="pre">MerlinAcquisition</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinConnectionBuilder"><code class="docutils literal notranslate"><span class="pre">MerlinConnectionBuilder</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinControl"><code class="docutils literal notranslate"><span class="pre">MerlinControl</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinDetectorConnection"><code class="docutils literal notranslate"><span class="pre">MerlinDetectorConnection</span></code></a></li>
+</ul>
+</li>
+</ul>
+</div>
+<section id="module-libertem_live.api">
+<span id="live-context"></span><h2>Live Context<a class="headerlink" href="#module-libertem_live.api" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.api.LiveContext">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.api.</span></span><span class="sig-name descname"><span class="pre">LiveContext</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">executor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://libertem.github.io/LiberTEM/dev/executors.html#libertem.common.executor.JobExecutor" title="(in LiberTEM v0.12)"><span class="pre">JobExecutor</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">plot_class</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/api.html#LiveContext"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.api.LiveContext" title="Permalink to this definition"></a></dt>
+<dd><p><a class="reference internal" href="#libertem_live.api.LiveContext" title="libertem_live.api.LiveContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">LiveContext</span></code></a> handles the computational resources needed to run
+UDFs on live data streams. It is the entry point to most interactions
+with the LiberTEM-live API.</p>
+<p>A <a class="reference internal" href="#libertem_live.api.LiveContext" title="libertem_live.api.LiveContext"><code class="xref py py-class docutils literal notranslate"><span class="pre">LiveContext</span></code></a> behaves like a <a class="reference external" href="https://libertem.github.io/LiberTEM/reference/api.html#libertem.api.Context" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">libertem.api.Context</span></code></a> in most
+circumstances. Notable differences are that it currently starts an
+<a class="reference external" href="https://libertem.github.io/LiberTEM/dev/executors.html#libertem.executor.pipelined.PipelinedExecutor" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">PipelinedExecutor</span></code></a> instead of a
+<a class="reference external" href="https://libertem.github.io/LiberTEM/dev/executors.html#libertem.executor.dask.DaskJobExecutor" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">DaskJobExecutor</span></code></a> if no executor is passed in
+the constructor, and that it can prepare and run acquisitions on top of
+loading offline datasets.</p>
+<p>The docstrings for most functions are inherited from the base class. Most
+methods, in particular <code class="xref py py-meth docutils literal notranslate"><span class="pre">run_udf()</span></code> and <code class="xref py py-meth docutils literal notranslate"><span class="pre">run_udf_iter()</span></code>, now accept
+both an acquisition object and a dataset as the <code class="code docutils literal notranslate"><span class="pre">dataset</span></code> parameter.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.api.LiveContext.make_acquisition">
+<span class="sig-name descname"><span class="pre">make_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection" title="libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection"><span class="pre">AsiTpx3DetectorConnection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcquisitionController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition" title="libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition"><span class="pre">AsiTpx3Acquisition</span></a></span></span><a class="reference internal" href="_modules/libertem_live/api.html#LiveContext.make_acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.api.LiveContext.make_acquisition" title="Permalink to this definition"></a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">make_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisDetectorConnection" title="libertem_live.detectors.dectris.DectrisDetectorConnection"><span class="pre">DectrisDetectorConnection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcquisitionController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisAcquisition" title="libertem_live.detectors.dectris.DectrisAcquisition"><span class="pre">DectrisAcquisition</span></a></span></span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">make_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinDetectorConnection" title="libertem_live.detectors.merlin.MerlinDetectorConnection"><span class="pre">MerlinDetectorConnection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcquisitionController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinAcquisition" title="libertem_live.detectors.merlin.MerlinAcquisition"><span class="pre">MerlinAcquisition</span></a></span></span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">make_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">MemoryConnection</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcquisitionController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/memory.html#libertem_live.detectors.memory.MemoryAcquisition" title="libertem_live.detectors.memory.MemoryAcquisition"><span class="pre">MemoryAcquisition</span></a></span></span></dt>
+<dd><p>Create an acquisition object.</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">((</span><span class="mi">23</span><span class="p">,</span> <span class="mi">42</span><span class="p">,</span> <span class="mi">51</span><span class="p">,</span> <span class="mi">67</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ctx</span> <span class="o">=</span> <span class="n">LiveContext</span><span class="p">()</span>  
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;memory&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span><span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+<span class="go">{&#39;intensity&#39;: ...}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.api.LiveContext.make_connection">
+<span class="sig-name descname"><span class="pre">make_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">detector_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'asi_tpx3'</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/asi_tpx3.html#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder" title="libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder"><span class="pre">AsiTpx3ConnectionBuilder</span></a></span></span><a class="reference internal" href="_modules/libertem_live/api.html#LiveContext.make_connection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.api.LiveContext.make_connection" title="Permalink to this definition"></a></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">make_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">detector_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'dectris'</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/dectris.html#libertem_live.detectors.dectris.DectrisConnectionBuilder" title="libertem_live.detectors.dectris.DectrisConnectionBuilder"><span class="pre">DectrisConnectionBuilder</span></a></span></span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">make_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">detector_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'merlin'</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="reference/merlin.html#libertem_live.detectors.merlin.MerlinConnectionBuilder" title="libertem_live.detectors.merlin.MerlinConnectionBuilder"><span class="pre">MerlinConnectionBuilder</span></a></span></span></dt>
+<dt class="sig sig-object py">
+<span class="sig-name descname"><span class="pre">make_connection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">detector_type</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Literal" title="(in Python v3.10)"><span class="pre">Literal</span></a><span class="p"><span class="pre">[</span></span><span class="s"><span class="pre">'memory'</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">MemoryConnectionBuilder</span></span></span></dt>
+<dd><p>Connect to a detector system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>detector_type</strong> – The detector type as a string. Further connection parameters
+are passed to the <code class="code docutils literal notranslate"><span class="pre">open</span></code> method of the returned builder object.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">((</span><span class="mi">23</span><span class="p">,</span> <span class="mi">42</span><span class="p">,</span> <span class="mi">51</span><span class="p">,</span> <span class="mi">67</span><span class="p">))</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">ctx</span> <span class="o">=</span> <span class="n">LiveContext</span><span class="p">()</span>  
+<span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;memory&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;connected!&quot;</span><span class="p">)</span>
+<span class="go">connected!</span>
+</pre></div>
+</div>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.api.LiveContext.prepare_acquisition">
+<span class="sig-name descname"><span class="pre">prepare_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">detector_type</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">trigger</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/api.html#LiveContext.prepare_acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.api.LiveContext.prepare_acquisition" title="Permalink to this definition"></a></dt>
+<dd><p>This method has been removed, please use <cite>make_connection</cite> and <cite>make_acquisition</cite>.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="udfs">
+<span id="utility-udfs"></span><h2>UDFs<a class="headerlink" href="#udfs" title="Permalink to this heading"></a></h2>
+<p>We include some utility UDFs in LiberTEM-live that are mostly useful for the live
+processing use-case:</p>
+<span class="target" id="module-libertem_live.udf.monitor"></span><dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.udf.monitor.PartitionMonitorUDF">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.udf.monitor.</span></span><span class="sig-name descname"><span class="pre">PartitionMonitorUDF</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dtype</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'float32'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/udf/monitor.html#PartitionMonitorUDF"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.udf.monitor.PartitionMonitorUDF" title="Permalink to this definition"></a></dt>
+<dd><p>Sum up frames in a partition and update result with
+the latest partition result.</p>
+<p>This is useful for live processing as a beam monitor if
+individual frames contain not enough signal. Partial sums of
+an offline dataset are more easily accessible with
+<a class="reference external" href="https://libertem.github.io/LiberTEM/reference/udf.html#libertem.udf.sum.SumUDF" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">SumUDF</span></code></a> with a ROI.</p>
+<p>The result is the sum of the partition that was merged last.
+The end result depends on the merge order.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>dtype</strong> (<a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.dtype.html#numpy.dtype" title="(in NumPy v1.24)"><em>numpy.dtype</em></a><em>, </em><em>optional</em>) – Preferred dtype for computation, default ‘float32’. The actual dtype will be determined
+from this value and the dataset’s dtype using <code class="xref py py-meth docutils literal notranslate"><span class="pre">numpy.result_type()</span></code>.
+See also <a class="reference external" href="https://libertem.github.io/LiberTEM/udf/advanced.html#udf-dtype" title="(in LiberTEM v0.12)"><span>Preferred input dtype</span></a>.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.udf.monitor.SignalMonitorUDF">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.udf.monitor.</span></span><span class="sig-name descname"><span class="pre">SignalMonitorUDF</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Any" title="(in Python v3.10)"><span class="pre">Any</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://libertem.github.io/LiberTEM/reference/udf.html#libertem.common.buffers.AuxBufferWrapper" title="(in LiberTEM v0.12)"><span class="pre">AuxBufferWrapper</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/udf/monitor.html#SignalMonitorUDF"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.udf.monitor.SignalMonitorUDF" title="Permalink to this definition"></a></dt>
+<dd><p>Return the most recently processed signal space element (frame).</p>
+<p>This is useful for live processing as a beam monitor. Individual frames in
+an offline dataset are more easily accessible with
+<a class="reference external" href="https://libertem.github.io/LiberTEM/reference/udf.html#libertem.udf.raw.PickUDF" title="(in LiberTEM v0.12)"><code class="xref py py-class docutils literal notranslate"><span class="pre">PickUDF</span></code></a>.</p>
+<p>The result is most likely the last frame of each partition for the
+individual merge steps. The end result depends on the merge order.</p>
+</dd></dl>
+
+<span class="target" id="module-libertem_live.udf.record"></span><dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.udf.record.RecordUDF">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.udf.record.</span></span><span class="sig-name descname"><span class="pre">RecordUDF</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_is_master</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/udf/record.html#RecordUDF"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.udf.record.RecordUDF" title="Permalink to this definition"></a></dt>
+<dd><p>Record input data as NumPy .npy file</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>filename</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a><em> or </em><em>path-like</em>) – Filename where to save. The file will be overwritten if it exists.</p></li>
+<li><p><strong>_is_master</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><em>bool</em></a>) – Internal flag, keep at default value.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-libertem_live.detectors.base.connection">
+<span id="base-classes"></span><h2>Base classes<a class="headerlink" href="#module-libertem_live.detectors.base.connection" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.base.connection.DetectorConnection">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.base.connection.</span></span><span class="sig-name descname"><span class="pre">DetectorConnection</span></span><a class="reference internal" href="_modules/libertem_live/detectors/base/connection.html#DetectorConnection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.base.connection.DetectorConnection" title="Permalink to this definition"></a></dt>
+<dd><p>Base class for detector connections.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.base.connection.DetectorConnection.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/detectors/base/connection.html#DetectorConnection.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.base.connection.DetectorConnection.close" title="Permalink to this definition"></a></dt>
+<dd><p>Close the connection. It’s important to call this function once
+you don’t need the connection anymore, as an open connection
+might interfere with other software using the detector.</p>
+<p>If possible, use this object as a context manager instead,
+using a <code class="code docutils literal notranslate"><span class="pre">with</span></code>-statement.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition">
+<span class="sig-name descname"><span class="pre">wait_for_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span></span><a class="reference internal" href="_modules/libertem_live/detectors/base/connection.html#DetectorConnection.wait_for_acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Wait for at most <cite>timeout</cite> seconds for an acquisition to start. This
+does not perform any triggering itself and expects something external
+to arm and trigger the acquisition.</p>
+<p>Once the detector is armed, this function returns a <cite>PendingAcquisition</cite>,
+which can be converted to a full <cite>Acquisition</cite> object using
+<a class="reference internal" href="#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a>.</p>
+<p>The function returns <cite>None</cite> on timeout.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>timeout</strong> – Timeout in seconds. If <cite>None</cite>, wait indefinitely.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.base.connection.PendingAcquisition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.base.connection.</span></span><span class="sig-name descname"><span class="pre">PendingAcquisition</span></span><a class="reference internal" href="_modules/libertem_live/detectors/base/connection.html#PendingAcquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.base.connection.PendingAcquisition" title="Permalink to this definition"></a></dt>
+<dd><p>A token object that can be obtained from
+<a class="reference internal" href="#libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition" title="libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.detectors.base.connection.DetectorConnection.wait_for_acquisition()</span></code></a>.</p>
+<p>Pass this object into <a class="reference internal" href="#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a>
+to start processing the incoming data stream.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.base.connection.PendingAcquisition.nav_shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nav_shape</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></em><a class="headerlink" href="#libertem_live.detectors.base.connection.PendingAcquisition.nav_shape" title="Permalink to this definition"></a></dt>
+<dd><p>The concrete <cite>nav_shape</cite>, if it is known by the detector</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.base.connection.PendingAcquisition.nimages">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nimages</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></em><a class="headerlink" href="#libertem_live.detectors.base.connection.PendingAcquisition.nimages" title="Permalink to this definition"></a></dt>
+<dd><p>The total number of images that are expected for this acquisition</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-libertem_live.hooks">
+<span id="hooks"></span><h2>Hooks<a class="headerlink" href="#module-libertem_live.hooks" title="Permalink to this heading"></a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.hooks.DetermineNavShapeEnv">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.hooks.</span></span><span class="sig-name descname"><span class="pre">DetermineNavShapeEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">nimages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">shape_hint</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/hooks.html#DetermineNavShapeEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.hooks.DetermineNavShapeEnv" title="Permalink to this definition"></a></dt>
+<dd><p>Parameter object used in <a class="reference internal" href="#libertem_live.hooks.Hooks.on_determine_nav_shape" title="libertem_live.hooks.Hooks.on_determine_nav_shape"><code class="xref py py-meth docutils literal notranslate"><span class="pre">on_determine_nav_shape()</span></code></a></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="libertem_live.hooks.DetermineNavShapeEnv.nimages">
+<span class="sig-name descname"><span class="pre">nimages</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></em><a class="headerlink" href="#libertem_live.hooks.DetermineNavShapeEnv.nimages" title="Permalink to this definition"></a></dt>
+<dd><p>The total number of images in the acquisition.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="libertem_live.hooks.DetermineNavShapeEnv.shape_hint">
+<span class="sig-name descname"><span class="pre">shape_hint</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></em><a class="headerlink" href="#libertem_live.hooks.DetermineNavShapeEnv.shape_hint" title="Permalink to this definition"></a></dt>
+<dd><p>Shape that was passed into <a class="reference internal" href="#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">make_acquisition()</span></code></a>, can contain
+placeholders, i.e. <code class="code docutils literal notranslate"><span class="pre">(-1,</span> <span class="pre">256)</span></code> or <code class="code docutils literal notranslate"><span class="pre">(-1,</span> <span class="pre">-1)</span></code>.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.hooks.Hooks">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.hooks.</span></span><span class="sig-name descname"><span class="pre">Hooks</span></span><a class="reference internal" href="_modules/libertem_live/hooks.html#Hooks"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.hooks.Hooks" title="Permalink to this definition"></a></dt>
+<dd><p>Interface for defining actions to perform in reaction to events.
+This is setup- and possibly experiment-specific and can, for example, encode
+how the microscope, scan engine and detector are synchronized.</p>
+<p>By implementing methods of this interface, you can “hook into” the lifecycle of
+an acquisition at different important events.</p>
+<p>Each hook method gets a specific environment object as a parameter, that
+includes all necessary context information from current state of the
+acquisition.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.hooks.Hooks.on_determine_nav_shape">
+<span class="sig-name descname"><span class="pre">on_determine_nav_shape</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.hooks.DetermineNavShapeEnv" title="libertem_live.hooks.DetermineNavShapeEnv"><span class="pre">DetermineNavShapeEnv</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span></span><a class="reference internal" href="_modules/libertem_live/hooks.html#Hooks.on_determine_nav_shape"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.hooks.Hooks.on_determine_nav_shape" title="Permalink to this definition"></a></dt>
+<dd><p>This hook is called to determine the N-D nav shape for the acquisition.
+This is needed as many detectors only know about the 1D shape, i.e. the
+number of images to acquire. For some, the controller may be able to
+determine the nav shape, but for others, this is specific to the setup
+or experiment.</p>
+<p>The user can give a shape hint when creating the acquisition object,
+for example by passing <code class="code docutils literal notranslate"><span class="pre">nav_shape=(-1,</span> <span class="pre">256)</span></code> to
+<a class="reference internal" href="#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">make_acquisition()</span></code></a>.</p>
+<p>If the default behavior is not working as intended, the user can override
+this method for their specific setup. Example: ask the microscope via its
+API what the current scan settings are.</p>
+<p>Only called in passive mode, as we need a concrete <cite>nav_shape</cite> as user
+input in active mode.</p>
+<p>Order of operations:</p>
+<ul class="simple">
+<li><p>If the <cite>nav_shape</cite> passed into
+<a class="reference internal" href="#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a> is concrete, i.e.
+is not <cite>None</cite> and doesn’t contain any <cite>-1</cite> values, use that</p></li>
+<li><p>If this hook is implemented and returns a tuple, use that</p></li>
+<li><p>If the controller for the specific detector type can give us
+the concrete <cite>nav_shape</cite>, use that</p></li>
+<li><p>If none of the above succeed, try to make a square out of the
+number of frames</p></li>
+<li><p>If all above fails, raise a <cite>RuntimeError</cite></p></li>
+</ul>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.hooks.Hooks.on_ready_for_data">
+<span class="sig-name descname"><span class="pre">on_ready_for_data</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">env</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.hooks.ReadyForDataEnv" title="libertem_live.hooks.ReadyForDataEnv"><span class="pre">ReadyForDataEnv</span></a></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/hooks.html#Hooks.on_ready_for_data"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.hooks.Hooks.on_ready_for_data" title="Permalink to this definition"></a></dt>
+<dd><p>This hook is called whenever we are ready for data, i.e. the detector is
+armed.</p>
+<p>Usually, at this point, the next step is triggering the microscope or
+scan generator to start a scan.</p>
+<p>It is only called in active mode, where we control when the detector is
+armed - in passive mode, the data is possibly already being received and
+we don’t control when this happens at all.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.hooks.ReadyForDataEnv">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.hooks.</span></span><span class="sig-name descname"><span class="pre">ReadyForDataEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcquisitionProtocol</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="_modules/libertem_live/hooks.html#ReadyForDataEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.hooks.ReadyForDataEnv" title="Permalink to this definition"></a></dt>
+<dd><p>Parameter object used in <a class="reference internal" href="#libertem_live.hooks.Hooks.on_ready_for_data" title="libertem_live.hooks.Hooks.on_ready_for_data"><code class="xref py py-meth docutils literal notranslate"><span class="pre">on_ready_for_data()</span></code></a></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="libertem_live.hooks.ReadyForDataEnv.aq">
+<span class="sig-name descname"><span class="pre">aq</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AcquisitionProtocol</span></em><a class="headerlink" href="#libertem_live.hooks.ReadyForDataEnv.aq" title="Permalink to this definition"></a></dt>
+<dd><p>The acquisition object which will receive the data.</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dectris-acquisition-example.html" class="btn btn-neutral float-left" title="Run UDFs on DECTRIS live streams" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="reference/asi_tpx3.html" class="btn btn-neutral float-right" title="ASI TPX3 reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

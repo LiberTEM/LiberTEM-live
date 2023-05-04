@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>libertem_live.hooks &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../_static/css/theme.css" type="text/css" />
+    <link rel="shortcut icon" href="../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+        <script src="../../_static/doctools.js"></script>
+        <script src="../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">libertem_live.hooks</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for libertem_live.hooks</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">NamedTuple</span><span class="p">,</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Optional</span>
+
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">libertem_live.detectors.base.acquisition</span> <span class="kn">import</span> <span class="n">AcquisitionProtocol</span>
+
+
+<div class="viewcode-block" id="ReadyForDataEnv"><a class="viewcode-back" href="../../reference.html#libertem_live.hooks.ReadyForDataEnv">[docs]</a><span class="k">class</span> <span class="nc">ReadyForDataEnv</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameter object used in :meth:`~libertem_live.hooks.Hooks.on_ready_for_data`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">aq</span><span class="p">:</span> <span class="s2">&quot;AcquisitionProtocol&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The acquisition object which will receive the data.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="DetermineNavShapeEnv"><a class="viewcode-back" href="../../reference.html#libertem_live.hooks.DetermineNavShapeEnv">[docs]</a><span class="k">class</span> <span class="nc">DetermineNavShapeEnv</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Parameter object used in :meth:`~libertem_live.hooks.Hooks.on_determine_nav_shape`</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">nimages</span><span class="p">:</span> <span class="nb">int</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    The total number of images in the acquisition.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">shape_hint</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Shape that was passed into :meth:`~libertem_live.api.LiveContext.make_acquisition`, can contain</span>
+<span class="sd">    placeholders, i.e. :code:`(-1, 256)` or :code:`(-1, -1)`.</span>
+<span class="sd">    &quot;&quot;&quot;</span></div>
+
+
+<div class="viewcode-block" id="Hooks"><a class="viewcode-back" href="../../reference.html#libertem_live.hooks.Hooks">[docs]</a><span class="k">class</span> <span class="nc">Hooks</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Interface for defining actions to perform in reaction to events.</span>
+<span class="sd">    This is setup- and possibly experiment-specific and can, for example, encode</span>
+<span class="sd">    how the microscope, scan engine and detector are synchronized.</span>
+
+<span class="sd">    By implementing methods of this interface, you can &quot;hook into&quot; the lifecycle of</span>
+<span class="sd">    an acquisition at different important events.</span>
+
+<span class="sd">    Each hook method gets a specific environment object as a parameter, that</span>
+<span class="sd">    includes all necessary context information from current state of the</span>
+<span class="sd">    acquisition.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># FIXME: additional lifecycle methods?</span>
+    <span class="c1"># - on_setup - before arming?</span>
+    <span class="c1"># - on_acquisition_done - when all data has been received and processed</span>
+
+<div class="viewcode-block" id="Hooks.on_ready_for_data"><a class="viewcode-back" href="../../reference.html#libertem_live.hooks.Hooks.on_ready_for_data">[docs]</a>    <span class="k">def</span> <span class="nf">on_ready_for_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">:</span> <span class="n">ReadyForDataEnv</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This hook is called whenever we are ready for data, i.e. the detector is</span>
+<span class="sd">        armed.</span>
+
+<span class="sd">        Usually, at this point, the next step is triggering the microscope or</span>
+<span class="sd">        scan generator to start a scan.</span>
+
+<span class="sd">        It is only called in active mode, where we control when the detector is</span>
+<span class="sd">        armed - in passive mode, the data is possibly already being received and</span>
+<span class="sd">        we don&#39;t control when this happens at all.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div>
+
+<div class="viewcode-block" id="Hooks.on_determine_nav_shape"><a class="viewcode-back" href="../../reference.html#libertem_live.hooks.Hooks.on_determine_nav_shape">[docs]</a>    <span class="k">def</span> <span class="nf">on_determine_nav_shape</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">env</span><span class="p">:</span> <span class="n">DetermineNavShapeEnv</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        This hook is called to determine the N-D nav shape for the acquisition.</span>
+<span class="sd">        This is needed as many detectors only know about the 1D shape, i.e. the</span>
+<span class="sd">        number of images to acquire. For some, the controller may be able to</span>
+<span class="sd">        determine the nav shape, but for others, this is specific to the setup</span>
+<span class="sd">        or experiment.</span>
+
+<span class="sd">        The user can give a shape hint when creating the acquisition object,</span>
+<span class="sd">        for example by passing :code:`nav_shape=(-1, 256)` to</span>
+<span class="sd">        :meth:`~libertem_live.api.LiveContext.make_acquisition`.</span>
+
+<span class="sd">        If the default behavior is not working as intended, the user can override</span>
+<span class="sd">        this method for their specific setup. Example: ask the microscope via its</span>
+<span class="sd">        API what the current scan settings are.</span>
+
+<span class="sd">        Only called in passive mode, as we need a concrete `nav_shape` as user</span>
+<span class="sd">        input in active mode.</span>
+
+<span class="sd">        Order of operations:</span>
+
+<span class="sd">        * If the `nav_shape` passed into</span>
+<span class="sd">          :meth:`libertem_live.api.LiveContext.make_acquisition` is concrete, i.e.</span>
+<span class="sd">          is not `None` and doesn&#39;t contain any `-1` values, use that</span>
+<span class="sd">        * If this hook is implemented and returns a tuple, use that</span>
+<span class="sd">        * If the controller for the specific detector type can give us</span>
+<span class="sd">          the concrete `nav_shape`, use that</span>
+<span class="sd">        * If none of the above succeed, try to make a square out of the</span>
+<span class="sd">          number of frames</span>
+<span class="sd">        * If all above fails, raise a `RuntimeError`</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">pass</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

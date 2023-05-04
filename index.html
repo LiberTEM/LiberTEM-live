@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LiberTEM-live &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Installation" href="installation.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="#" class="icon icon-home">
+            LiberTEM-live
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="#">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="#" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">LiberTEM-live</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="libertem-live">
+<h1>LiberTEM-live<a class="headerlink" href="#libertem-live" title="Permalink to this heading"></a></h1>
+<p><a class="reference external" href="https://gitter.im/LiberTEM/Lobby"><img alt="gitter" src="https://badges.gitter.im/Join%20Chat.svg" /></a> <a class="reference external" href="https://dev.azure.com/LiberTEM/LiberTEM-live/_build/latest?definitionId=5&amp;branchName=master"><img alt="azure" src="https://dev.azure.com/LiberTEM/LiberTEM-live/_apis/build/status/LiberTEM.LiberTEM-live?branchName=master" /></a> <a class="reference external" href="https://github.com/LiberTEM/LiberTEM-live/"><img alt="github" src="https://img.shields.io/badge/GitHub-GPL--3.0-informational" /></a> <a class="reference external" href="https://results.pre-commit.ci/latest/github/LiberTEM/LiberTEM-live/master"><img alt="precommit" src="https://results.pre-commit.ci/badge/github/LiberTEM/LiberTEM-live/master.svg" /></a> <a class="reference external" href="https://doi.org/10.5281/zenodo.4916315"><img alt="zenodo" src="https://zenodo.org/badge/DOI/10.5281/zenodo.4916315.svg" /></a></p>
+<p>LiberTEM-live is an extension module for <a class="reference external" href="https://libertem.github.io/">LiberTEM</a> <span id="id1">[<a class="reference internal" href="#id5" title="Alexander Clausen, Dieter Weber, Karina Ruzaeva, Vadim Migunov, Anand Baburajan, Abijith Bahuleyan, Jan Caron, Rahul Chandra, Shankhadeep Dey, Sayandip Halder, Daniel S. Katz, Barnaby D.A. Levin, Magnus Nord, Colin Ophus, Simon Peter, Jay Schyndel van, Jaeweon Shin, Sai Sunku, Knut Müller-Caspary, and Rafal E. Dunin-Borkowski. Libertem/libertem: 0.7.0. June 2021. URL: https://doi.org/10.5281/zenodo.4923277, doi:10.5281/zenodo.4923277.">CWR+21</a>]</span> that allows live
+data processing.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>LiberTEM-live is still experimental and under active development, including
+the overall architecture. New releases can include changes that break
+backwards compatibility until the code and architecture are proven in
+practical application and stabilized sufficiently.</p>
+<p>That being said, we encourage early experimental use, are happy to support
+real-world application and appreciate feedback! You can contact us by
+<a class="reference external" href="https://github.com/LiberTEM/LiberTEM-live/issues">creating or commenting on an Issue on GitHub</a> or in the <a class="reference external" href="https://gitter.im/LiberTEM/Lobby">LiberTEM
+Gitter chat</a>.</p>
+</div>
+<p>LiberTEM <a class="reference external" href="https://libertem.github.io/LiberTEM/udf.html">user-defined functions (UDFs)</a> are designed to work without
+modification on both offline data and live data streams. That means all
+<a class="reference external" href="https://libertem.github.io/LiberTEM/applications.html">LiberTEM applications</a>
+and <a class="reference external" href="https://libertem.github.io/LiberTEM/packages.html">LiberTEM-based modules</a> can work with all
+supported detectors in LiberTEM-live.</p>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading"></a></h2>
+<p>The short version to install into an existing LiberTEM environment:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>libertem<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">&quot;libertem-live&quot;</span>
+</pre></div>
+</div>
+<p>See the <a class="reference external" href="https://libertem.github.io/LiberTEM/install.html">LiberTEM installation instructions</a> for more details on
+installing LiberTEM.</p>
+</section>
+<section id="detectors">
+<h2>Detectors<a class="headerlink" href="#detectors" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p>Quantum Detectors Merlin</p></li>
+<li><p>DECTRIS EIGER2-based</p></li>
+<li><p>Amsterdam Scientific Instruments CheeTah TPX3</p></li>
+</ul>
+<p>See <a class="reference external" href="https://libertem.github.io/LiberTEM-live/detectors.html">the documentation</a>
+for details.</p>
+<p>Support for the Gatan K2 IS, ASI MPX3, and X-Spectrum cameras is currently
+under development.</p>
+</section>
+<section id="license">
+<h2>License<a class="headerlink" href="#license" title="Permalink to this heading"></a></h2>
+<p>LiberTEM-live is licensed under GPLv3. The I/O parts are also available under
+the MIT license, please see LICENSE files in the subdirectories for details.</p>
+</section>
+<section id="acknowledgements">
+<h2>Acknowledgements<a class="headerlink" href="#acknowledgements" title="Permalink to this heading"></a></h2>
+<p>We are very grateful for your continuing support for LiberTEM-live!</p>
+<p>See <a class="reference external" href="https://libertem.github.io/acknowledgements.html#libertem-live">the acknowledgement page</a> for a list of
+authors and contributors to LiberTEM-live and other LiberTEM projects. See also
+our info on <a class="reference external" href="https://libertem.github.io/#funding">funding</a> and <a class="reference external" href="https://libertem.github.io/#industry-partners">industry
+partners</a>.</p>
+</section>
+<section id="documentation">
+<h2>Documentation<a class="headerlink" href="#documentation" title="Permalink to this heading"></a></h2>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#common-setup-code">Common setup code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#coordinating-live-processing">Coordinating live processing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#passive-mode">Passive mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#active-mode">Active mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#hooks">Hooks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#live-visualization">Live visualization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#included-udfs">Included UDFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#recording-data">Recording data</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="detectors.html">Supported Detectors</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="detectors/asi_tpx3.html">Amsterdam Scientific Instruments CheeTah TPX3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="detectors/dectris.html">DECTRIS SIMPLON</a></li>
+<li class="toctree-l2"><a class="reference internal" href="detectors/merlin.html">Quantum Detectors Merlin</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="merlin-example.html">Run UDFs on Merlin live streams</a></li>
+<li class="toctree-l2"><a class="reference internal" href="merlin-lowlevel-example.html">Get a frame stream from a merlin detector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dectris-acquisition-example.html">Run UDFs on DECTRIS live streams</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="reference/asi_tpx3.html">ASI TPX3 reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/dectris.html">DECTRIS reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/memory.html">Memory “detector” reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference/merlin.html">Quantum detectors Merlin Medipix reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference.html#module-libertem_live.api">Live Context</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference.html#udfs">UDFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference.html#module-libertem_live.detectors.base.connection">Base classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="reference.html#module-libertem_live.hooks">Hooks</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#dev0">0.3.0.dev0</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-2-0">0.2.0 / 2023-04-21</a></li>
+<li class="toctree-l2"><a class="reference internal" href="changelog.html#v0-1-0">0.1.0 / 2021-06-29</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="acknowledgments.html">Acknowledgements</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="acknowledgments.html#citing">Citing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="acknowledgments.html#funding">Funding</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+<section id="indices-and-tables">
+<h2>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+<section id="citations">
+<h2>Citations<a class="headerlink" href="#citations" title="Permalink to this heading"></a></h2>
+<div class="docutils container" id="id2">
+<div class="citation" id="id5" role="doc-biblioentry">
+<span class="label"><span class="fn-bracket">[</span><a role="doc-backlink" href="#id1">CWR+21</a><span class="fn-bracket">]</span></span>
+<p>Alexander Clausen, Dieter Weber, Karina Ruzaeva, Vadim Migunov, Anand Baburajan, Abijith Bahuleyan, Jan Caron, Rahul Chandra, Shankhadeep Dey, Sayandip Halder, Daniel S. Katz, Barnaby D.A. Levin, Magnus Nord, Colin Ophus, Simon Peter, Jay Schyndel van, Jaeweon Shin, Sai Sunku, Knut Müller-Caspary, and Rafal E. Dunin-Borkowski. Libertem/libertem: 0.7.0. June 2021. URL: <a class="reference external" href="https://doi.org/10.5281/zenodo.4923277">https://doi.org/10.5281/zenodo.4923277</a>, <a class="reference external" href="https://doi.org/10.5281/zenodo.4923277">doi:10.5281/zenodo.4923277</a>.</p>
+</div>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installation" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

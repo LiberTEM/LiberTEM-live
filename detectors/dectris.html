@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DECTRIS SIMPLON &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Quantum Detectors Merlin" href="merlin.html" />
+    <link rel="prev" title="Amsterdam Scientific Instruments CheeTah TPX3" href="asi_tpx3.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../detectors.html">Supported Detectors</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="asi_tpx3.html">Amsterdam Scientific Instruments CheeTah TPX3</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">DECTRIS SIMPLON</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#hardware-and-software-requirements">Hardware and Software Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-examples">Usage examples</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#active-mode">Active mode</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#passive-mode">Passive mode</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#implementation-notes">Implementation notes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="merlin.html">Quantum Detectors Merlin</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../detectors.html">Supported Detectors</a></li>
+      <li class="breadcrumb-item active">DECTRIS SIMPLON</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/detectors/dectris.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dectris-simplon">
+<span id="dectris-detectors"></span><h1>DECTRIS SIMPLON<a class="headerlink" href="#dectris-simplon" title="Permalink to this heading"></a></h1>
+<div class="versionadded">
+<p><span class="versionmodified added">New in version 0.2.</span></p>
+</div>
+<p>LiberTEM-live has support for all DECTRIS detectors that support
+the <a class="reference external" href="https://media.dectris.com/210607-DECTRIS-SIMPLON-API-Manual_EIGER2-chip-based_detectros.pdf">SIMPLON API</a>,
+including QUADRO and ARINA.</p>
+<section id="hardware-and-software-requirements">
+<h2>Hardware and Software Requirements<a class="headerlink" href="#hardware-and-software-requirements" title="Permalink to this heading"></a></h2>
+<p>You should have LiberTEM-live installed on a computer that has a fast (10Gbit+)
+connection to the DECTRIS DCU (detector control unit). The exact requirements on
+this computer depend on the computation you want to run and the framerate you
+want to run it at. For reference, a 10-core system was sufficient for live
+processing using the QUADRO at full speed; for ARINA, we used a 24-core AMD EPYC.</p>
+<p>We have tested on both Linux and Windows. If you have a choice, Linux should be
+preferred since it achieved good performance more consistently during our tests.</p>
+</section>
+<section id="usage-examples">
+<h2>Usage examples<a class="headerlink" href="#usage-examples" title="Permalink to this heading"></a></h2>
+<p>This section shortly gives examples how to connect LiberTEM-live to a DECTRIS
+DCU. Depending on you setup, you may want to actively
+control the detector parameters, synchronization and triggering, which we call
+<a class="reference internal" href="#dectris-active-mode"><span class="std std-ref">active mode</span></a>, or you may just want to listen for ongoing
+acquisitions, and start processing once the detector is armed and
+triggered, which we call the <a class="reference internal" href="#dectris-passive-mode"><span class="std std-ref">passive mode</span></a>.</p>
+<p>See the <a class="reference internal" href="../reference/dectris.html#dectris-reference"><span class="std std-ref">DECTRIS reference section</span></a> for a description of
+the acquisition parameters.</p>
+<p>Common to both active and passive mode is the initialization, creating a
+<code class="code docutils literal notranslate"><span class="pre">LiveContext</span></code> and connecting to the DCU:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem.viz.bqp</span> <span class="kn">import</span> <span class="n">BQLive2DPlot</span>
+<span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">LiveContext</span>
+<span class="kn">from</span> <span class="nn">libertem.udf.sum</span> <span class="kn">import</span> <span class="n">SumUDF</span>
+
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">LiveContext</span><span class="p">(</span><span class="n">plot_class</span><span class="o">=</span><span class="n">BQLive2DPlot</span><span class="p">)</span>
+
+<span class="c1"># connect to the DECTRIS DCU, and set up a shared memory area:</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;dectris&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">DCU_API_PORT</span><span class="p">,</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">DCU_DATA_PORT</span><span class="p">,</span>
+    <span class="n">buffer_size</span><span class="o">=</span><span class="mi">2048</span><span class="p">,</span>
+    <span class="n">bytes_per_frame</span><span class="o">=</span><span class="mi">64</span><span class="o">*</span><span class="mi">512</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<section id="active-mode">
+<span id="dectris-active-mode"></span><h3>Active mode<a class="headerlink" href="#active-mode" title="Permalink to this heading"></a></h3>
+<p>In active mode, the acquisition is controlled actively from the same
+Python script or notebook that also controls the processing
+with LiberTEM-live. That means it will set detector settings, arm the detector
+and has the possibility to integrate with microscope APIs to trigger the scan.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">Hooks</span>
+
+<span class="k">class</span> <span class="nc">MyHooks</span><span class="p">(</span><span class="n">Hooks</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_ready_for_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        You can trigger the scan here, if you have a microscope control API</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Triggering!&quot;</span><span class="p">)</span>
+        <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">aq</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">nav</span>
+        <span class="n">microscope</span><span class="o">.</span><span class="n">trigger_scan</span><span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">dwelltime</span><span class="o">=</span><span class="mf">10e-6</span><span class="p">)</span>
+
+<span class="c1"># prepare for acquisition, setting up scan parameters etc.</span>
+<span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+    <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+    <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+    <span class="n">hooks</span><span class="o">=</span><span class="n">MyHooks</span><span class="p">(),</span>
+    <span class="n">frames_per_partition</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">controller</span><span class="o">=</span><span class="n">conn</span><span class="o">.</span><span class="n">get_active_controller</span><span class="p">(</span><span class="n">trigger_mode</span><span class="o">=</span><span class="s1">&#39;exte&#39;</span><span class="p">),</span>
+<span class="p">)</span>
+
+<span class="c1"># run one or more UDFs on the live data stream:</span>
+<span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+</pre></div>
+</div>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Triggering!
+</pre></div>
+</div>
+</section>
+<section id="passive-mode">
+<span id="dectris-passive-mode"></span><h3>Passive mode<a class="headerlink" href="#passive-mode" title="Permalink to this heading"></a></h3>
+<p>In passive mode, LiberTEM-live only controls a minimal set of detector
+parameters. It enables streaming mode, and makes sure headers are
+sent with the right detail level. Other detector parameters are supposed
+to be set from the outside, for example using vendor software.
+Instead of arming the detector, we wait for the detector to be armed,
+and then start receiving and processing data.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NOTE: this is the part that is usually done by an external software,</span>
+<span class="c1"># but we include it here to have a running example:</span>
+<span class="n">ec</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">get_api_client</span><span class="p">()</span>
+<span class="n">ec</span><span class="o">.</span><span class="n">sendDetectorCommand</span><span class="p">(</span><span class="s1">&#39;arm&#39;</span><span class="p">)</span>
+
+<span class="c1"># If the timeout is hit, pending_aq is None.</span>
+<span class="c1"># In a real situation, make sure to test for this,</span>
+<span class="c1"># for example by looping until a pending acquisition</span>
+<span class="n">pending_aq</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_for_acquisition</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+
+<span class="c1"># prepare for acquisition</span>
+<span class="c1"># note that we still have to set the nav_shape here, because</span>
+<span class="c1"># we don&#39;t get this from the detector - it&#39;s controlled by</span>
+<span class="c1"># the scan engine or the microscope.</span>
+<span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+    <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+    <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">),</span>
+    <span class="n">frames_per_partition</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+    <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># run one or more UDFs on the live data stream:</span>
+<span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="implementation-notes">
+<h2>Implementation notes<a class="headerlink" href="#implementation-notes" title="Permalink to this heading"></a></h2>
+<p>The receiving code is written in Rust with Python bindings, and is available in the
+<a class="reference external" href="https://github.com/LiberTEM/LiberTEM-rs/tree/main/libertem_dectris">LiberTEM-dectris package, in the LiberTEM-rs repository</a>.
+This includes development tools, for example for capturing dumps of the raw
+stream of zeromq messages, and tools for inspecting and manipulating such dumps.
+There is also a command-line tool installed with LiberTEM-live, called
+<code class="code docutils literal notranslate"><span class="pre">libertem-live-dectris-sim</span></code>, which can replay these dumps and effectively
+simulate a DECTRIS detector.</p>
+<p>If you are encountering errors while using our DECTRIS support, you can enable logging
+of low-level events by setting the environment variable
+<code class="code docutils literal notranslate"><span class="pre">LIBERTEM_DECTRIS_LOG_LEVEL</span></code> to <code class="code docutils literal notranslate"><span class="pre">WARN</span></code>, <code class="code docutils literal notranslate"><span class="pre">DEBUG</span></code> or even
+<code class="code docutils literal notranslate"><span class="pre">TRACE</span></code>. The latter can output a huge amount of messages, so it is not
+recommended to be used from a jupyter notebook.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="asi_tpx3.html" class="btn btn-neutral float-left" title="Amsterdam Scientific Instruments CheeTah TPX3" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="merlin.html" class="btn btn-neutral float-right" title="Quantum Detectors Merlin" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

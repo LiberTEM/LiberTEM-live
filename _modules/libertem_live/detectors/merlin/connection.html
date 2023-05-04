@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>libertem_live.detectors.merlin.connection &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+        <script src="../../../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../../../../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">libertem_live.detectors.merlin.connection</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for libertem_live.detectors.merlin.connection</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Type</span><span class="p">,</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+
+<span class="kn">from</span> <span class="nn">libertem_live.detectors.base.connection</span> <span class="kn">import</span> <span class="n">DetectorConnection</span><span class="p">,</span> <span class="n">PendingAcquisition</span>
+<span class="kn">from</span> <span class="nn">libertem_live.detectors.base.acquisition</span> <span class="kn">import</span> <span class="n">AcquisitionProtocol</span>
+
+<span class="kn">from</span> <span class="nn">.control</span> <span class="kn">import</span> <span class="n">MerlinControl</span>
+<span class="kn">from</span> <span class="nn">.data</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">MerlinRawSocket</span><span class="p">,</span> <span class="n">MerlinFrameStream</span><span class="p">,</span> <span class="n">AcquisitionHeader</span><span class="p">,</span> <span class="n">AcquisitionTimeout</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span> <span class="nn">opentelemetry</span> <span class="kn">import</span> <span class="n">trace</span>
+
+<span class="n">tracer</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">get_tracer</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">MerlinPendingAcquisition</span><span class="p">(</span><span class="n">PendingAcquisition</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">:</span> <span class="n">AcquisitionHeader</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_header</span> <span class="o">=</span> <span class="n">header</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">header</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_header</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">nimages</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">header</span><span class="o">.</span><span class="n">frames_in_acquisition</span>
+
+
+<div class="viewcode-block" id="MerlinDetectorConnection"><a class="viewcode-back" href="../../../../reference/merlin.html#libertem_live.detectors.merlin.MerlinDetectorConnection">[docs]</a><span class="k">class</span> <span class="nc">MerlinDetectorConnection</span><span class="p">(</span><span class="n">DetectorConnection</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class holds a permanent data connection to the merlin software.</span>
+
+<span class="sd">    Control connections are also possible to obtain from this class,</span>
+<span class="sd">    but are created on demand and not kept open.</span>
+
+<span class="sd">    You can use the convenience function</span>
+<span class="sd">    :meth:`libertem_live.api.LiveContext.make_connection` to create an instance,</span>
+<span class="sd">    instead of calling this constructor directly.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    api_host</span>
+<span class="sd">        Hostname of the Merlin control server, default &#39;127.0.0.1&#39;</span>
+<span class="sd">        Should in most cases be the same as `data_host`.</span>
+<span class="sd">    api_port</span>
+<span class="sd">        Port of the Merlin control server, default 6341</span>
+<span class="sd">    data_host</span>
+<span class="sd">        Hostname of the Merlin data server, default &#39;127.0.0.1&#39;</span>
+<span class="sd">    data_port</span>
+<span class="sd">        Data port of the Merlin data server, default 6342</span>
+<span class="sd">    drain</span>
+<span class="sd">        Drain the socket before triggering. Enable this when</span>
+<span class="sd">        using old versions of the Merlin software, but not when</span>
+<span class="sd">        using an internal trigger.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Usually, this class is instantiated using</span>
+<span class="sd">    :meth:`libertem_live.api.LiveContext.make_connection`:</span>
+
+<span class="sd">    &gt;&gt;&gt; with ctx.make_connection(&#39;merlin&#39;).open(</span>
+<span class="sd">    ...     api_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">    ...     api_port=MERLIN_API_PORT,</span>
+<span class="sd">    ...     data_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">    ...     data_port=MERLIN_DATA_PORT,</span>
+<span class="sd">    ... ) as conn:</span>
+<span class="sd">    ...     aq = ctx.make_acquisition(conn=conn, nav_shape=(32, 32))</span>
+<span class="sd">    ...     ctx.run_udf(dataset=aq, udf=SumUDF())</span>
+<span class="sd">    {&#39;intensity&#39;: ...}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">api_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+        <span class="n">api_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6341</span><span class="p">,</span>
+        <span class="n">data_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+        <span class="n">data_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6342</span><span class="p">,</span>
+        <span class="n">drain</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_api_host</span> <span class="o">=</span> <span class="n">api_host</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_api_port</span> <span class="o">=</span> <span class="n">api_port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_host</span> <span class="o">=</span> <span class="n">data_host</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_port</span> <span class="o">=</span> <span class="n">data_port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_drain</span> <span class="o">=</span> <span class="n">drain</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="o">=</span> <span class="n">MerlinRawSocket</span><span class="p">(</span>
+            <span class="n">host</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_host</span><span class="p">,</span>
+            <span class="n">port</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_port</span><span class="p">,</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">connect</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span>
+
+<div class="viewcode-block" id="MerlinDetectorConnection.wait_for_acquisition"><a class="viewcode-back" href="../../../../reference/merlin.html#libertem_live.detectors.merlin.MerlinDetectorConnection.wait_for_acquisition">[docs]</a>    <span class="k">def</span> <span class="nf">wait_for_acquisition</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">PendingAcquisition</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wait for at most `timeout` seconds for an acquisition to start. This</span>
+<span class="sd">        does not perform any triggering itself and expects something external</span>
+<span class="sd">        to arm and trigger the acquisition.</span>
+
+<span class="sd">        Once the detector is armed, this function returns a `PendingAcquisition`,</span>
+<span class="sd">        which can be converted to a full `Acquisition` object using</span>
+<span class="sd">        :meth:`libertem_live.api.LiveContext.make_acquisition`.</span>
+
+<span class="sd">        The function returns `None` on timeout.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        timeout</span>
+<span class="sd">            Timeout in seconds. If `None`, wait indefinitely.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; with ctx.make_connection(&#39;merlin&#39;).open(</span>
+<span class="sd">        ...     api_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">        ...     api_port=MERLIN_API_PORT,</span>
+<span class="sd">        ...     data_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">        ...     data_port=MERLIN_DATA_PORT,</span>
+<span class="sd">        ... ) as conn:</span>
+<span class="sd">        ...     pending_aq = conn.wait_for_acquisition(timeout=1)</span>
+<span class="sd">        ...     # at this point, something else is arming and triggering the</span>
+<span class="sd">        ...     # detector:</span>
+<span class="sd">        ...     aq = ctx.make_acquisition(</span>
+<span class="sd">        ...         conn=conn,</span>
+<span class="sd">        ...         nav_shape=(32, 32),</span>
+<span class="sd">        ...         pending_aq=pending_aq,</span>
+<span class="sd">        ...     )</span>
+<span class="sd">        ...     ctx.run_udf(dataset=aq, udf=SumUDF())</span>
+<span class="sd">        {&#39;intensity&#39;: ...}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span><span class="o">.</span><span class="n">read_acquisition_header</span><span class="p">(</span><span class="n">cancel_timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">MerlinPendingAcquisition</span><span class="p">(</span><span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span>
+        <span class="k">except</span> <span class="n">AcquisitionTimeout</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span></div>
+
+    <span class="k">def</span> <span class="nf">get_header_and_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">AcquisitionHeader</span><span class="p">,</span> <span class="n">MerlinFrameStream</span><span class="p">]:</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="n">acq_header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span><span class="o">.</span><span class="n">read_acquisition_header</span><span class="p">()</span>
+        <span class="n">stream</span> <span class="o">=</span> <span class="n">MerlinFrameStream</span><span class="o">.</span><span class="n">from_frame_header</span><span class="p">(</span>
+            <span class="n">raw_socket</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span><span class="p">,</span>
+            <span class="n">acquisition_header</span><span class="o">=</span><span class="n">acq_header</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">acq_header</span><span class="p">,</span> <span class="n">stream</span>
+
+    <span class="k">def</span> <span class="nf">get_acquisition_cls</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Type</span><span class="p">[</span><span class="n">AcquisitionProtocol</span><span class="p">]:</span>
+        <span class="kn">from</span> <span class="nn">.acquisition</span> <span class="kn">import</span> <span class="n">MerlinAcquisition</span>
+        <span class="k">return</span> <span class="n">MerlinAcquisition</span>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+<div class="viewcode-block" id="MerlinDetectorConnection.close"><a class="viewcode-back" href="../../../../reference/merlin.html#libertem_live.detectors.merlin.MerlinDetectorConnection.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># implementing &quot;close&quot; and __enter__ above gives us contextmanager API</span>
+        <span class="c1"># for free:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+    <span class="k">def</span> <span class="nf">maybe_drain</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_drain</span><span class="p">:</span>
+            <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;drain&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+                <span class="n">drained_bytes</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span><span class="o">.</span><span class="n">drain</span><span class="p">()</span>
+                <span class="n">span</span><span class="o">.</span><span class="n">set_attributes</span><span class="p">({</span>
+                    <span class="s2">&quot;libertem_live.drained_bytes&quot;</span><span class="p">:</span> <span class="n">drained_bytes</span><span class="p">,</span>
+                <span class="p">})</span>
+            <span class="k">if</span> <span class="n">drained_bytes</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;drained </span><span class="si">{</span><span class="n">drained_bytes</span><span class="si">}</span><span class="s2"> bytes of garbage&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_data_socket</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MerlinRawSocket</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;need to be connected to call this&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_data_socket</span>
+
+    <span class="nd">@contextmanager</span>
+    <span class="k">def</span> <span class="nf">control</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="n">MerlinControl</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+        <span class="k">with</span> <span class="n">MerlinControl</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_port</span><span class="p">)</span> <span class="k">as</span> <span class="n">c</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">c</span>
+
+    <span class="k">def</span> <span class="nf">read_sig_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">control</span><span class="p">()</span> <span class="k">as</span> <span class="n">c</span><span class="p">:</span>
+            <span class="n">width</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;IMAGEX&#39;</span><span class="p">))</span>
+            <span class="n">height</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;IMAGEY&#39;</span><span class="p">))</span>
+            <span class="k">return</span> <span class="p">(</span><span class="n">height</span><span class="p">,</span> <span class="n">width</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">read_bitdepth</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">control</span><span class="p">()</span> <span class="k">as</span> <span class="n">c</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">int</span><span class="p">(</span><span class="n">c</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;COUNTERDEPTH&#39;</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">get_active_controller</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="kn">from</span> <span class="nn">.controller</span> <span class="kn">import</span> <span class="n">MerlinActiveController</span>
+        <span class="k">return</span> <span class="n">MerlinActiveController</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="MerlinConnectionBuilder"><a class="viewcode-back" href="../../../../reference/merlin.html#libertem_live.detectors.merlin.MerlinConnectionBuilder">[docs]</a><span class="k">class</span> <span class="nc">MerlinConnectionBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Builder class that can construct :class:`MerlinDetectorConnection` instances.</span>
+
+<span class="sd">    Use the :meth:`open` method to create a connection.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="MerlinConnectionBuilder.open"><a class="viewcode-back" href="../../../../reference/merlin.html#libertem_live.detectors.merlin.MerlinConnectionBuilder.open">[docs]</a>    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">api_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+        <span class="n">api_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6341</span><span class="p">,</span>
+        <span class="n">data_host</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+        <span class="n">data_port</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6342</span><span class="p">,</span>
+        <span class="n">drain</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MerlinDetectorConnection</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Connect to a Merlin Medipix detector system.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        api_host</span>
+<span class="sd">            Hostname of the Merlin control server, default &#39;127.0.0.1&#39;</span>
+<span class="sd">            Should in most cases be the same as `data_host`.</span>
+<span class="sd">        api_port</span>
+<span class="sd">            Port of the Merlin control server, default 6341</span>
+<span class="sd">        data_host</span>
+<span class="sd">            Hostname of the Merlin data server, default &#39;127.0.0.1&#39;</span>
+<span class="sd">        data_port</span>
+<span class="sd">            Data port of the Merlin data server, default 6342</span>
+<span class="sd">        drain</span>
+<span class="sd">            Drain the socket before triggering. Enable this when</span>
+<span class="sd">            using old versions of the Merlin software, but not when</span>
+<span class="sd">            using an internal trigger.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        Usually, this method is directly used together with</span>
+<span class="sd">        :meth:`libertem_live.api.LiveContext.make_connection`:</span>
+
+<span class="sd">        &gt;&gt;&gt; with ctx.make_connection(&#39;merlin&#39;).open(</span>
+<span class="sd">        ...     api_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">        ...     api_port=MERLIN_API_PORT,</span>
+<span class="sd">        ...     data_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">        ...     data_port=MERLIN_DATA_PORT,</span>
+<span class="sd">        ... ) as conn:</span>
+<span class="sd">        ...     aq = ctx.make_acquisition(conn=conn, nav_shape=(32, 32))</span>
+<span class="sd">        ...     ctx.run_udf(dataset=aq, udf=SumUDF())</span>
+<span class="sd">        {&#39;intensity&#39;: ...}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MerlinDetectorConnection</span><span class="p">(</span>
+            <span class="n">api_host</span><span class="o">=</span><span class="n">api_host</span><span class="p">,</span>
+            <span class="n">api_port</span><span class="o">=</span><span class="n">api_port</span><span class="p">,</span>
+            <span class="n">data_host</span><span class="o">=</span><span class="n">data_host</span><span class="p">,</span>
+            <span class="n">data_port</span><span class="o">=</span><span class="n">data_port</span><span class="p">,</span>
+            <span class="n">drain</span><span class="o">=</span><span class="n">drain</span><span class="p">,</span>
+        <span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

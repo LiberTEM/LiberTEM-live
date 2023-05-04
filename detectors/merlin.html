@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantum Detectors Merlin &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Examples" href="../examples.html" />
+    <link rel="prev" title="DECTRIS SIMPLON" href="dectris.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../detectors.html">Supported Detectors</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="asi_tpx3.html">Amsterdam Scientific Instruments CheeTah TPX3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dectris.html">DECTRIS SIMPLON</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Quantum Detectors Merlin</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#hardware-and-software-requirements">Hardware and Software Requirements</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#usage-examples">Usage examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#simulator">Simulator</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../detectors.html">Supported Detectors</a></li>
+      <li class="breadcrumb-item active">Quantum Detectors Merlin</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/detectors/merlin.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="quantum-detectors-merlin">
+<span id="merlin-detector"></span><h1>Quantum Detectors Merlin<a class="headerlink" href="#quantum-detectors-merlin" title="Permalink to this heading"></a></h1>
+<p>LiberTEM-live supports the Merlin Medipix detectors using the TCP control and
+data interface.</p>
+<p>Supported are currently 1 bit, 6 bit and 12 bit <code class="code docutils literal notranslate"><span class="pre">COUNTERDEPTH</span></code> for both the “binary”
+(<code class="code docutils literal notranslate"><span class="pre">FILEFORMAT</span> <span class="pre">0</span></code>) and the “raw binary” format (<code class="code docutils literal notranslate"><span class="pre">FILEFORMAT</span> <span class="pre">2</span></code>).</p>
+<p>For testing, an acquisition with soft trigger (<code class="code docutils literal notranslate"><span class="pre">TRIGGERSTART</span> <span class="pre">5</span></code>) is
+recommended since internal trigger (<code class="code docutils literal notranslate"><span class="pre">TRIGGERSTART</span> <span class="pre">0</span></code>) may cause issues
+with finding the beginning of the data stream. For a real STEM acquisition a
+hardware trigger setup that matches the given instrument is required. See the
+MerlinEM User Manual from Quantum Detectors for details!</p>
+<section id="hardware-and-software-requirements">
+<h2>Hardware and Software Requirements<a class="headerlink" href="#hardware-and-software-requirements" title="Permalink to this heading"></a></h2>
+<p>You can run LiberTEM-live on the PC shipped with the Merlin detector, or you can
+use an external computer connected using a fast network connection (10Gbit+).
+Especially in a quad setup, using an external computer is recommended to keep up
+with the data rates at the fastest frame rates.</p>
+</section>
+<section id="usage-examples">
+<h2>Usage examples<a class="headerlink" href="#usage-examples" title="Permalink to this heading"></a></h2>
+<p>Here we briefly show how to connect to the Merlin detector system,
+and how to run a LiberTEM UDF on the data stream.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem.viz.bqp</span> <span class="kn">import</span> <span class="n">BQLive2DPlot</span>
+<span class="kn">from</span> <span class="nn">libertem.udf.sum</span> <span class="kn">import</span> <span class="n">SumUDF</span>
+<span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">LiveContext</span><span class="p">,</span> <span class="n">Hooks</span>
+
+<span class="k">class</span> <span class="nc">MyHooks</span><span class="p">(</span><span class="n">Hooks</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">on_ready_for_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        You can trigger the scan here, if you have a microscope control API</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Triggering!&quot;</span><span class="p">)</span>
+        <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">aq</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">nav</span>
+        <span class="n">microscope</span><span class="o">.</span><span class="n">trigger_scan</span><span class="p">(</span><span class="n">width</span><span class="p">,</span> <span class="n">height</span><span class="p">,</span> <span class="n">dwelltime</span><span class="o">=</span><span class="mf">10e-6</span><span class="p">)</span>
+
+<span class="n">ctx</span> <span class="o">=</span> <span class="n">LiveContext</span><span class="p">(</span><span class="n">plot_class</span><span class="o">=</span><span class="n">BQLive2DPlot</span><span class="p">)</span>
+
+<span class="c1"># make a connection to the detector system:</span>
+<span class="n">conn</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;merlin&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">MERLIN_API_PORT</span><span class="p">,</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="s2">&quot;127.0.0.1&quot;</span><span class="p">,</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">MERLIN_DATA_PORT</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># prepare for acquisition, setting up scan parameters etc.</span>
+<span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+    <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+    <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">),</span>
+    <span class="n">hooks</span><span class="o">=</span><span class="n">MyHooks</span><span class="p">(),</span>
+    <span class="n">frames_per_partition</span><span class="o">=</span><span class="mi">512</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># run one or more UDFs on the live data stream:</span>
+<span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+</pre></div>
+</div>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Triggering!
+</pre></div>
+</div>
+</section>
+<section id="simulator">
+<h2>Simulator<a class="headerlink" href="#simulator" title="Permalink to this heading"></a></h2>
+<p>A simple simulator for testing live acquisition without the actual hardware is
+included in LiberTEM-live. It replays an MIB dataset and accepts the following
+parameters:</p>
+<div class="highlight-shell notranslate"><div class="highlight"><pre><span></span><span class="o">(</span>libertem<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>libertem-live-mib-sim<span class="w"> </span>--help
+Usage:<span class="w"> </span>libertem-live-mib-sim<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span><span class="w"> </span>PATH
+
+Options:
+--nav-shape<span class="w"> </span>&lt;INTEGER<span class="w"> </span>INTEGER&gt;...
+--continuous
+--cached<span class="w"> </span><span class="o">[</span>NONE<span class="p">|</span>MEM<span class="p">|</span>MEMFD<span class="o">]</span>
+--host<span class="w"> </span>TEXT<span class="w">                     </span>Address<span class="w"> </span>to<span class="w"> </span>listen<span class="w"> </span>on<span class="w"> </span><span class="o">(</span>data,<span class="w"> </span>control,<span class="w"> </span>and
+<span class="w">                                </span>trigger<span class="w"> </span>sockets<span class="o">)</span>
+--data-port<span class="w"> </span>INTEGER
+--control-port<span class="w"> </span>INTEGER
+--wait-trigger<span class="w">                  </span>Wait<span class="w"> </span><span class="k">for</span><span class="w"> </span>a<span class="w"> </span>SOFTTRIGGER<span class="w"> </span><span class="nb">command</span><span class="w"> </span>on<span class="w"> </span>the
+<span class="w">                                </span>control<span class="w"> </span>port,<span class="w"> </span>or<span class="w"> </span>a<span class="w"> </span>trigger<span class="w"> </span>signal<span class="w"> </span>on<span class="w"> </span>the
+<span class="w">                                </span>trigger<span class="w"> </span>socket
+--garbage<span class="w">                       </span>Send<span class="w"> </span>garbage<span class="w"> </span>before<span class="w"> </span>trigger.<span class="w"> </span>Implies<span class="w"> </span>--wait-
+<span class="w">                                </span>trigger
+--max-runs<span class="w"> </span>INTEGER
+--help<span class="w">                          </span>Show<span class="w"> </span>this<span class="w"> </span>message<span class="w"> </span>and<span class="w"> </span>exit.
+</pre></div>
+</div>
+<p>A suitable MIB dataset for testing can be downloaded at
+<a class="reference external" href="https://zenodo.org/record/5113449">https://zenodo.org/record/5113449</a>.</p>
+<p>See the <a class="reference internal" href="../reference/merlin.html#merlin-reference"><span class="std std-ref">Merlin reference section</span></a> for a description of
+the acquisition parameters.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dectris.html" class="btn btn-neutral float-left" title="DECTRIS SIMPLON" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../examples.html" class="btn btn-neutral float-right" title="Examples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

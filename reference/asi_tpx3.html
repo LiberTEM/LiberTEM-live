@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASI TPX3 reference &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="DECTRIS reference" href="dectris.html" />
+    <link rel="prev" title="Reference" href="../reference.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../reference.html">Reference</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">ASI TPX3 reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition"><code class="docutils literal notranslate"><span class="pre">AsiTpx3Acquisition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition.dtype"><code class="docutils literal notranslate"><span class="pre">AsiTpx3Acquisition.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition.shape"><code class="docutils literal notranslate"><span class="pre">AsiTpx3Acquisition.shape</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder"><code class="docutils literal notranslate"><span class="pre">AsiTpx3ConnectionBuilder</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder.open"><code class="docutils literal notranslate"><span class="pre">AsiTpx3ConnectionBuilder.open()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection"><code class="docutils literal notranslate"><span class="pre">AsiTpx3DetectorConnection</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.close"><code class="docutils literal notranslate"><span class="pre">AsiTpx3DetectorConnection.close()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.wait_for_acquisition"><code class="docutils literal notranslate"><span class="pre">AsiTpx3DetectorConnection.wait_for_acquisition()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition"><code class="docutils literal notranslate"><span class="pre">AsiTpx3PendingAcquisition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition.nav_shape"><code class="docutils literal notranslate"><span class="pre">AsiTpx3PendingAcquisition.nav_shape</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition.nimages"><code class="docutils literal notranslate"><span class="pre">AsiTpx3PendingAcquisition.nimages</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="dectris.html">DECTRIS reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="memory.html">Memory “detector” reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="merlin.html">Quantum detectors Merlin Medipix reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.api">Live Context</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#udfs">UDFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.detectors.base.connection">Base classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.hooks">Hooks</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../reference.html">Reference</a></li>
+      <li class="breadcrumb-item active">ASI TPX3 reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/reference/asi_tpx3.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="asi-tpx3-reference">
+<span id="id1"></span><h1>ASI TPX3 reference<a class="headerlink" href="#asi-tpx3-reference" title="Permalink to this heading"></a></h1>
+<span class="target" id="module-libertem_live.detectors.asi_tpx3"></span><dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.asi_tpx3.</span></span><span class="sig-name descname"><span class="pre">AsiTpx3Acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection" title="libertem_live.detectors.asi_tpx3.connection.AsiTpx3DetectorConnection"><span class="pre">AsiTpx3DetectorConnection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../reference.html#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition" title="libertem_live.detectors.asi_tpx3.connection.AsiTpx3PendingAcquisition"><span class="pre">AsiTpx3PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcquisitionController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/acquisition.html#AsiTpx3Acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Acquisition from a ASI TPX3 detector</p>
+<p>Use <a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a> to instantiate this
+class!</p>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;asi_tpx3&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">TPX3_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">pending_aq</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_for_acquisition</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>conn</strong> – An existing <cite>AsiDetectorConnection</cite> instance</p></li>
+<li><p><strong>nav_shape</strong> – The number of scan positions as a 2-tuple <code class="code docutils literal notranslate"><span class="pre">(height,</span> <span class="pre">width)</span></code></p></li>
+<li><p><strong>frames_per_partition</strong> – A tunable for configuring the feedback rate - more frames per partition
+means slower feedback, but less computational overhead. Might need to be tuned
+to adapt to the dwell time.</p></li>
+<li><p><strong>pending_aq</strong> – A pending acquisition in passive mode, obtained from
+<a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.wait_for_acquisition" title="libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.wait_for_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">AsiTpx3DetectorConnection.wait_for_acquisition()</span></code></a>.</p></li>
+<li><p><strong>hooks</strong> – Acquisition hooks to react to certain events</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition.dtype">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition.dtype" title="Permalink to this definition"></a></dt>
+<dd><p>The “native” data type
+(either one matching the data on disk, or one that is closest)</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition.shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3Acquisition.shape" title="Permalink to this definition"></a></dt>
+<dd><p>The shape of the DataSet, as it makes sense for the application domain
+(for example, 4D for pixelated STEM)</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.asi_tpx3.</span></span><span class="sig-name descname"><span class="pre">AsiTpx3ConnectionBuilder</span></span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/connection.html#AsiTpx3ConnectionBuilder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder" title="Permalink to this definition"></a></dt>
+<dd><p>Builder class that can construct <a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection" title="libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection"><code class="xref py py-class docutils literal notranslate"><span class="pre">AsiTpx3DetectorConnection</span></code></a> instances.</p>
+<p>Use the <a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder.open" title="libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder.open"><code class="xref py py-meth docutils literal notranslate"><span class="pre">open()</span></code></a> method to create a connection.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder.open">
+<span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'127.0.0.1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8283</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2048</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bytes_per_chunk</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunks_per_stack</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">24</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">huge_pages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection" title="libertem_live.detectors.asi_tpx3.connection.AsiTpx3DetectorConnection"><span class="pre">AsiTpx3DetectorConnection</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/connection.html#AsiTpx3ConnectionBuilder.open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder.open" title="Permalink to this definition"></a></dt>
+<dd><p>Connect to the ASI TPX3 detector software (Accos).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>data_host</strong> – The hostname or IP address of the computer running Accos</p></li>
+<li><p><strong>data_port</strong> – The TCP port to connect to</p></li>
+<li><p><strong>buffer_size</strong> – The total receive buffer in MiB that is used to stream data to worker
+processes.</p></li>
+<li><p><strong>bytes_per_chunk</strong> – How large is each chunk, in bytes. Approximate value, as
+this can change depending on events per scan position</p></li>
+<li><p><strong>chunks_per_stack</strong> – How many chunks should we assemble to a chunk stack?</p></li>
+<li><p><strong>huge_pages</strong> – <p>Set to True to allocate shared memory in huge pages. This can improve performance
+by reducing the page fault cost. Currently only available on Linux. Enabling this
+requires reserving huge pages, either at system start, or before connecting.</p>
+<p>For example, to reserve 10000 huge pages, you can run:</p>
+<p><code class="code docutils literal notranslate"><span class="pre">echo</span> <span class="pre">10000</span> <span class="pre">|</span> <span class="pre">sudo</span> <span class="pre">tee</span> <span class="pre">/proc/sys/vm/nr_hugepages</span></code></p>
+<p>See also the <code class="code docutils literal notranslate"><span class="pre">hugeadm</span></code> utility, especially <code class="code docutils literal notranslate"><span class="pre">hugeadm</span> <span class="pre">--explain</span></code>
+can be useful to check your configuration.</p>
+</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.asi_tpx3.</span></span><span class="sig-name descname"><span class="pre">AsiTpx3DetectorConnection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">buffer_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2048</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bytes_per_chunk</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">chunks_per_stack</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">24</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">huge_pages</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/connection.html#AsiTpx3DetectorConnection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection" title="Permalink to this definition"></a></dt>
+<dd><p>Connection to the ASI TPX3 software.</p>
+<p>Please see <a class="reference internal" href="#libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder" title="libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder"><code class="xref py py-class docutils literal notranslate"><span class="pre">libertem_live.detectors.asi_tpx3.AsiTpx3ConnectionBuilder</span></code></a>
+for a description of the parameters, and use
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_connection" title="libertem_live.api.LiveContext.make_connection"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_connection()</span></code></a> to create a connection.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/connection.html#AsiTpx3DetectorConnection.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.close" title="Permalink to this definition"></a></dt>
+<dd><p>Close the connection. It’s important to call this function once
+you don’t need the connection anymore, as an open connection
+might interfere with other software using the detector.</p>
+<p>If possible, use this object as a context manager instead,
+using a <code class="code docutils literal notranslate"><span class="pre">with</span></code>-statement.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.wait_for_acquisition">
+<span class="sig-name descname"><span class="pre">wait_for_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../reference.html#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/connection.html#AsiTpx3DetectorConnection.wait_for_acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3DetectorConnection.wait_for_acquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Wait for at most <cite>timeout</cite> seconds for an acquisition to start. This
+does not perform any triggering itself and expects something external
+to arm and trigger the acquisition.</p>
+<p>Once the detector is armed, this function returns a <cite>PendingAcquisition</cite>,
+which can be converted to a full <cite>Acquisition</cite> object using
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a>.</p>
+<p>The function returns <cite>None</cite> on timeout.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>timeout</strong> – Timeout in seconds. If <cite>None</cite>, wait indefinitely.</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.asi_tpx3.</span></span><span class="sig-name descname"><span class="pre">AsiTpx3PendingAcquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">acquisition_header</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/asi_tpx3/connection.html#AsiTpx3PendingAcquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition" title="Permalink to this definition"></a></dt>
+<dd><dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition.nav_shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nav_shape</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></em><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition.nav_shape" title="Permalink to this definition"></a></dt>
+<dd><p>The concrete <cite>nav_shape</cite>, if it is known by the detector</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition.nimages">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">nimages</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></em><a class="headerlink" href="#libertem_live.detectors.asi_tpx3.AsiTpx3PendingAcquisition.nimages" title="Permalink to this definition"></a></dt>
+<dd><p>The total number of images that are expected for this acquisition</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../reference.html" class="btn btn-neutral float-left" title="Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dectris.html" class="btn btn-neutral float-right" title="DECTRIS reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

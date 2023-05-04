@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Run UDFs on Merlin live streams &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="_static/nbsphinx-code-cells.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="_static/jquery.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script src="_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+        <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+        <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Get a frame stream from a merlin detector" href="merlin-lowlevel-example.html" />
+    <link rel="prev" title="Examples" href="examples.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="examples.html">Examples</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Run UDFs on Merlin live streams</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#Usage-with-the-simulator">Usage with the simulator</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Camera-setup-routines">Camera setup routines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Integration-Hooks">Integration Hooks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Sample-output">Sample output</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Run-one-scan">Run one scan</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="merlin-lowlevel-example.html">Get a frame stream from a merlin detector</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dectris-acquisition-example.html">Run UDFs on DECTRIS live streams</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="examples.html">Examples</a></li>
+      <li class="breadcrumb-item active">Run UDFs on Merlin live streams</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/merlin-example.nblink.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Run-UDFs-on-Merlin-live-streams">
+<h1>Run UDFs on Merlin live streams<a class="headerlink" href="#Run-UDFs-on-Merlin-live-streams" title="Permalink to this heading"></a></h1>
+<p>This example shows how to run LiberTEM user-defined functions (UDFs) on Merlin Medipix live data streams. It shows how to customize plotting, and how to integrate LiberTEM-live into your experimental setup.</p>
+<ul class="simple">
+<li><p>Make sure to adjust the <code class="docutils literal notranslate"><span class="pre">NAV_SHAPE</span></code> below to match the scan of the data source!</p></li>
+<li><p>This notebook requires the <code class="docutils literal notranslate"><span class="pre">bqplot</span></code> extra of LiberTEM: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">libertem[bqplot]</span></code></p></li>
+</ul>
+<section id="Usage-with-the-simulator">
+<h2>Usage with the simulator<a class="headerlink" href="#Usage-with-the-simulator" title="Permalink to this heading"></a></h2>
+<p>If you want to use this with the simulated data source, run a simple Merlin simulator in the background that replays an MIB dataset:</p>
+<p><code class="docutils literal notranslate"><span class="pre">libertem-live-mib-sim</span> <span class="pre">~/Data/default.hdr</span> <span class="pre">--cached=MEM</span> <span class="pre">--wait-trigger</span></code></p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--wait-trigger</span></code> option is important for this notebook to function correctly since that allows to drain the data socket before an acquisition like it is necessary for a real-world Merlin detector.</p>
+<p>A suitable MIB dataset can be downloaded at <a class="reference external" href="https://zenodo.org/record/5113449">https://zenodo.org/record/5113449</a>.</p>
+<p>On Linux, <code class="docutils literal notranslate"><span class="pre">MEMFD</span></code> is also supported as a cache. Use <code class="docutils literal notranslate"><span class="pre">NONE</span></code> to deactivate the cache.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Uncomment to use Matplotlib-based plots</span>
+<span class="c1"># This requires ipympl and allows to capture Matplotlib plots as ipywidgets.</span>
+<span class="c1"># %matplotlib widget</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># set this to the host/port where the merlin data server is listening:</span>
+<span class="n">MERLIN_DATA_SOCKET</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="mi">6342</span><span class="p">)</span>
+<span class="n">MERLIN_CONTROL_SOCKET</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span> <span class="mi">6341</span><span class="p">)</span>
+<span class="n">NAV_SHAPE</span> <span class="o">=</span> <span class="p">(</span><span class="mi">128</span><span class="p">,</span> <span class="mi">128</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">concurrent.futures</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">ipywidgets</span>
+<span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Sum all detector frames, result is a map of the detector</span>
+<span class="kn">from</span> <span class="nn">libertem.udf.sum</span> <span class="kn">import</span> <span class="n">SumUDF</span>
+<span class="c1"># Sum up each detector frame, result is a bright field STEM image of the scan area</span>
+<span class="kn">from</span> <span class="nn">libertem.udf.sumsigudf</span> <span class="kn">import</span> <span class="n">SumSigUDF</span>
+
+<span class="c1"># ImageGL-accelerated plot for fast live display</span>
+<span class="kn">from</span> <span class="nn">libertem.viz.bqp</span> <span class="kn">import</span> <span class="n">BQLive2DPlot</span>
+<span class="c1"># Alternatively a version that uses the slower, but more mature Matplotlib</span>
+<span class="kn">from</span> <span class="nn">libertem.viz.mpl</span> <span class="kn">import</span> <span class="n">MPLLive2DPlot</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+INFO:empyre:Imported EMPyRe V-0.3.1 GIT-e85a58daa6bbd861c3aa1fe26e1d609f376f1adc
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[6]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span> <span class="nn">libertem_live.api</span> <span class="kn">import</span> <span class="n">LiveContext</span><span class="p">,</span> <span class="n">Hooks</span>
+<span class="kn">from</span> <span class="nn">libertem_live.detectors.merlin</span> <span class="kn">import</span> <span class="n">MerlinControl</span>
+<span class="kn">from</span> <span class="nn">libertem_live.udf.monitor</span> <span class="kn">import</span> <span class="n">SignalMonitorUDF</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">ctx</span> <span class="o">=</span> <span class="n">LiveContext</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+INFO:numba.cuda.cudadrv.driver:init
+</pre></div></div>
+</div>
+</section>
+<section id="Camera-setup-routines">
+<h2>Camera setup routines<a class="headerlink" href="#Camera-setup-routines" title="Permalink to this heading"></a></h2>
+<p>Different from offline processing, the shape, type and content of a dataset is not predetermined in live processing. Instead, the data source has to be configured to supply the desired data. The <code class="docutils literal notranslate"><span class="pre">set_nav()</span></code> function at the bottom accepts an acquisition object as a parameter to make it easier to configure a matching scan resolution.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span> <span class="nf">merlin_setup</span><span class="p">(</span><span class="n">c</span><span class="p">:</span> <span class="n">MerlinControl</span><span class="p">,</span> <span class="n">dwell_time</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">,</span> <span class="n">depth</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">save_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Setting Merlin acquisition parameters&quot;</span><span class="p">)</span>
+    <span class="c1"># Here go commands to control the camera and the rest of the setup</span>
+    <span class="c1"># to perform an acquisition.</span>
+
+    <span class="c1"># The Merlin simulator currently accepts all kinds of commands</span>
+    <span class="c1"># and doesn&#39;t respond like a real Merlin detector.</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;CONTINUOUSRW&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;ACQUISITIONTIME&#39;</span> <span class="p">,</span> <span class="n">dwell_time</span> <span class="o">*</span> <span class="mf">1e3</span><span class="p">)</span>  <span class="c1"># Time in miliseconds</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;COUNTERDEPTH&#39;</span><span class="p">,</span> <span class="n">depth</span><span class="p">)</span>
+
+    <span class="c1"># Soft trigger for testing</span>
+    <span class="c1"># For a real STEM acquisition the trigger setup has to be adapted for the given instrument.</span>
+    <span class="c1"># See the MerlinEM User Manual for more details on trigger setup</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;TRIGGERSTART&#39;</span><span class="p">,</span> <span class="mi">5</span><span class="p">)</span>
+
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;RUNHEADLESS&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;FILEFORMAT&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># 0 binary, 2 raw binary</span>
+
+    <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;IMAGESPERFILE&#39;</span><span class="p">,</span> <span class="mi">256</span><span class="p">)</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;FILEENABLE&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;USETIMESTAMPING&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>  <span class="c1"># raw format with timestamping is buggy, we need to do it ourselves</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;FILEFORMAT&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>  <span class="c1"># raw format, less overhead?</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;FILEDIRECTORY&#39;</span><span class="p">,</span> <span class="n">save_path</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;FILEENABLE&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finished Merlin setup.&quot;</span><span class="p">)</span>
+
+<span class="k">def</span> <span class="nf">microscope_setup</span><span class="p">(</span><span class="n">dwell_time</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">):</span>
+    <span class="c1"># Here go instructions to set dwell time and</span>
+    <span class="c1"># other scan parameters</span>
+    <span class="c1"># microscope.set_dwell_time(dwell_time)</span>
+    <span class="k">pass</span>
+
+<span class="k">def</span> <span class="nf">set_nav</span><span class="p">(</span><span class="n">c</span><span class="p">:</span> <span class="n">MerlinControl</span><span class="p">,</span> <span class="n">aq</span><span class="p">):</span>
+    <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">nav</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Setting resolution...&quot;</span><span class="p">)</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;NUMFRAMESTOACQUIRE&#39;</span><span class="p">,</span> <span class="n">height</span> <span class="o">*</span> <span class="n">width</span><span class="p">)</span>
+    <span class="c1"># Only one trigger for the whole scan with SOFTTRIGGER</span>
+    <span class="c1"># This has to be adapted to the real trigger setup.</span>
+    <span class="c1"># Set to `width` for line trigger and to `1` for pixel trigger.</span>
+    <span class="n">c</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s1">&#39;NUMFRAMESPERTRIGGER&#39;</span><span class="p">,</span> <span class="n">height</span> <span class="o">*</span> <span class="n">width</span><span class="p">)</span>
+
+    <span class="c1"># microscope.configure_scan(shape=aq.shape.nav)</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="Integration-Hooks">
+<h2>Integration Hooks<a class="headerlink" href="#Integration-Hooks" title="Permalink to this heading"></a></h2>
+<p>A LiberTEM Live acquisition object can include a hooks object, so that LiberTEM Live can set off the acquisition as soon as it has connected to the camera and is ready to receive data. The <code class="docutils literal notranslate"><span class="pre">on_ready_for_data</span></code> function receives an environment as argument, from which you can access the current acquisition object as the attribute <code class="docutils literal notranslate"><span class="pre">aq</span></code>.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[10]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">class</span> <span class="nc">MerlinHooks</span><span class="p">(</span><span class="n">Hooks</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trigger_result</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pool</span> <span class="o">=</span> <span class="n">concurrent</span><span class="o">.</span><span class="n">futures</span><span class="o">.</span><span class="n">ThreadPoolExecutor</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">on_ready_for_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">env</span><span class="p">):</span>
+        <span class="n">aq</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">aq</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Arming Merlin...&quot;</span><span class="p">)</span>
+        <span class="c1"># c is a MerlinControl, will be created in the cell that runs the scan</span>
+        <span class="c1"># below. This arms the detector and sends the acquisition headers.</span>
+        <span class="k">with</span> <span class="n">c</span><span class="p">:</span>
+            <span class="n">c</span><span class="o">.</span><span class="n">cmd</span><span class="p">(</span><span class="s1">&#39;STARTACQUISITION&#39;</span><span class="p">)</span>
+        <span class="c1"># microscope.start_scanning()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Merlin ready for trigger.&quot;</span><span class="p">)</span>
+        <span class="n">height</span><span class="p">,</span> <span class="n">width</span> <span class="o">=</span> <span class="n">aq</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">nav</span>
+
+        <span class="c1"># Real-world example: Function call to trigger the scan engine</span>
+        <span class="c1"># that triggers the detector with a hardware trigger to match the scan of the beam.</span>
+        <span class="c1"># This function is blocking until the scan is complete.</span>
+        <span class="c1"># do_scan = lambda: ceos.call.acquireScan(width=width, height=height+1, imageName=&quot;test&quot;)</span>
+
+        <span class="c1"># Testing: Use soft trigger</span>
+        <span class="c1"># The emulator can trigger on the &#39;SOFTTRIGGER&#39; command like the Merlin detector.</span>
+        <span class="k">def</span> <span class="nf">do_scan</span><span class="p">():</span>
+<span class="w">            </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">            Emulated blocking scan function using the Merlin simulator.</span>
+
+<span class="sd">            This function doesn&#39;t actually block, but it could!</span>
+<span class="sd">            &#39;&#39;&#39;</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Triggering! (do_scan)&quot;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="n">c</span><span class="p">:</span>
+                <span class="n">c</span><span class="o">.</span><span class="n">cmd</span><span class="p">(</span><span class="s1">&#39;SOFTTRIGGER&#39;</span><span class="p">)</span>
+
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># microscopes can block here</span>
+            <span class="k">return</span> <span class="s2">&quot;stuff&quot;</span>  <span class="c1"># this result can be queried, once the scan has finished (see last cell)</span>
+
+        <span class="c1"># The real-world scan function might be blocking. We run it in a thread pool here</span>
+        <span class="c1"># so that `trigger()` returns and the acquisition can start.</span>
+        <span class="n">fut</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pool</span><span class="o">.</span><span class="n">submit</span><span class="p">(</span><span class="n">do_scan</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">trigger_result</span> <span class="o">=</span> <span class="n">fut</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[11]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">conn</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;merlin&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+    <span class="n">data_host</span><span class="o">=</span><span class="n">MERLIN_DATA_SOCKET</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="n">data_port</span><span class="o">=</span><span class="n">MERLIN_DATA_SOCKET</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+    <span class="n">api_host</span><span class="o">=</span><span class="n">MERLIN_CONTROL_SOCKET</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+    <span class="n">api_port</span><span class="o">=</span><span class="n">MERLIN_CONTROL_SOCKET</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[12]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">hooks</span> <span class="o">=</span> <span class="n">MerlinHooks</span><span class="p">()</span>
+<span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+    <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+    <span class="n">hooks</span><span class="o">=</span><span class="n">hooks</span><span class="p">,</span>
+    <span class="n">nav_shape</span><span class="o">=</span><span class="n">NAV_SHAPE</span><span class="p">,</span>
+
+    <span class="n">frames_per_partition</span><span class="o">=</span><span class="mi">800</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[13]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">udfs</span> <span class="o">=</span> <span class="p">[</span><span class="n">SumUDF</span><span class="p">(),</span> <span class="n">SumSigUDF</span><span class="p">(),</span> <span class="n">SignalMonitorUDF</span><span class="p">()]</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[14]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">LivePlot</span> <span class="o">=</span> <span class="n">BQLive2DPlot</span>
+<span class="c1"># Uncomment below to use Matplotlib-based plotting</span>
+<span class="c1"># See also the top of the notebook to select the correct matplotlib backend</span>
+<span class="c1"># LivePlot = MPLLive2DPlot</span>
+
+<span class="n">p0</span> <span class="o">=</span> <span class="n">LivePlot</span><span class="p">(</span><span class="n">aq</span><span class="p">,</span> <span class="n">udfs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">p1</span> <span class="o">=</span> <span class="n">LivePlot</span><span class="p">(</span><span class="n">aq</span><span class="p">,</span> <span class="n">udfs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">p2</span> <span class="o">=</span> <span class="n">LivePlot</span><span class="p">(</span><span class="n">aq</span><span class="p">,</span> <span class="n">udfs</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[15]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># NBVAL_IGNORE_OUTPUT</span>
+<span class="c1"># (output is ignored in nbval run because it somehow doesn&#39;t play nice with bqplot)</span>
+
+<span class="n">outputs</span> <span class="o">=</span> <span class="p">[]</span>
+
+<span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">[</span><span class="n">p0</span><span class="p">,</span> <span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">]:</span>
+    <span class="c1"># Capture the plots to display them in a grid later</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">ipywidgets</span><span class="o">.</span><span class="n">Output</span><span class="p">()</span>
+    <span class="k">with</span> <span class="n">output</span><span class="p">:</span>
+        <span class="n">p</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>
+        <span class="c1"># Some plot-specific tweaks for grid display</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">BQLive2DPlot</span><span class="p">):</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">figure</span><span class="o">.</span><span class="n">fig_margin</span><span class="o">=</span><span class="p">{</span><span class="s1">&#39;top&#39;</span><span class="p">:</span> <span class="mi">50</span><span class="p">,</span> <span class="s1">&#39;bottom&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">:</span> <span class="mi">25</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">:</span> <span class="mi">25</span><span class="p">}</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">figure</span><span class="o">.</span><span class="n">layout</span><span class="o">.</span><span class="n">width</span> <span class="o">=</span> <span class="s1">&#39;300px&#39;</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">figure</span><span class="o">.</span><span class="n">layout</span><span class="o">.</span><span class="n">height</span> <span class="o">=</span> <span class="s1">&#39;300px&#39;</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">MPLLive2DPlot</span><span class="p">):</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">set_size_inches</span><span class="p">((</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">))</span>
+            <span class="n">p</span><span class="o">.</span><span class="n">fig</span><span class="o">.</span><span class="n">canvas</span><span class="o">.</span><span class="n">toolbar_position</span> <span class="o">=</span> <span class="s1">&#39;bottom&#39;</span>
+    <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[16]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="c1"># Show the plot grid</span>
+<span class="n">ipywidgets</span><span class="o">.</span><span class="n">HBox</span><span class="p">(</span><span class="n">outputs</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<script type="application/vnd.jupyter.widget-view+json">{"model_id": "ecf08ba104b748f9991555e3ded2c514", "version_major": 2, "version_minor": 0}</script></div>
+</div>
+</section>
+<section id="Sample-output">
+<h2>Sample output<a class="headerlink" href="#Sample-output" title="Permalink to this heading"></a></h2>
+<p>The plots are not preserved when saving the notebook. They look like this:</p>
+<p><img alt="sample plot" src="_images/run_on_merlin_data.png" /></p>
+</section>
+<section id="Run-one-scan">
+<h2>Run one scan<a class="headerlink" href="#Run-one-scan" title="Permalink to this heading"></a></h2>
+<p>The live plots above are updated with the results</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[17]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">c</span> <span class="o">=</span> <span class="n">MerlinControl</span><span class="p">(</span><span class="o">*</span><span class="n">MERLIN_CONTROL_SOCKET</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Connecting Merlin control...&quot;</span><span class="p">)</span>
+<span class="k">with</span> <span class="n">c</span><span class="p">:</span>
+    <span class="n">merlin_setup</span><span class="p">(</span><span class="n">c</span><span class="p">)</span>
+    <span class="n">microscope_setup</span><span class="p">()</span>
+
+    <span class="n">set_nav</span><span class="p">(</span><span class="n">c</span><span class="p">,</span> <span class="n">aq</span><span class="p">)</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="c1"># This will call the trigger function defined above as soon as</span>
+    <span class="c1"># LiberTEM-live is ready to receive data.</span>
+    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">udfs</span><span class="p">,</span> <span class="n">plots</span><span class="o">=</span><span class="p">[</span><span class="n">p0</span><span class="p">,</span> <span class="n">p1</span><span class="p">,</span> <span class="n">p2</span><span class="p">])</span>
+<span class="k">finally</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">hooks</span><span class="o">.</span><span class="n">trigger_result</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Waiting for blocking scan function...&quot;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;result = </span><span class="si">{</span><span class="n">hooks</span><span class="o">.</span><span class="n">trigger_result</span><span class="o">.</span><span class="n">result</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">finally</span><span class="p">:</span>
+        <span class="c1"># Real world:</span>
+        <span class="c1"># microscope.stop_scanning()</span>
+        <span class="k">pass</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Finished.&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+Connecting Merlin control...
+Setting Merlin acquisition parameters
+Finished Merlin setup.
+Setting resolution...
+Arming Merlin...
+Merlin ready for trigger.
+Triggering! (do_scan)
+Waiting for blocking scan function...
+result = stuff
+Finished.
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="examples.html" class="btn btn-neutral float-left" title="Examples" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="merlin-lowlevel-example.html" class="btn btn-neutral float-right" title="Get a frame stream from a merlin detector" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

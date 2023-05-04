@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>libertem_live.detectors.dectris.connection &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+        <script src="../../../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../../../../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">libertem_live.detectors.dectris.connection</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for libertem_live.detectors.dectris.connection</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">math</span>
+<span class="kn">import</span> <span class="nn">tempfile</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Type</span>
+
+<span class="kn">from</span> <span class="nn">libertem_live.detectors.base.connection</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DetectorConnection</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">import</span> <span class="nn">libertem_dectris</span>
+<span class="kn">from</span> <span class="nn">.common</span> <span class="kn">import</span> <span class="n">DectrisPendingAcquisition</span><span class="p">,</span> <span class="n">TriggerMode</span>
+<span class="kn">from</span> <span class="nn">.controller</span> <span class="kn">import</span> <span class="n">DectrisActiveController</span>
+<span class="kn">from</span> <span class="nn">.DEigerClient</span> <span class="kn">import</span> <span class="n">DEigerClient</span>
+
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span> <span class="nn">.acquisition</span> <span class="kn">import</span> <span class="n">DectrisAcquisition</span>
+
+
+<div class="viewcode-block" id="DectrisDetectorConnection"><a class="viewcode-back" href="../../../../reference/dectris.html#libertem_live.detectors.dectris.DectrisDetectorConnection">[docs]</a><span class="k">class</span> <span class="nc">DectrisDetectorConnection</span><span class="p">(</span><span class="n">DetectorConnection</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Connection to a DECTRIS DCU, both for detector configuration and for accessing</span>
+<span class="sd">    the data stream.</span>
+
+<span class="sd">    Please see :class:`libertem_live.detectors.dectris.DectrisConnectionBuilder`</span>
+<span class="sd">    for a description of the parameters, and use</span>
+<span class="sd">    :meth:`libertem_live.api.LiveContext.make_connection` to create a connection.</span>
+
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    &gt;&gt;&gt; from libertem_live.api import LiveContext</span>
+<span class="sd">    &gt;&gt;&gt; with LiveContext() as ctx, ctx.make_connection(&#39;dectris&#39;).open(</span>
+<span class="sd">    ...     api_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">    ...     api_port=DCU_API_PORT,</span>
+<span class="sd">    ...     data_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">    ...     data_port=DCU_DATA_PORT,</span>
+<span class="sd">    ... ) as conn:</span>
+<span class="sd">    ...     print(&quot;connected!&quot;)</span>
+<span class="sd">    connected!</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">api_host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">api_port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">data_host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">data_port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">buffer_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2048</span><span class="p">,</span>
+        <span class="n">bytes_per_frame</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">frame_stack_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">24</span><span class="p">,</span>
+        <span class="n">huge_pages</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_passive_started</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_api_host</span> <span class="o">=</span> <span class="n">api_host</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_api_port</span> <span class="o">=</span> <span class="n">api_port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_host</span> <span class="o">=</span> <span class="n">data_host</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_data_port</span> <span class="o">=</span> <span class="n">data_port</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_huge_pages</span> <span class="o">=</span> <span class="n">huge_pages</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_frame_stack_size</span> <span class="o">=</span> <span class="n">frame_stack_size</span>
+
+        <span class="k">if</span> <span class="n">bytes_per_frame</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># estimate based on detector size:</span>
+            <span class="n">ec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_api_client</span><span class="p">()</span>
+            <span class="n">shape_x</span> <span class="o">=</span> <span class="n">ec</span><span class="o">.</span><span class="n">detectorConfig</span><span class="p">(</span><span class="s2">&quot;x_pixels_in_detector&quot;</span><span class="p">)[</span><span class="s1">&#39;value&#39;</span><span class="p">]</span>
+            <span class="n">shape_y</span> <span class="o">=</span> <span class="n">ec</span><span class="o">.</span><span class="n">detectorConfig</span><span class="p">(</span><span class="s2">&quot;y_pixels_in_detector&quot;</span><span class="p">)[</span><span class="s1">&#39;value&#39;</span><span class="p">]</span>
+            <span class="n">bit_depth</span> <span class="o">=</span> <span class="n">ec</span><span class="o">.</span><span class="n">detectorConfig</span><span class="p">(</span><span class="s2">&quot;bit_depth_image&quot;</span><span class="p">)[</span><span class="s1">&#39;value&#39;</span><span class="p">]</span>
+
+            <span class="n">bpp</span> <span class="o">=</span> <span class="n">bit_depth</span> <span class="o">//</span> <span class="mi">8</span>
+            <span class="n">bytes_per_frame_uncompressed</span> <span class="o">=</span> <span class="n">bpp</span> <span class="o">*</span> <span class="n">shape_x</span> <span class="o">*</span> <span class="n">shape_y</span>
+
+            <span class="c1"># rough guess, doesn&#39;t have to be exact:</span>
+            <span class="n">bytes_per_frame</span> <span class="o">=</span> <span class="n">bytes_per_frame_uncompressed</span> <span class="o">//</span> <span class="mi">8</span>
+
+        <span class="k">assert</span> <span class="n">bytes_per_frame</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;should be set automatically if None&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_bytes_per_frame</span> <span class="o">=</span> <span class="n">bytes_per_frame</span>
+
+        <span class="n">buffer_size_bytes</span> <span class="o">=</span> <span class="n">buffer_size</span> <span class="o">*</span> <span class="mi">1024</span> <span class="o">*</span> <span class="mi">1024</span>
+        <span class="n">num_slots</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">buffer_size_bytes</span> <span class="o">/</span> <span class="p">(</span><span class="n">bytes_per_frame</span> <span class="o">*</span> <span class="n">frame_stack_size</span><span class="p">)))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_num_slots</span> <span class="o">=</span> <span class="n">num_slots</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">:</span> <span class="n">libertem_dectris</span><span class="o">.</span><span class="n">DectrisConnection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">_connect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">libertem_dectris</span><span class="o">.</span><span class="n">DectrisConnection</span><span class="p">(</span>
+            <span class="n">uri</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;tcp://</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_host</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_data_port</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">frame_stack_size</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_frame_stack_size</span><span class="p">,</span>
+            <span class="n">num_slots</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_num_slots</span><span class="p">,</span>
+            <span class="n">bytes_per_frame</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_bytes_per_frame</span><span class="p">,</span>
+            <span class="n">huge</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_huge_pages</span><span class="p">,</span>
+            <span class="n">handle_path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_make_socket_path</span><span class="p">(),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__enter__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># in most cases, we are already connected, but for</span>
+        <span class="c1"># re-using this object in multiple `with`-statements,</span>
+        <span class="c1"># we need to handle the re-connection case here:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="k">def</span> <span class="fm">__exit__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exc_type</span><span class="p">,</span> <span class="n">exc_value</span><span class="p">,</span> <span class="n">traceback</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<div class="viewcode-block" id="DectrisDetectorConnection.wait_for_acquisition"><a class="viewcode-back" href="../../../../reference/dectris.html#libertem_live.detectors.dectris.DectrisDetectorConnection.wait_for_acquisition">[docs]</a>    <span class="k">def</span> <span class="nf">wait_for_acquisition</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">timeout</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Optional</span><span class="p">[</span><span class="n">DectrisPendingAcquisition</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Wait for at most `timeout` seconds for an acquisition to start. This</span>
+<span class="sd">        does not perform any triggering itself and expects something external</span>
+<span class="sd">        to arm and trigger the acquisition.</span>
+
+<span class="sd">        Once the detector is armed, this function returns a `PendingAcquisition`,</span>
+<span class="sd">        which can be converted to a full `Acquisition` object using</span>
+<span class="sd">        :meth:`libertem_live.api.LiveContext.make_acquisition`.</span>
+
+<span class="sd">        The function returns `None` on timeout.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        timeout</span>
+<span class="sd">            Timeout in seconds. If `None`, wait indefinitely.</span>
+
+<span class="sd">        Examples</span>
+<span class="sd">        --------</span>
+<span class="sd">        &gt;&gt;&gt; with ctx.make_connection(&#39;dectris&#39;).open(</span>
+<span class="sd">        ...     api_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">        ...     api_port=DCU_API_PORT,</span>
+<span class="sd">        ...     data_host=&#39;127.0.0.1&#39;,</span>
+<span class="sd">        ...     data_port=DCU_DATA_PORT,</span>
+<span class="sd">        ... ) as conn:</span>
+<span class="sd">        ...     # NOTE: this is the part that is usually done by an external software,</span>
+<span class="sd">        ...     # but we include it here to have a running example:</span>
+<span class="sd">        ...     ec = conn.get_api_client()</span>
+<span class="sd">        ...     arm_response = ec.sendDetectorCommand(&#39;arm&#39;)</span>
+<span class="sd">        ...</span>
+<span class="sd">        ...     pending_aq = conn.wait_for_acquisition(timeout=1)</span>
+<span class="sd">        ...     assert pending_aq is not None, &quot;timeout&quot;</span>
+<span class="sd">        ...</span>
+<span class="sd">        ...     aq = ctx.make_acquisition(</span>
+<span class="sd">        ...         conn=conn,</span>
+<span class="sd">        ...         nav_shape=(32, 32),</span>
+<span class="sd">        ...         pending_aq=pending_aq,</span>
+<span class="sd">        ...     )</span>
+<span class="sd">        ...     ctx.run_udf(dataset=aq, udf=SumUDF())</span>
+<span class="sd">        {&#39;intensity&#39;: ...}</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># FIXME: it would be better to ask `self._conn` if it is currently</span>
+        <span class="c1"># in the passive mode, otherwise we have to carefully track the</span>
+        <span class="c1"># current state from the outside, too.</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_passive_started</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">start_passive</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_passive_started</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_basic_settings</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">timeout</span> <span class="o">=</span> <span class="mf">1.0</span>
+            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">config_series</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">wait_for_arm</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">config_series</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">break</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">config_series</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">wait_for_arm</span><span class="p">(</span><span class="n">timeout</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">config_series</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">config</span><span class="p">,</span> <span class="n">series</span> <span class="o">=</span> <span class="n">config_series</span>
+        <span class="k">return</span> <span class="n">DectrisPendingAcquisition</span><span class="p">(</span>
+            <span class="n">detector_config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">series</span><span class="o">=</span><span class="n">series</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+<div class="viewcode-block" id="DectrisDetectorConnection.get_active_controller"><a class="viewcode-back" href="../../../../reference/dectris.html#libertem_live.detectors.dectris.DectrisDetectorConnection.get_active_controller">[docs]</a>    <span class="k">def</span> <span class="nf">get_active_controller</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">trigger_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">TriggerMode</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">count_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">frame_time</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">roi_mode</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># disabled, merge2x2 etc.</span>
+        <span class="n">roi_y_size</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">roi_bit_depth</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">enable_file_writing</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">compression</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>  <span class="c1"># bslz4, lz4</span>
+        <span class="n">name_pattern</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">nimages_per_file</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="n">enable_corrections</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">mask_to_zero</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Create a controller object that knows about the detector settings</span>
+<span class="sd">        to apply when the acquisition starts.</span>
+
+<span class="sd">        Any settings left out or set to None will be left unchanged.</span>
+
+<span class="sd">        In general, please consult your detector manual for details!</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        trigger_mode</span>
+<span class="sd">            One of &#39;exte&#39;, &#39;inte&#39;, &#39;exts&#39;, &#39;ints&#39;, as defined in the manual.</span>
+<span class="sd">        count_time</span>
+<span class="sd">            Exposure time per image in seconds</span>
+<span class="sd">        frame_time</span>
+<span class="sd">            The interval between start of image acquisitions in seconds. Must be</span>
+<span class="sd">            greater than or equal to `count_time`.</span>
+<span class="sd">        roi_mode</span>
+<span class="sd">            Configure ROI mode. Set to the string &#39;disabled&#39; to disable ROI mode.</span>
+<span class="sd">            The allowed values depend on the detector.</span>
+
+<span class="sd">            For example, for ARINA, to bin to frames of 96x96,</span>
+<span class="sd">            set `roi_mode` to &#39;merge2x2&#39;.</span>
+
+<span class="sd">            For QUADRO and other supported detectors, to select a subset of</span>
+<span class="sd">            lines as active, set `roi_mode` to &#39;lines&#39;. Then, additionally set</span>
+<span class="sd">            `roi_y_size` to one of the supported values.</span>
+<span class="sd">        roi_bit_depth</span>
+<span class="sd">            For QUADRO, this can be either 8 or 16. Setting to 8 bit is required</span>
+<span class="sd">            to reach the highest frame rates.</span>
+<span class="sd">        roi_y_size</span>
+<span class="sd">            Select a subset of lines. For QUADRO, this has to be between 2 and</span>
+<span class="sd">            256, inclusive. Note that the image size is then two times this</span>
+<span class="sd">            value, plus two pixels, for example if you select 64 lines, it will</span>
+<span class="sd">            result in images with 130 pixels height and the full width.</span>
+
+<span class="sd">            Starting with DECTRIS software version &quot;release-2022.1&quot;, this is the</span>
+<span class="sd">            total height instead, so any even number between 4 and 512,</span>
+<span class="sd">            inclusive.</span>
+<span class="sd">        enable_file_writing</span>
+<span class="sd">            Enable file writing on the DCU. If set to `False`, explicitly</span>
+<span class="sd">            disable file writing.</span>
+<span class="sd">        compression</span>
+<span class="sd">            The type of compression to enable. Can be, for example,</span>
+<span class="sd">            &#39;bslz4&#39;, or &#39;lz4&#39;.</span>
+<span class="sd">        name_pattern</span>
+<span class="sd">            If given, the name pattern is set to the given string. Only set if</span>
+<span class="sd">            file writing is enabled.</span>
+<span class="sd">        nimages_per_file</span>
+<span class="sd">            If file writing is enabled, split the written files such that at</span>
+<span class="sd">            maximum this number of images are saved per file. The default is not</span>
+<span class="sd">            to split into multiple files.</span>
+<span class="sd">        enable_corrections</span>
+<span class="sd">            Let LiberTEM automatically correct defect pixels, downloading the</span>
+<span class="sd">            pixel mask from the detector configuration.</span>
+<span class="sd">        mask_to_zero</span>
+<span class="sd">            When set to `True`, the bad pixels that are configured in the</span>
+<span class="sd">            detector software are set to zero instead of MAX_INT. This is</span>
+<span class="sd">            using the detector-internal correction facilities, not those</span>
+<span class="sd">            of LiberTEM.</span>
+
+<span class="sd">            Needs a current version of the DECTRIS software to work correctly</span>
+<span class="sd">            (at least &quot;release-2022.1.2&quot;).</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">DectrisActiveController</span><span class="p">(</span>
+            <span class="c1"># these two don&#39;t need to be repeated:</span>
+            <span class="n">api_host</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_host</span><span class="p">,</span>
+            <span class="n">api_port</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_port</span><span class="p">,</span>
+
+            <span class="n">trigger_mode</span><span class="o">=</span><span class="n">trigger_mode</span><span class="p">,</span>
+            <span class="n">count_time</span><span class="o">=</span><span class="n">count_time</span><span class="p">,</span>
+            <span class="n">frame_time</span><span class="o">=</span><span class="n">frame_time</span><span class="p">,</span>
+            <span class="n">roi_mode</span><span class="o">=</span><span class="n">roi_mode</span><span class="p">,</span>
+            <span class="n">roi_y_size</span><span class="o">=</span><span class="n">roi_y_size</span><span class="p">,</span>
+            <span class="n">roi_bit_depth</span><span class="o">=</span><span class="n">roi_bit_depth</span><span class="p">,</span>
+            <span class="n">enable_file_writing</span><span class="o">=</span><span class="n">enable_file_writing</span><span class="p">,</span>
+            <span class="n">compression</span><span class="o">=</span><span class="n">compression</span><span class="p">,</span>
+            <span class="n">name_pattern</span><span class="o">=</span><span class="n">name_pattern</span><span class="p">,</span>
+            <span class="n">nimages_per_file</span><span class="o">=</span><span class="n">nimages_per_file</span><span class="p">,</span>
+            <span class="n">enable_corrections</span><span class="o">=</span><span class="n">enable_corrections</span><span class="p">,</span>
+            <span class="n">mask_to_zero</span><span class="o">=</span><span class="n">mask_to_zero</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">bytes_per_frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bytes_per_frame</span>
+
+    <span class="k">def</span> <span class="nf">get_api_client</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DEigerClient</span><span class="p">:</span>
+        <span class="n">ec</span> <span class="o">=</span> <span class="n">DEigerClient</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_host</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_api_port</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">ec</span>
+
+    <span class="k">def</span> <span class="nf">_ensure_basic_settings</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">ec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_api_client</span><span class="p">()</span>
+        <span class="n">ec</span><span class="o">.</span><span class="n">setStreamConfig</span><span class="p">(</span><span class="s1">&#39;mode&#39;</span><span class="p">,</span> <span class="s1">&#39;enabled&#39;</span><span class="p">)</span>
+        <span class="n">ec</span><span class="o">.</span><span class="n">setStreamConfig</span><span class="p">(</span><span class="s1">&#39;header_detail&#39;</span><span class="p">,</span> <span class="s1">&#39;basic&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">prepare_for_active</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_passive_started</span><span class="p">:</span>
+            <span class="c1"># get the background thread into the correct state:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reconnect</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">start_series</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">series</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_passive_started</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Cannot start acquisition for series </span><span class="si">{</span><span class="n">series</span><span class="si">}</span><span class="s2">, &quot;</span>
+                <span class="s2">&quot;already in passive mode&quot;</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_basic_settings</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">start</span><span class="p">(</span><span class="n">series</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_conn_impl</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span>
+
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span> <span class="nf">_make_socket_path</span><span class="p">(</span><span class="bp">cls</span><span class="p">):</span>
+        <span class="n">temp_path</span> <span class="o">=</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">mkdtemp</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">temp_path</span><span class="p">,</span> <span class="s1">&#39;dectris-shm-socket&#39;</span><span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">stop_series</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>  <span class="c1"># TODO: what to do?</span>
+
+<div class="viewcode-block" id="DectrisDetectorConnection.close"><a class="viewcode-back" href="../../../../reference/dectris.html#libertem_live.detectors.dectris.DectrisDetectorConnection.close">[docs]</a>    <span class="k">def</span> <span class="nf">close</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_passive_started</span> <span class="o">=</span> <span class="kc">False</span></div>
+
+    <span class="k">def</span> <span class="nf">reconnect</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_connect</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">log_stats</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">log_shm_stats</span><span class="p">()</span>
+
+    <span class="k">def</span> <span class="nf">get_acquisition_cls</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Type</span><span class="p">[</span><span class="s2">&quot;DectrisAcquisition&quot;</span><span class="p">]:</span>
+        <span class="kn">from</span> <span class="nn">.acquisition</span> <span class="kn">import</span> <span class="n">DectrisAcquisition</span>
+        <span class="k">return</span> <span class="n">DectrisAcquisition</span></div>
+
+
+<div class="viewcode-block" id="DectrisConnectionBuilder"><a class="viewcode-back" href="../../../../reference/dectris.html#libertem_live.detectors.dectris.DectrisConnectionBuilder">[docs]</a><span class="k">class</span> <span class="nc">DectrisConnectionBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Builder class that can construct :class:`DectrisDetectorConnection` instances.</span>
+
+<span class="sd">    Use the :meth:`open` method to create a connection.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+<div class="viewcode-block" id="DectrisConnectionBuilder.open"><a class="viewcode-back" href="../../../../reference/dectris.html#libertem_live.detectors.dectris.DectrisConnectionBuilder.open">[docs]</a>    <span class="k">def</span> <span class="nf">open</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">api_host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">api_port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">data_host</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">data_port</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">buffer_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2048</span><span class="p">,</span>
+        <span class="n">bytes_per_frame</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">frame_stack_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">24</span><span class="p">,</span>
+        <span class="n">huge_pages</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">DectrisDetectorConnection</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Connect to a DECTRIS DCU, both for detector configuration and for accessing</span>
+<span class="sd">        the data stream.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        api_host</span>
+<span class="sd">            The hostname or IP address of the DECTRIS DCU for the REST API</span>
+<span class="sd">        api_port</span>
+<span class="sd">            The port of the REST API</span>
+<span class="sd">        data_host</span>
+<span class="sd">            The hostname or IP address of the DECTRIS DCU for the zeromq data stream</span>
+<span class="sd">        data_port</span>
+<span class="sd">            The zeromq port to use</span>
+<span class="sd">        buffer_size</span>
+<span class="sd">            The total receive buffer in MiB that is used to stream data to worker</span>
+<span class="sd">            processes.</span>
+<span class="sd">        bytes_per_frame</span>
+<span class="sd">            Roughtly how many bytes should be reserved per frame</span>
+
+<span class="sd">            If this is None, a rough guess will be calculated from the detector size.</span>
+<span class="sd">            You can check the :py:attr:`~bytes_per_frame` property to see if the guess</span>
+<span class="sd">            matches reality, and adjust this parameter if it doesn&#39;t.</span>
+<span class="sd">        frame_stack_size</span>
+<span class="sd">            How many frames should be stacked together and put into a shared memory slot?</span>
+<span class="sd">            If this is chosen too small, it might cause slowdowns because of having</span>
+<span class="sd">            to handle many small objects; if it is chosen too large, it again may be</span>
+<span class="sd">            slower due to having to split frame stacks more often in boundary conditions.</span>
+<span class="sd">            When in doubt, leave this value at it&#39;s default.</span>
+<span class="sd">        huge_pages</span>
+<span class="sd">            Set to True to allocate shared memory in huge pages. This can improve performance</span>
+<span class="sd">            by reducing the page fault cost. Currently only available on Linux. Enabling this</span>
+<span class="sd">            requires reserving huge pages, either at system start, or before connecting.</span>
+
+<span class="sd">            For example, to reserve 10000 huge pages, you can run:</span>
+
+<span class="sd">            :code:`echo 10000 | sudo tee /proc/sys/vm/nr_hugepages`</span>
+
+<span class="sd">            See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`</span>
+<span class="sd">            can be useful to check your configuration.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+        <span class="k">return</span> <span class="n">DectrisDetectorConnection</span><span class="p">(</span>
+            <span class="n">api_host</span><span class="o">=</span><span class="n">api_host</span><span class="p">,</span>
+            <span class="n">api_port</span><span class="o">=</span><span class="n">api_port</span><span class="p">,</span>
+            <span class="n">data_host</span><span class="o">=</span><span class="n">data_host</span><span class="p">,</span>
+            <span class="n">data_port</span><span class="o">=</span><span class="n">data_port</span><span class="p">,</span>
+            <span class="n">buffer_size</span><span class="o">=</span><span class="n">buffer_size</span><span class="p">,</span>
+            <span class="n">bytes_per_frame</span><span class="o">=</span><span class="n">bytes_per_frame</span><span class="p">,</span>
+            <span class="n">frame_stack_size</span><span class="o">=</span><span class="n">frame_stack_size</span><span class="p">,</span>
+            <span class="n">huge_pages</span><span class="o">=</span><span class="n">huge_pages</span><span class="p">,</span>
+        <span class="p">)</span></div></div>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

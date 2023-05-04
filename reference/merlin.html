@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quantum detectors Merlin Medipix reference &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+      <link rel="stylesheet" href="../_static/css/custom.css" type="text/css" />
+    <link rel="shortcut icon" href="../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Changelog" href="../changelog.html" />
+    <link rel="prev" title="Memory “detector” reference" href="memory.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../examples.html">Examples</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../reference.html">Reference</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="asi_tpx3.html">ASI TPX3 reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="dectris.html">DECTRIS reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="memory.html">Memory “detector” reference</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Quantum detectors Merlin Medipix reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinAcquisition"><code class="docutils literal notranslate"><span class="pre">MerlinAcquisition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinAcquisition.dtype"><code class="docutils literal notranslate"><span class="pre">MerlinAcquisition.dtype</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinAcquisition.shape"><code class="docutils literal notranslate"><span class="pre">MerlinAcquisition.shape</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinConnectionBuilder"><code class="docutils literal notranslate"><span class="pre">MerlinConnectionBuilder</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinConnectionBuilder.open"><code class="docutils literal notranslate"><span class="pre">MerlinConnectionBuilder.open()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl"><code class="docutils literal notranslate"><span class="pre">MerlinControl</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl.close"><code class="docutils literal notranslate"><span class="pre">MerlinControl.close()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl.cmd"><code class="docutils literal notranslate"><span class="pre">MerlinControl.cmd()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl.connect"><code class="docutils literal notranslate"><span class="pre">MerlinControl.connect()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl.get"><code class="docutils literal notranslate"><span class="pre">MerlinControl.get()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl.send_command_file"><code class="docutils literal notranslate"><span class="pre">MerlinControl.send_command_file()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinControl.set"><code class="docutils literal notranslate"><span class="pre">MerlinControl.set()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection"><code class="docutils literal notranslate"><span class="pre">MerlinDetectorConnection</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection.close"><code class="docutils literal notranslate"><span class="pre">MerlinDetectorConnection.close()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection.wait_for_acquisition"><code class="docutils literal notranslate"><span class="pre">MerlinDetectorConnection.wait_for_acquisition()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.api">Live Context</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#udfs">UDFs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.detectors.base.connection">Base classes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference.html#module-libertem_live.hooks">Hooks</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../reference.html">Reference</a></li>
+      <li class="breadcrumb-item active">Quantum detectors Merlin Medipix reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/reference/merlin.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-libertem_live.detectors.merlin">
+<span id="quantum-detectors-merlin-medipix-reference"></span><span id="merlin-reference"></span><h1>Quantum detectors Merlin Medipix reference<a class="headerlink" href="#module-libertem_live.detectors.merlin" title="Permalink to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinAcquisition">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.merlin.</span></span><span class="sig-name descname"><span class="pre">MerlinAcquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">conn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection" title="libertem_live.detectors.merlin.connection.MerlinDetectorConnection"><span class="pre">MerlinDetectorConnection</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">nav_shape</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/typing.html#typing.Tuple" title="(in Python v3.10)"><span class="pre">Tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frames_per_partition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pending_aq</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">MerlinPendingAcquisition</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">controller</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">MerlinActiveController</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">hooks</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="../reference.html#libertem_live.hooks.Hooks" title="libertem_live.hooks.Hooks"><span class="pre">Hooks</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/acquisition.html#MerlinAcquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinAcquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Acquisition from a Quantum Detectors Merlin camera.</p>
+<p>Use <a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a>
+to create an instance!</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>conn</strong> – An existing <a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection" title="libertem_live.detectors.merlin.MerlinDetectorConnection"><code class="xref py py-class docutils literal notranslate"><span class="pre">MerlinDetectorConnection</span></code></a> instance</p></li>
+<li><p><strong>nav_shape</strong> – The navigation shape as a tuple, for example <code class="code docutils literal notranslate"><span class="pre">(height,</span> <span class="pre">width)</span></code>
+for a 2D STEM scan.</p></li>
+<li><p><strong>frames_per_partition</strong> – Number of frames to process before performing a merge operation. Decreasing this number
+increases the update rate, but can decrease performance.</p></li>
+<li><p><strong>pending_aq</strong> – A pending acquisition in passive mode, obtained from
+<a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection.wait_for_acquisition" title="libertem_live.detectors.merlin.MerlinDetectorConnection.wait_for_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">MerlinDetectorConnection.wait_for_acquisition()</span></code></a>.
+If this is not provided, it’s assumed that the detector should be
+actively armed and triggered.</p></li>
+<li><p><strong>controller</strong> – A <cite>MerlinActiveController</cite> instance, which can be obtained
+from <code class="xref py py-meth docutils literal notranslate"><span class="pre">MerlinDetectorConnection.get_active_controller()</span></code>.
+You can pass additional parameters to
+<code class="xref py py-meth docutils literal notranslate"><span class="pre">MerlinDetectorConnection.get_active_controller()</span></code> in order
+to change detector settings.
+If no controller is passed in, and <cite>pending_aq</cite> is also not
+given, then the acquisition will be started in active
+mode, leaving all detector settings unchanged.</p></li>
+<li><p><strong>hooks</strong> – Acquisition hooks to react to certain events</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinAcquisition.dtype">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">dtype</span></span><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinAcquisition.dtype" title="Permalink to this definition"></a></dt>
+<dd><p>The “native” data type
+(either one matching the data on disk, or one that is closest)</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinAcquisition.shape">
+<em class="property"><span class="pre">property</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">shape</span></span><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinAcquisition.shape" title="Permalink to this definition"></a></dt>
+<dd><p>The shape of the DataSet, as it makes sense for the application domain
+(for example, 4D for pixelated STEM)</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinConnectionBuilder">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.merlin.</span></span><span class="sig-name descname"><span class="pre">MerlinConnectionBuilder</span></span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/connection.html#MerlinConnectionBuilder"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinConnectionBuilder" title="Permalink to this definition"></a></dt>
+<dd><p>Builder class that can construct <a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection" title="libertem_live.detectors.merlin.MerlinDetectorConnection"><code class="xref py py-class docutils literal notranslate"><span class="pre">MerlinDetectorConnection</span></code></a> instances.</p>
+<p>Use the <a class="reference internal" href="#libertem_live.detectors.merlin.MerlinConnectionBuilder.open" title="libertem_live.detectors.merlin.MerlinConnectionBuilder.open"><code class="xref py py-meth docutils literal notranslate"><span class="pre">open()</span></code></a> method to create a connection.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinConnectionBuilder.open">
+<span class="sig-name descname"><span class="pre">open</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'127.0.0.1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">6341</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'127.0.0.1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">6342</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#libertem_live.detectors.merlin.MerlinDetectorConnection" title="libertem_live.detectors.merlin.connection.MerlinDetectorConnection"><span class="pre">MerlinDetectorConnection</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/connection.html#MerlinConnectionBuilder.open"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinConnectionBuilder.open" title="Permalink to this definition"></a></dt>
+<dd><p>Connect to a Merlin Medipix detector system.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>api_host</strong> – Hostname of the Merlin control server, default ‘127.0.0.1’
+Should in most cases be the same as <cite>data_host</cite>.</p></li>
+<li><p><strong>api_port</strong> – Port of the Merlin control server, default 6341</p></li>
+<li><p><strong>data_host</strong> – Hostname of the Merlin data server, default ‘127.0.0.1’</p></li>
+<li><p><strong>data_port</strong> – Data port of the Merlin data server, default 6342</p></li>
+<li><p><strong>drain</strong> – Drain the socket before triggering. Enable this when
+using old versions of the Merlin software, but not when
+using an internal trigger.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Usually, this method is directly used together with
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_connection" title="libertem_live.api.LiveContext.make_connection"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_connection()</span></code></a>:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;merlin&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">api_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">api_port</span><span class="o">=</span><span class="n">MERLIN_API_PORT</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">MERLIN_DATA_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span><span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span> <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">))</span>
+<span class="gp">... </span>    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+<span class="go">{&#39;intensity&#39;: ...}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.merlin.</span></span><span class="sig-name descname"><span class="pre">MerlinControl</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">host</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'127.0.0.1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">port</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">6341</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl" title="Permalink to this definition"></a></dt>
+<dd><p>This class can be used to control a merlin medipix detector.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>host</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><em>str</em></a>) – The hostname to connect to</p></li>
+<li><p><strong>port</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><em>int</em></a>) – The port to connect to</p></li>
+<li><p><strong>timeout</strong> (<a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><em>float</em></a>) – The timeout, in seconds, after which a response is expected</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl.close" title="Permalink to this definition"></a></dt>
+<dd><p>Close the socket connection. Usually, instead of calling this function,
+you should use this class as a context manager.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl.cmd">
+<span class="sig-name descname"><span class="pre">cmd</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cmd</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl.cmd"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl.cmd" title="Permalink to this definition"></a></dt>
+<dd><p>Send a CMD command, and return the response</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl.connect">
+<span class="sig-name descname"><span class="pre">connect</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl.connect"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl.connect" title="Permalink to this definition"></a></dt>
+<dd><p>Connect to the merlin control socket. Usually, you would instead use this
+class as a context manager.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl.get">
+<span class="sig-name descname"><span class="pre">get</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">param</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#bytes" title="(in Python v3.10)"><span class="pre">bytes</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl.get"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl.get" title="Permalink to this definition"></a></dt>
+<dd><p>Send a GET command, and return the response</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl.send_command_file">
+<span class="sig-name descname"><span class="pre">send_command_file</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">filename</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl.send_command_file"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl.send_command_file" title="Permalink to this definition"></a></dt>
+<dd><p>Send the contents of <code class="code docutils literal notranslate"><span class="pre">filename</span></code>, which should
+contain complete merlin command lines.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinControl.set">
+<span class="sig-name descname"><span class="pre">set</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">param</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/control.html#MerlinControl.set"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinControl.set" title="Permalink to this definition"></a></dt>
+<dd><p>Send a SET command, and return the response</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinDetectorConnection">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">libertem_live.detectors.merlin.</span></span><span class="sig-name descname"><span class="pre">MerlinDetectorConnection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'127.0.0.1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">api_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">6341</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_host</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/stdtypes.html#str" title="(in Python v3.10)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'127.0.0.1'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">data_port</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#int" title="(in Python v3.10)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">6342</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">drain</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#bool" title="(in Python v3.10)"><span class="pre">bool</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/connection.html#MerlinDetectorConnection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinDetectorConnection" title="Permalink to this definition"></a></dt>
+<dd><p>This class holds a permanent data connection to the merlin software.</p>
+<p>Control connections are also possible to obtain from this class,
+but are created on demand and not kept open.</p>
+<p>You can use the convenience function
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_connection" title="libertem_live.api.LiveContext.make_connection"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_connection()</span></code></a> to create an instance,
+instead of calling this constructor directly.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>api_host</strong> – Hostname of the Merlin control server, default ‘127.0.0.1’
+Should in most cases be the same as <cite>data_host</cite>.</p></li>
+<li><p><strong>api_port</strong> – Port of the Merlin control server, default 6341</p></li>
+<li><p><strong>data_host</strong> – Hostname of the Merlin data server, default ‘127.0.0.1’</p></li>
+<li><p><strong>data_port</strong> – Data port of the Merlin data server, default 6342</p></li>
+<li><p><strong>drain</strong> – Drain the socket before triggering. Enable this when
+using old versions of the Merlin software, but not when
+using an internal trigger.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<p>Usually, this class is instantiated using
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_connection" title="libertem_live.api.LiveContext.make_connection"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_connection()</span></code></a>:</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;merlin&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">api_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">api_port</span><span class="o">=</span><span class="n">MERLIN_API_PORT</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">MERLIN_DATA_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span><span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span> <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">))</span>
+<span class="gp">... </span>    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+<span class="go">{&#39;intensity&#39;: ...}</span>
+</pre></div>
+</div>
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinDetectorConnection.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/connection.html#MerlinDetectorConnection.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinDetectorConnection.close" title="Permalink to this definition"></a></dt>
+<dd><p>Close the connection. It’s important to call this function once
+you don’t need the connection anymore, as an open connection
+might interfere with other software using the detector.</p>
+<p>If possible, use this object as a context manager instead,
+using a <code class="code docutils literal notranslate"><span class="pre">with</span></code>-statement.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="libertem_live.detectors.merlin.MerlinDetectorConnection.wait_for_acquisition">
+<span class="sig-name descname"><span class="pre">wait_for_acquisition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3.10/library/functions.html#float" title="(in Python v3.10)"><span class="pre">float</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="../reference.html#libertem_live.detectors.base.connection.PendingAcquisition" title="libertem_live.detectors.base.connection.PendingAcquisition"><span class="pre">PendingAcquisition</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3.10/library/constants.html#None" title="(in Python v3.10)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../_modules/libertem_live/detectors/merlin/connection.html#MerlinDetectorConnection.wait_for_acquisition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#libertem_live.detectors.merlin.MerlinDetectorConnection.wait_for_acquisition" title="Permalink to this definition"></a></dt>
+<dd><p>Wait for at most <cite>timeout</cite> seconds for an acquisition to start. This
+does not perform any triggering itself and expects something external
+to arm and trigger the acquisition.</p>
+<p>Once the detector is armed, this function returns a <cite>PendingAcquisition</cite>,
+which can be converted to a full <cite>Acquisition</cite> object using
+<a class="reference internal" href="../reference.html#libertem_live.api.LiveContext.make_acquisition" title="libertem_live.api.LiveContext.make_acquisition"><code class="xref py py-meth docutils literal notranslate"><span class="pre">libertem_live.api.LiveContext.make_acquisition()</span></code></a>.</p>
+<p>The function returns <cite>None</cite> on timeout.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>timeout</strong> – Timeout in seconds. If <cite>None</cite>, wait indefinitely.</p>
+</dd>
+</dl>
+<p class="rubric">Examples</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="k">with</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_connection</span><span class="p">(</span><span class="s1">&#39;merlin&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">open</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">api_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">api_port</span><span class="o">=</span><span class="n">MERLIN_API_PORT</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_host</span><span class="o">=</span><span class="s1">&#39;127.0.0.1&#39;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">data_port</span><span class="o">=</span><span class="n">MERLIN_DATA_PORT</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span> <span class="k">as</span> <span class="n">conn</span><span class="p">:</span>
+<span class="gp">... </span>    <span class="n">pending_aq</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">wait_for_acquisition</span><span class="p">(</span><span class="n">timeout</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="c1"># at this point, something else is arming and triggering the</span>
+<span class="gp">... </span>    <span class="c1"># detector:</span>
+<span class="gp">... </span>    <span class="n">aq</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">make_acquisition</span><span class="p">(</span>
+<span class="gp">... </span>        <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+<span class="gp">... </span>        <span class="n">nav_shape</span><span class="o">=</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="mi">32</span><span class="p">),</span>
+<span class="gp">... </span>        <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="p">)</span>
+<span class="gp">... </span>    <span class="n">ctx</span><span class="o">.</span><span class="n">run_udf</span><span class="p">(</span><span class="n">dataset</span><span class="o">=</span><span class="n">aq</span><span class="p">,</span> <span class="n">udf</span><span class="o">=</span><span class="n">SumUDF</span><span class="p">())</span>
+<span class="go">{&#39;intensity&#39;: ...}</span>
+</pre></div>
+</div>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="memory.html" class="btn btn-neutral float-left" title="Memory “detector” reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="../changelog.html" class="btn btn-neutral float-right" title="Changelog" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

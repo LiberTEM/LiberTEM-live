@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>libertem_live.detectors.merlin.acquisition &mdash; LiberTEM-live 0.3.0.dev0 documentation</title>
+      <link rel="stylesheet" href="../../../../_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="../../../../_static/css/theme.css" type="text/css" />
+    <link rel="shortcut icon" href="../../../../_static/favicon.ico"/>
+  <!--[if lt IE 9]>
+    <script src="../../../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../../../_static/jquery.js"></script>
+        <script src="../../../../_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script data-url_root="../../../../" id="documentation_options" src="../../../../_static/documentation_options.js"></script>
+        <script src="../../../../_static/doctools.js"></script>
+        <script src="../../../../_static/sphinx_highlight.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="../../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../../index.html" class="icon icon-home">
+            LiberTEM-live
+              <img src="../../../../_static/logo.png" class="logo" alt="Logo"/>
+          </a>
+              <div class="version">
+                0.3
+              </div>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../usage.html">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../detectors.html">Supported Detectors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../examples.html">Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../changelog.html">Changelog</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../acknowledgments.html">Acknowledgements</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../../index.html">LiberTEM-live</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">libertem_live.detectors.merlin.acquisition</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for libertem_live.detectors.merlin.acquisition</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span> <span class="nn">contextlib</span> <span class="kn">import</span> <span class="n">contextmanager</span>
+<span class="kn">import</span> <span class="nn">logging</span>
+<span class="kn">from</span> <span class="nn">typing</span> <span class="kn">import</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Iterator</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">NamedTuple</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">libertem.common</span> <span class="kn">import</span> <span class="n">Shape</span><span class="p">,</span> <span class="n">Slice</span>
+<span class="kn">from</span> <span class="nn">libertem.common.executor</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">TaskProtocol</span><span class="p">,</span> <span class="n">WorkerQueue</span><span class="p">,</span> <span class="n">TaskCommHandler</span><span class="p">,</span> <span class="n">WorkerContext</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">libertem.io.dataset.base</span> <span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DataTile</span><span class="p">,</span> <span class="n">DataSetMeta</span><span class="p">,</span> <span class="n">BasePartition</span><span class="p">,</span> <span class="n">Partition</span><span class="p">,</span> <span class="n">DataSet</span><span class="p">,</span> <span class="n">TilingScheme</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span> <span class="nn">sparseconverter</span> <span class="kn">import</span> <span class="n">ArrayBackend</span><span class="p">,</span> <span class="n">NUMPY</span><span class="p">,</span> <span class="n">CUDA</span>
+
+<span class="kn">from</span> <span class="nn">libertem_live.detectors.base.acquisition</span> <span class="kn">import</span> <span class="n">AcquisitionMixin</span>
+<span class="kn">from</span> <span class="nn">libertem_live.hooks</span> <span class="kn">import</span> <span class="n">Hooks</span><span class="p">,</span> <span class="n">ReadyForDataEnv</span>
+<span class="kn">from</span> <span class="nn">.data</span> <span class="kn">import</span> <span class="n">MerlinRawFrames</span><span class="p">,</span> <span class="n">MerlinFrameStream</span><span class="p">,</span> <span class="n">AcquisitionHeader</span>
+<span class="kn">from</span> <span class="nn">.connection</span> <span class="kn">import</span> <span class="n">MerlinDetectorConnection</span><span class="p">,</span> <span class="n">MerlinPendingAcquisition</span>
+<span class="kn">from</span> <span class="nn">.controller</span> <span class="kn">import</span> <span class="n">MerlinActiveController</span>
+
+<span class="kn">from</span> <span class="nn">opentelemetry</span> <span class="kn">import</span> <span class="n">trace</span>
+
+
+<span class="n">tracer</span> <span class="o">=</span> <span class="n">trace</span><span class="o">.</span><span class="n">get_tracer</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<span class="k">class</span> <span class="nc">AcqState</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+    <span class="n">acq_header</span><span class="p">:</span> <span class="n">AcquisitionHeader</span>
+    <span class="n">stream</span><span class="p">:</span> <span class="n">MerlinFrameStream</span>
+
+
+<div class="viewcode-block" id="MerlinAcquisition"><a class="viewcode-back" href="../../../../reference/merlin.html#libertem_live.detectors.merlin.MerlinAcquisition">[docs]</a><span class="k">class</span> <span class="nc">MerlinAcquisition</span><span class="p">(</span><span class="n">AcquisitionMixin</span><span class="p">,</span> <span class="n">DataSet</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">    Acquisition from a Quantum Detectors Merlin camera.</span>
+
+<span class="sd">    Use :meth:`libertem_live.api.LiveContext.make_acquisition`</span>
+<span class="sd">    to create an instance!</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+
+<span class="sd">    conn</span>
+<span class="sd">        An existing :class:`MerlinDetectorConnection` instance</span>
+<span class="sd">    nav_shape</span>
+<span class="sd">        The navigation shape as a tuple, for example :code:`(height, width)`</span>
+<span class="sd">        for a 2D STEM scan.</span>
+<span class="sd">    frames_per_partition</span>
+<span class="sd">        Number of frames to process before performing a merge operation. Decreasing this number</span>
+<span class="sd">        increases the update rate, but can decrease performance.</span>
+<span class="sd">    pending_aq</span>
+<span class="sd">        A pending acquisition in passive mode, obtained from</span>
+<span class="sd">        :meth:`MerlinDetectorConnection.wait_for_acquisition`.</span>
+<span class="sd">        If this is not provided, it&#39;s assumed that the detector should be</span>
+<span class="sd">        actively armed and triggered.</span>
+<span class="sd">    controller</span>
+<span class="sd">        A `MerlinActiveController` instance, which can be obtained</span>
+<span class="sd">        from :meth:`MerlinDetectorConnection.get_active_controller`.</span>
+<span class="sd">        You can pass additional parameters to</span>
+<span class="sd">        :meth:`MerlinDetectorConnection.get_active_controller` in order</span>
+<span class="sd">        to change detector settings.</span>
+<span class="sd">        If no controller is passed in, and `pending_aq` is also not</span>
+<span class="sd">        given, then the acquisition will be started in active</span>
+<span class="sd">        mode, leaving all detector settings unchanged.</span>
+<span class="sd">    hooks</span>
+<span class="sd">        Acquisition hooks to react to certain events</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">_conn</span><span class="p">:</span> <span class="n">MerlinDetectorConnection</span>
+    <span class="n">_pending_aq</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MerlinPendingAcquisition</span><span class="p">]</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">conn</span><span class="p">:</span> <span class="n">MerlinDetectorConnection</span><span class="p">,</span>
+        <span class="n">nav_shape</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">frames_per_partition</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">pending_aq</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MerlinPendingAcquisition</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">controller</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">MerlinActiveController</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">hooks</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Hooks</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="k">if</span> <span class="n">frames_per_partition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">frames_per_partition</span> <span class="o">=</span> <span class="mi">256</span>
+        <span class="k">if</span> <span class="n">controller</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">pending_aq</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">controller</span> <span class="o">=</span> <span class="n">conn</span><span class="o">.</span><span class="n">get_active_controller</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">hooks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">hooks</span> <span class="o">=</span> <span class="n">Hooks</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">AcqState</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span>
+            <span class="n">conn</span><span class="o">=</span><span class="n">conn</span><span class="p">,</span>
+            <span class="n">nav_shape</span><span class="o">=</span><span class="n">nav_shape</span><span class="p">,</span>
+            <span class="n">frames_per_partition</span><span class="o">=</span><span class="n">frames_per_partition</span><span class="p">,</span>
+            <span class="n">pending_aq</span><span class="o">=</span><span class="n">pending_aq</span><span class="p">,</span>
+            <span class="n">controller</span><span class="o">=</span><span class="n">controller</span><span class="p">,</span>
+            <span class="n">hooks</span><span class="o">=</span><span class="n">hooks</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">executor</span><span class="p">):</span>
+        <span class="s1">&#39;&#39;</span>
+        <span class="c1"># FIXME: possibly need to have an &quot;acquisition plan&quot; object</span>
+        <span class="c1"># so we know all relevant parameters beforehand</span>
+        <span class="n">sig_shape</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">read_sig_shape</span><span class="p">()</span>
+
+        <span class="n">bitdepth</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">read_bitdepth</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">bitdepth</span> <span class="ow">in</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">):</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint8</span>
+        <span class="k">elif</span> <span class="n">bitdepth</span> <span class="o">==</span> <span class="mi">12</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint16</span>
+        <span class="k">elif</span> <span class="n">bitdepth</span> <span class="o">==</span> <span class="mi">24</span><span class="p">:</span>
+            <span class="n">dtype</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">uint32</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown COUNTERDEPTH </span><span class="si">{</span><span class="n">bitdepth</span><span class="si">}</span><span class="s2">! should be in (1,6,16,24)&quot;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span> <span class="o">=</span> <span class="n">DataSetMeta</span><span class="p">(</span>
+            <span class="n">shape</span><span class="o">=</span><span class="n">Shape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nav_shape</span> <span class="o">+</span> <span class="n">sig_shape</span><span class="p">,</span> <span class="n">sig_dims</span><span class="o">=</span><span class="mi">2</span><span class="p">),</span>
+            <span class="n">raw_dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">raw_dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">raw_dtype</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">meta</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_meta</span>
+
+    <span class="nd">@contextmanager</span>
+    <span class="k">def</span> <span class="nf">acquire</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pending_aq</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># active case, we manage the connection:</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">maybe_drain</span><span class="p">()</span>
+                <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;MerlinAcquisition.trigger&quot;</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_hooks</span><span class="o">.</span><span class="n">on_ready_for_data</span><span class="p">(</span><span class="n">ReadyForDataEnv</span><span class="p">(</span><span class="n">aq</span><span class="o">=</span><span class="bp">self</span><span class="p">))</span>
+                <span class="n">acq_header</span><span class="p">,</span> <span class="n">stream</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">get_header_and_stream</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span> <span class="o">=</span> <span class="n">AcqState</span><span class="p">(</span>
+                    <span class="n">acq_header</span><span class="o">=</span><span class="n">acq_header</span><span class="p">,</span>
+                    <span class="n">stream</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">yield</span>
+                <span class="k">finally</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># passive case, we don&#39;t manage the connection and we definitely</span>
+            <span class="c1"># don&#39;t drain anything out of the socket!</span>
+            <span class="n">acq_header</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pending_aq</span><span class="o">.</span><span class="n">header</span>
+            <span class="n">stream</span> <span class="o">=</span> <span class="n">MerlinFrameStream</span><span class="o">.</span><span class="n">from_frame_header</span><span class="p">(</span>
+                <span class="n">raw_socket</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="o">.</span><span class="n">get_data_socket</span><span class="p">(),</span>
+                <span class="n">acquisition_header</span><span class="o">=</span><span class="n">acq_header</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span> <span class="o">=</span> <span class="n">AcqState</span><span class="p">(</span>
+                <span class="n">acq_header</span><span class="o">=</span><span class="n">acq_header</span><span class="p">,</span>
+                <span class="n">stream</span><span class="o">=</span><span class="n">stream</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="k">yield</span>
+            <span class="k">finally</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span> <span class="nf">check_valid</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s1">&#39;&#39;</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">need_decode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">read_dtype</span><span class="p">,</span> <span class="n">roi</span><span class="p">,</span> <span class="n">corrections</span><span class="p">):</span>
+        <span class="s1">&#39;&#39;</span>
+        <span class="k">return</span> <span class="kc">True</span>  <span class="c1"># FIXME: we just do this to get a large tile size</span>
+
+    <span class="k">def</span> <span class="nf">adjust_tileshape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tileshape</span><span class="p">,</span> <span class="n">roi</span><span class="p">):</span>
+        <span class="s1">&#39;&#39;</span>
+        <span class="n">depth</span> <span class="o">=</span> <span class="mi">24</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">depth</span><span class="p">,</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">sig</span><span class="p">)</span>
+        <span class="c1"># return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)</span>
+
+    <span class="k">def</span> <span class="nf">get_max_io_size</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s1">&#39;&#39;</span>
+        <span class="c1"># return 12*256*256*8</span>
+        <span class="c1"># FIXME magic numbers?</span>
+        <span class="k">return</span> <span class="mi">24</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">sig</span><span class="p">)</span><span class="o">*</span><span class="mi">8</span>
+
+    <span class="k">def</span> <span class="nf">get_base_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">roi</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">sig</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="k">def</span> <span class="nf">get_partitions</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="s1">&#39;&#39;</span>
+        <span class="n">num_frames</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_nav_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint64</span><span class="p">)</span>
+        <span class="n">num_partitions</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">num_frames</span> <span class="o">//</span> <span class="bp">self</span><span class="o">.</span><span class="n">_frames_per_partition</span><span class="p">)</span>
+
+        <span class="n">slices</span> <span class="o">=</span> <span class="n">BasePartition</span><span class="o">.</span><span class="n">make_slices</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">num_partitions</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">part_slice</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">stop</span> <span class="ow">in</span> <span class="n">slices</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="n">MerlinLivePartition</span><span class="p">(</span>
+                <span class="n">start_idx</span><span class="o">=</span><span class="n">start</span><span class="p">,</span>
+                <span class="n">end_idx</span><span class="o">=</span><span class="n">stop</span><span class="p">,</span>
+                <span class="n">meta</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_meta</span><span class="p">,</span>
+                <span class="n">partition_slice</span><span class="o">=</span><span class="n">part_slice</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_task_comm_handler</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">TaskCommHandler</span><span class="p">:</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">MerlinCommHandler</span><span class="p">(</span>
+            <span class="n">conn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_conn</span><span class="p">,</span>
+            <span class="n">state</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span><span class="p">,</span>
+            <span class="n">tiling_depth</span><span class="o">=</span><span class="mi">24</span><span class="p">,</span>  <span class="c1"># FIXME!</span>
+        <span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">get_frames_from_queue</span><span class="p">(</span>
+    <span class="n">queue</span><span class="p">:</span> <span class="n">WorkerQueue</span><span class="p">,</span>
+    <span class="n">tiling_scheme</span><span class="p">:</span> <span class="n">TilingScheme</span><span class="p">,</span>
+    <span class="n">sig_shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">dtype</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">tiling_scheme</span><span class="o">.</span><span class="n">depth</span><span class="p">,)</span> <span class="o">+</span> <span class="n">sig_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">out_flat</span> <span class="o">=</span> <span class="n">out</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="n">tiling_scheme</span><span class="o">.</span><span class="n">depth</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,))</span>
+    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+        <span class="k">with</span> <span class="n">queue</span><span class="o">.</span><span class="n">get</span><span class="p">()</span> <span class="k">as</span> <span class="n">msg</span><span class="p">:</span>
+            <span class="n">header</span><span class="p">,</span> <span class="n">payload</span> <span class="o">=</span> <span class="n">msg</span>
+            <span class="n">header_type</span> <span class="o">=</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;type&quot;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">header_type</span> <span class="o">==</span> <span class="s2">&quot;FRAME&quot;</span><span class="p">:</span>
+                <span class="n">raw_frames</span> <span class="o">=</span> <span class="n">MerlinRawFrames</span><span class="p">(</span>
+                    <span class="n">buffer</span><span class="o">=</span><span class="n">payload</span><span class="p">,</span>
+                    <span class="n">start_idx</span><span class="o">=</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;start_idx&#39;</span><span class="p">],</span>
+                    <span class="n">end_idx</span><span class="o">=</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;end_idx&#39;</span><span class="p">],</span>
+                    <span class="n">first_frame_header</span><span class="o">=</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;first_frame_header&#39;</span><span class="p">],</span>
+                <span class="p">)</span>
+                <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;MerlinRawFrames.decode&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+                    <span class="n">span</span><span class="o">.</span><span class="n">set_attributes</span><span class="p">({</span>
+                        <span class="s2">&quot;libertem_live.header.start_idx&quot;</span><span class="p">:</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;start_idx&quot;</span><span class="p">],</span>
+                        <span class="s2">&quot;libertem_live.header.end_idx&quot;</span><span class="p">:</span> <span class="n">header</span><span class="p">[</span><span class="s2">&quot;end_idx&quot;</span><span class="p">],</span>
+                        <span class="s2">&quot;libertem_live.buffer.len&quot;</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">payload</span><span class="p">),</span>
+                    <span class="p">})</span>
+                    <span class="n">raw_frames</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span>
+                        <span class="n">out_flat</span><span class="o">=</span><span class="n">out_flat</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="k">assert</span> <span class="n">raw_frames</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">yield</span> <span class="n">out</span><span class="p">[:</span><span class="n">raw_frames</span><span class="o">.</span><span class="n">num_frames</span><span class="p">],</span> <span class="n">raw_frames</span><span class="o">.</span><span class="n">start_idx</span>
+            <span class="k">elif</span> <span class="n">header_type</span> <span class="o">==</span> <span class="s2">&quot;END_PARTITION&quot;</span><span class="p">:</span>
+                <span class="c1"># print(f&quot;partition {partition} done&quot;)</span>
+                <span class="k">return</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;invalid header type </span><span class="si">{</span><span class="n">header</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">; FRAME or END_PARTITION expected&quot;</span>
+                <span class="p">)</span>
+
+
+<span class="k">def</span> <span class="nf">_accum_partition</span><span class="p">(</span>
+    <span class="n">frames_iter</span><span class="p">:</span> <span class="n">Iterator</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="nb">int</span><span class="p">]],</span>
+    <span class="n">tiling_scheme</span><span class="p">:</span> <span class="n">TilingScheme</span><span class="p">,</span>
+    <span class="n">sig_shape</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">dtype</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Accumulate frame stacks for a partition</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">out</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">((</span><span class="n">tiling_scheme</span><span class="o">.</span><span class="n">depth</span><span class="p">,)</span> <span class="o">+</span> <span class="n">sig_shape</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">offset</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">frame_stack</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">frames_iter</span><span class="p">:</span>
+        <span class="n">out</span><span class="p">[</span><span class="n">offset</span><span class="p">:</span><span class="n">offset</span><span class="o">+</span><span class="n">frame_stack</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">frame_stack</span>
+        <span class="n">offset</span> <span class="o">+=</span> <span class="n">frame_stack</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">assert</span> <span class="n">offset</span> <span class="o">==</span> <span class="n">tiling_scheme</span><span class="o">.</span><span class="n">depth</span>
+    <span class="k">return</span> <span class="n">out</span>
+
+
+<span class="k">class</span> <span class="nc">MerlinCommHandler</span><span class="p">(</span><span class="n">TaskCommHandler</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">conn</span><span class="p">:</span> <span class="n">MerlinDetectorConnection</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">AcqState</span><span class="p">,</span>
+        <span class="n">tiling_depth</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_conn</span> <span class="o">=</span> <span class="n">conn</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span> <span class="o">=</span> <span class="n">state</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tiling_depth</span> <span class="o">=</span> <span class="n">tiling_depth</span>
+
+    <span class="k">def</span> <span class="nf">handle_task</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">task</span><span class="p">:</span> <span class="n">TaskProtocol</span><span class="p">,</span> <span class="n">queue</span><span class="p">:</span> <span class="n">WorkerQueue</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">tracer</span><span class="o">.</span><span class="n">start_as_current_span</span><span class="p">(</span><span class="s2">&quot;MerlinCommHandler.handle_task&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">span</span><span class="p">:</span>
+            <span class="n">slice_</span> <span class="o">=</span> <span class="n">task</span><span class="o">.</span><span class="n">get_partition</span><span class="p">()</span><span class="o">.</span><span class="n">slice</span>
+            <span class="n">start_idx</span> <span class="o">=</span> <span class="n">slice_</span><span class="o">.</span><span class="n">origin</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">end_idx</span> <span class="o">=</span> <span class="n">slice_</span><span class="o">.</span><span class="n">origin</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="n">slice_</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">span</span><span class="o">.</span><span class="n">set_attributes</span><span class="p">({</span>
+                <span class="s2">&quot;libertem.partition.start_idx&quot;</span><span class="p">:</span> <span class="n">start_idx</span><span class="p">,</span>
+                <span class="s2">&quot;libertem.partition.end_idx&quot;</span><span class="p">:</span> <span class="n">end_idx</span><span class="p">,</span>
+            <span class="p">})</span>
+            <span class="n">frame_chunk_size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="mi">32</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tiling_depth</span><span class="p">)</span>
+            <span class="n">frames_read</span> <span class="o">=</span> <span class="mi">0</span>
+            <span class="n">num_frames_in_partition</span> <span class="o">=</span> <span class="n">end_idx</span> <span class="o">-</span> <span class="n">start_idx</span>
+            <span class="n">stream</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_acq_state</span><span class="o">.</span><span class="n">stream</span>
+            <span class="k">while</span> <span class="n">frames_read</span> <span class="o">&lt;</span> <span class="n">num_frames_in_partition</span><span class="p">:</span>
+                <span class="n">next_read_size</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span>
+                    <span class="n">num_frames_in_partition</span> <span class="o">-</span> <span class="n">frames_read</span><span class="p">,</span>
+                    <span class="n">frame_chunk_size</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="c1"># FIXME: can&#39;t properly reuse this buffer currently...</span>
+                <span class="n">input_buffer</span> <span class="o">=</span> <span class="n">stream</span><span class="o">.</span><span class="n">get_input_buffer</span><span class="p">(</span><span class="n">next_read_size</span><span class="p">)</span>
+                <span class="n">res</span> <span class="o">=</span> <span class="n">stream</span><span class="o">.</span><span class="n">read_multi_frames</span><span class="p">(</span>
+                    <span class="n">input_buffer</span><span class="o">=</span><span class="n">input_buffer</span><span class="p">,</span>
+                    <span class="n">num_frames</span><span class="o">=</span><span class="n">next_read_size</span><span class="p">,</span>
+                    <span class="n">read_upto_frame</span><span class="o">=</span><span class="n">end_idx</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="kc">False</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;timeout while handling task&quot;</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">res</span> <span class="ow">is</span> <span class="kc">True</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;expected more data, didn&#39;t get any&quot;</span><span class="p">)</span>
+                <span class="n">frames_read</span> <span class="o">+=</span> <span class="n">res</span><span class="o">.</span><span class="n">num_frames</span>
+                <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">({</span>
+                    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;FRAME&quot;</span><span class="p">,</span>
+                    <span class="s2">&quot;start_idx&quot;</span><span class="p">:</span> <span class="n">res</span><span class="o">.</span><span class="n">start_idx</span><span class="p">,</span>
+                    <span class="s2">&quot;end_idx&quot;</span><span class="p">:</span> <span class="n">res</span><span class="o">.</span><span class="n">end_idx</span><span class="p">,</span>
+                    <span class="s2">&quot;first_frame_header&quot;</span><span class="p">:</span> <span class="n">res</span><span class="o">.</span><span class="n">first_frame_header</span><span class="p">,</span>
+                <span class="p">},</span> <span class="n">payload</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">frombuffer</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">buffer</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">uint8</span><span class="p">))</span>
+            <span class="c1"># FIXME: END_PARTITION in finally block?</span>
+            <span class="n">queue</span><span class="o">.</span><span class="n">put</span><span class="p">({</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;END_PARTITION&quot;</span><span class="p">,</span>
+            <span class="p">})</span>
+
+    <span class="k">def</span> <span class="nf">start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+    <span class="k">def</span> <span class="nf">done</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+
+<span class="k">class</span> <span class="nc">MerlinLivePartition</span><span class="p">(</span><span class="n">Partition</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">start_idx</span><span class="p">,</span> <span class="n">end_idx</span><span class="p">,</span> <span class="n">partition_slice</span><span class="p">,</span> <span class="n">meta</span><span class="p">,</span>
+    <span class="p">):</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">meta</span><span class="o">=</span><span class="n">meta</span><span class="p">,</span> <span class="n">partition_slice</span><span class="o">=</span><span class="n">partition_slice</span><span class="p">,</span> <span class="n">io_backend</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">decoder</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_start_idx</span> <span class="o">=</span> <span class="n">start_idx</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_end_idx</span> <span class="o">=</span> <span class="n">end_idx</span>
+
+    <span class="k">def</span> <span class="nf">shape_for_roi</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">roi</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="o">.</span><span class="n">adjust_for_roi</span><span class="p">(</span><span class="n">roi</span><span class="p">)</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">shape</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">slice</span><span class="o">.</span><span class="n">shape</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span> <span class="nf">dtype</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">raw_dtype</span>
+
+    <span class="k">def</span> <span class="nf">set_corrections</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">corrections</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_corrections</span> <span class="o">=</span> <span class="n">corrections</span>
+
+    <span class="k">def</span> <span class="nf">set_worker_context</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worker_context</span><span class="p">:</span> <span class="n">WorkerContext</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_worker_context</span> <span class="o">=</span> <span class="n">worker_context</span>
+
+    <span class="k">def</span> <span class="nf">_get_tiles_fullframe</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiling_scheme</span><span class="p">:</span> <span class="n">TilingScheme</span><span class="p">,</span> <span class="n">dest_dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span> <span class="n">roi</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">array_backend</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="s2">&quot;ArrayBackend&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">assert</span> <span class="n">array_backend</span> <span class="ow">in</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="n">NUMPY</span><span class="p">,</span> <span class="n">CUDA</span><span class="p">)</span>
+        <span class="c1"># assert len(tiling_scheme) == 1</span>
+        <span class="n">tiling_scheme</span> <span class="o">=</span> <span class="n">tiling_scheme</span><span class="o">.</span><span class="n">adjust_for_partition</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;reading up to frame idx </span><span class="si">%d</span><span class="s2"> for this partition&quot;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_end_idx</span><span class="p">)</span>
+
+        <span class="n">queue</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_worker_context</span><span class="o">.</span><span class="n">get_worker_queue</span><span class="p">()</span>
+        <span class="n">frames</span> <span class="o">=</span> <span class="n">get_frames_from_queue</span><span class="p">(</span>
+            <span class="n">queue</span><span class="p">,</span>
+            <span class="n">tiling_scheme</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">sig</span><span class="o">.</span><span class="n">to_tuple</span><span class="p">(),</span>
+            <span class="n">dtype</span><span class="o">=</span><span class="n">dest_dtype</span>
+        <span class="p">)</span>
+
+        <span class="c1"># special case: copy from the decode buffer into a larger partition buffer</span>
+        <span class="c1"># can be further optimized if needed (by directly decoding into said buffer)</span>
+        <span class="k">if</span> <span class="n">tiling_scheme</span><span class="o">.</span><span class="n">intent</span> <span class="o">==</span> <span class="s2">&quot;partition&quot;</span><span class="p">:</span>
+            <span class="n">frame_stack</span> <span class="o">=</span> <span class="n">_accum_partition</span><span class="p">(</span>
+                <span class="n">frames</span><span class="p">,</span>
+                <span class="n">tiling_scheme</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">shape</span><span class="o">.</span><span class="n">sig</span><span class="o">.</span><span class="n">to_tuple</span><span class="p">(),</span>
+                <span class="n">dtype</span><span class="o">=</span><span class="n">dest_dtype</span>
+            <span class="p">)</span>
+            <span class="n">tile_shape</span> <span class="o">=</span> <span class="n">Shape</span><span class="p">(</span>
+                <span class="n">frame_stack</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                <span class="n">sig_dims</span><span class="o">=</span><span class="mi">2</span>
+            <span class="p">)</span>
+            <span class="n">tile_slice</span> <span class="o">=</span> <span class="n">Slice</span><span class="p">(</span>
+                <span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_start_idx</span><span class="p">,)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                <span class="n">shape</span><span class="o">=</span><span class="n">tile_shape</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">yield</span> <span class="n">DataTile</span><span class="p">(</span>
+                <span class="n">frame_stack</span><span class="p">,</span>
+                <span class="n">tile_slice</span><span class="o">=</span><span class="n">tile_slice</span><span class="p">,</span>
+                <span class="n">scheme_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+
+        <span class="k">for</span> <span class="n">frame_stack</span><span class="p">,</span> <span class="n">start_idx</span> <span class="ow">in</span> <span class="n">frames</span><span class="p">:</span>
+            <span class="n">tile_shape</span> <span class="o">=</span> <span class="n">Shape</span><span class="p">(</span>
+                <span class="n">frame_stack</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+                <span class="n">sig_dims</span><span class="o">=</span><span class="mi">2</span>
+            <span class="p">)</span>
+            <span class="n">tile_slice</span> <span class="o">=</span> <span class="n">Slice</span><span class="p">(</span>
+                <span class="n">origin</span><span class="o">=</span><span class="p">(</span><span class="n">start_idx</span><span class="p">,)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+                <span class="n">shape</span><span class="o">=</span><span class="n">tile_shape</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">yield</span> <span class="n">DataTile</span><span class="p">(</span>
+                <span class="n">frame_stack</span><span class="p">,</span>
+                <span class="n">tile_slice</span><span class="o">=</span><span class="n">tile_slice</span><span class="p">,</span>
+                <span class="n">scheme_idx</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span> <span class="nf">get_tiles</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tiling_scheme</span><span class="p">,</span> <span class="n">dest_dtype</span><span class="o">=</span><span class="s2">&quot;float32&quot;</span><span class="p">,</span> <span class="n">roi</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">array_backend</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="s2">&quot;ArrayBackend&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+        <span class="k">yield from</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_tiles_fullframe</span><span class="p">(</span>
+            <span class="n">tiling_scheme</span><span class="p">,</span> <span class="n">dest_dtype</span><span class="p">,</span> <span class="n">roi</span><span class="p">,</span> <span class="n">array_backend</span><span class="o">=</span><span class="n">array_backend</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span> <span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;&lt;MerlinLivePartition </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_start_idx</span><span class="si">}</span><span class="s2">:</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_end_idx</span><span class="si">}</span><span class="s2">&gt;&quot;</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright LiberTEM-live Authors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
