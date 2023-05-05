@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from libertem.executor.inline import InlineJobExecutor
 from libertem.executor.pipelined import PipelinedExecutor
 
+import psutil
 import pytest
 import numpy as np
 
@@ -61,7 +62,15 @@ def ltl_ctx_fast():
 def ctx_pipelined():
     executor = None
     try:
-        executor = PipelinedExecutor()
+        num_cpus = min(
+            psutil.cpu_count(logical=False),
+            4
+        )
+        spec = PipelinedExecutor.make_spec(
+            cpus=num_cpus,
+            cudas=0,
+        )
+        executor = PipelinedExecutor(spec=spec)
         yield ltl.LiveContext(executor=executor, plot_class=Dummy2DPlot)
     finally:
         if executor is not None:
