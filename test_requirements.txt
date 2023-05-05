@@ -12,3 +12,4 @@ pymemfd; platform_system=="Linux"
 python-prctl; platform_system=="Linux"
 libertem[bqplot]
 flask
+psutil
