@@ -78,7 +78,9 @@ class BufferedCachedSource(CachedDataSource):
         for idx in range(prod(mock_nav_shape)):
             arr[idx, idx % sig_size] = idx
         c = sparseconverter.for_backend(arr, 'scipy.sparse.csr_matrix', strict=True)
-        mock_data = np.array(make_sim_data((32, 32), c.indptr, c.indices, c.data), dtype='uint8')
+        mock_data = np.array(make_sim_data(
+            mock_nav_shape, c.indptr, c.indices, c.data
+        ), dtype='uint8')
         return mock_data
 
     def _cache_data(self, paths: List[str]):
