@@ -18,6 +18,9 @@ Changelog
 0.2.1 / 2023-05-09
 ##################
 
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.7915819.svg
+   :target: https://doi.org/10.5281/zenodo.7915819
+
 Updated the packaging to include the tests in the sdist (:pr:`99`),
 and add tests that don't require "real" test data (:pr:`102`, :pr:`103`).
 
