@@ -21,6 +21,7 @@ We currently support the following detectors:
 
 * :ref:`Merlin Medipix <merlin detector>`, including 2x2 quad configuration
 * :ref:`DECTRIS EIGER2-based detectors <dectris detectors>`, like ARINA or QUADRO
+* :ref:`Amsterdam Scientific Instruments TPX3 <asi tpx3>` (experimental)
 
 Computations on the live stream use the LiberTEM user-defined functions (UDF) interface.
 There are some useful UDFs shipped with both LiberTEM and LiberTEM-live, or you can

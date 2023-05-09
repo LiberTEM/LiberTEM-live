@@ -1,18 +1,5 @@
-Results of doctest builder run on 2023-05-09 09:14:39
+Results of doctest builder run on 2023-05-09 15:16:41
 =====================================================
-
-Document: detectors/dectris
----------------------------
-1 items passed all tests:
-   3 tests in default
-3 tests in 1 items.
-3 passed and 0 failed.
-Test passed.
-1 items passed all tests:
-   1 tests in default (cleanup code)
-1 tests in 1 items.
-1 passed and 0 failed.
-Test passed.
 
 Document: usage
 ---------------
@@ -27,8 +14,8 @@ Test passed.
 1 passed and 0 failed.
 Test passed.
 
-Document: detectors/asi_tpx3
-----------------------------
+Document: detectors/merlin
+--------------------------
 1 items passed all tests:
    1 tests in default
 1 tests in 1 items.
@@ -40,8 +27,21 @@ Test passed.
 1 passed and 0 failed.
 Test passed.
 
-Document: detectors/merlin
---------------------------
+Document: detectors/dectris
+---------------------------
+1 items passed all tests:
+   3 tests in default
+3 tests in 1 items.
+3 passed and 0 failed.
+Test passed.
+1 items passed all tests:
+   1 tests in default (cleanup code)
+1 tests in 1 items.
+1 passed and 0 failed.
+Test passed.
+
+Document: detectors/asi_tpx3
+----------------------------
 1 items passed all tests:
    1 tests in default
 1 tests in 1 items.
