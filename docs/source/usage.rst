@@ -50,6 +50,7 @@ which is the :class:`~libertem_live.api.LiveContext`:
     microscope = MockMic()
 
 .. testoutput::
+    :skipif: not HAVE_DECTRIS_TESTDATA
     :hide:
 
     RustedReplay listening on tcp://127.0.0.1:...
@@ -300,6 +301,7 @@ holders with heating etc.
         ctx.run_udf(dataset=aq, udf=SumUDF())
 
 .. testoutput::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     Triggering!
 
@@ -369,6 +371,7 @@ is passed to :meth:`~libertem_live.api.LiveContext.make_acquisition`.
 
 
 .. testoutput::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     We have 16384 images
 
