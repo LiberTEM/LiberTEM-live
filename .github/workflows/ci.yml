@@ -27,6 +27,8 @@ jobs:
         with:
           python-version: '${{ matrix.python_version }}'
           cache: 'pip'
+      - run: |
+           [[ "${{ matrix.os }}" = "ubuntu-latest" ]] && sudo apt-get install -y libcap-dev || true
       - name: install tox
         run: python3 -m pip install tox
       - name: run tox
@@ -46,7 +48,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - run: sudo apt-get install -y pandoc
+      - run: sudo apt-get install -y pandoc libcap-dev
       - name: install tox
         run: python3 -m pip install tox
       - name: 'run tox for environment ${{ matrix.envs }}'
