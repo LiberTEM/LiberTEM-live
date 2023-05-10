@@ -29,6 +29,7 @@ jobs:
           cache: 'pip'
       - run: |
            [[ "${{ matrix.os }}" = "ubuntu-latest" ]] && sudo apt-get install -y libcap-dev || true
+        shell: bash
       - name: install tox
         run: python3 -m pip install tox
       - name: run tox
