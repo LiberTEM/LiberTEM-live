@@ -103,3 +103,31 @@ stages:
         inputs:
           testResultsFiles: 'junit.xml'
           testRunTitle: 'Publish test results for Python $(python.version)'
+
+    - job: lint
+      pool: DataAccess
+      strategy:
+        matrix:
+          docs-check:
+            TOXENV: 'docs-check'
+      variables:
+        TOXENV: '$(TOXENV)'
+        TESTDATA_BASE_PATH: '/data/'
+      steps:
+      - task: UsePythonVersion@0
+        displayName: 'Use Python 3.9'
+        inputs:
+          versionSpec: '3.9'
+
+      - bash: apt install -y pandoc
+        displayName: install required debian packages
+      - bash: pip install -U tox
+        displayName: 'install requirements'
+
+      - ${{ if eq(parameters.recreate_tox, true) }}:
+        - bash: tox -r
+          displayName: 'Run tox tests $(TOXENV) $(Agent.OS) (recreating)'
+
+      - ${{ if eq(parameters.recreate_tox, false) }}:
+        - bash: tox
+          displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'

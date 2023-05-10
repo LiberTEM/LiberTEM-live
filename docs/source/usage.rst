@@ -91,6 +91,7 @@ like this:
 The connection is usually persistent, so it's important to clean up after yourself:
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     conn.close()
 
@@ -445,6 +446,7 @@ as NPY file.
     ctx.run_udf(dataset=aq, udf=RecordUDF(filename))
 
 .. testcleanup::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     # close the context when done to free up resources:
     ctx.close()
