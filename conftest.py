@@ -70,7 +70,7 @@ def ctx_pipelined():
             cpus=num_cpus,
             cudas=0,
         )
-        executor = PipelinedExecutor(spec=spec)
+        executor = PipelinedExecutor(spec=spec, pin_workers=False)
         yield ltl.LiveContext(executor=executor, plot_class=Dummy2DPlot)
     finally:
         if executor is not None:
