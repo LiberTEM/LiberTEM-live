@@ -25,6 +25,13 @@ class PendingAcquisition:
         """
         return None
 
+    @property
+    def sig_shape(self) -> Optional[Tuple[int, ...]]:
+        """
+        The concrete `sig_shape`, if it is known by the detector
+        """
+        return None
+
 
 class DetectorConnection:
     """
