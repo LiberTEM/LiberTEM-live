@@ -11,13 +11,18 @@ from sparseconverter import SCIPY_CSR
 
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
-from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler
+from libertem.common.executor import (
+    WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler,
+    JobCancelledError,
+)
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
 
-from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.detectors.base.acquisition import (
+    AcquisitionMixin,
+)
 from libertem_live.detectors.base.controller import AcquisitionController
 from libertem_live.hooks import ReadyForDataEnv, Hooks
 from .connection import AsiTpx3DetectorConnection, AsiTpx3PendingAcquisition
@@ -101,14 +106,17 @@ class AsiCommHandler(TaskCommHandler):
                 chunk_stack = self.conn.get_next_stack(
                     max_size=current_stack_size
                 )
+                if chunk_stack is None:
+                    if current_idx != end_idx:
+                        queue.put({
+                            "type": "END_PARTITION",
+                        })
+                        raise JobCancelledError("premature end of frame iterator")
+                    break
                 assert len(chunk_stack) <= current_stack_size,\
                     f"{len(chunk_stack)} <= {current_stack_size}"
                 t1 = time.perf_counter()
                 recv_time += t1 - t0
-                if chunk_stack is None:
-                    if current_idx != end_idx:
-                        raise RuntimeError("premature end of frame iterator")
-                    break
 
                 t0 = time.perf_counter()
                 serialized = chunk_stack.serialize()
@@ -343,8 +351,10 @@ class AsiLivePartition(Partition):
             try:
                 stack = next(stacks)
             except StopIteration:
-                assert to_read == 0, f"we were still expecting to read {to_read} frames more!"
-
+                if to_read != 0:
+                    raise JobCancelledError(
+                        f"we were still expecting to read {to_read} frames more!"
+                    )
             for (
                 chunk_layout,
                 chunk_indptr,
