@@ -3,39 +3,31 @@ import logging
 import time
 from typing import Tuple, Optional
 
-import scipy
-import scipy.sparse
 import numpy as np
 from opentelemetry import trace
-from sparseconverter import SCIPY_CSR
 
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
-from libertem.common.executor import (
-    WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler,
-    JobCancelledError,
-)
+from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
 
-from libertem_live.detectors.base.acquisition import (
-    AcquisitionMixin,
-)
+from libertem_live.detectors.base.acquisition import AcquisitionMixin
 from libertem_live.detectors.base.controller import AcquisitionController
 from libertem_live.hooks import ReadyForDataEnv, Hooks
-from .connection import AsiTpx3DetectorConnection, AsiTpx3PendingAcquisition
+from .connection import AsiMpx3DetectorConnection, AsiMpx3PendingAcquisition
 
-from libertem_asi_tpx3 import CamClient, ChunkStackHandle
+from libertem_asi_mpx3 import CamClient, FrameStackHandle
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
-def get_chunk_stacks(worker_context: WorkerContext):
+def get_frame_stacks(worker_context: WorkerContext):
     """
-    Consume all CHUNK_STACK messages from the request queue until we get an
+    Consume all FRAME_STACK messages from the request queue until we get an
     END_PARTITION message (which we also consume)
     """
     request_queue = worker_context.get_worker_queue()
@@ -51,19 +43,19 @@ def get_chunk_stacks(worker_context: WorkerContext):
             with request_queue.get() as msg:
                 header, payload = msg
                 header_type = header["type"]
-                if header_type == "CHUNK_STACK":
-                    chunk_stack = ChunkStackHandle.deserialize(payload)
-                    chunks = cam_client.get_chunks(handle=chunk_stack)
+                if header_type == "FRAME_STACK":
+                    frame_stack = FrameStackHandle.deserialize(payload)
+                    frames = cam_client.get_frames(handle=frame_stack)
                     try:
-                        yield chunks
+                        yield frames
                     finally:
-                        cam_client.done(chunk_stack)
+                        cam_client.done(frame_stack)
                 elif header_type == "END_PARTITION":
                     return
                 else:
                     raise RuntimeError(
                         f"invalid header type {header['type']}; "
-                        f"CHUNK_STACK or END_PARTITION expected"
+                        f"FRAME_STACK or END_PARTITION expected"
                     )
     finally:
         cam_client.close()
@@ -72,7 +64,7 @@ def get_chunk_stacks(worker_context: WorkerContext):
 class AsiCommHandler(TaskCommHandler):
     def __init__(
         self,
-        conn: "AsiTpx3DetectorConnection",
+        conn: "AsiMpx3DetectorConnection",
     ):
         self.conn = conn.get_conn_impl()
 
@@ -97,36 +89,33 @@ class AsiCommHandler(TaskCommHandler):
                 "libertem.partition.start_idx": start_idx,
                 "libertem.partition.end_idx": end_idx,
             })
-            stack_size = 1000000000000
+            stack_size = 32
             current_idx = start_idx
             while current_idx < end_idx:
                 current_stack_size = min(stack_size, end_idx - current_idx)
 
                 t0 = time.perf_counter()
-                chunk_stack = self.conn.get_next_stack(
+                frame_stack = self.conn.get_next_stack(
                     max_size=current_stack_size
                 )
-                if chunk_stack is None:
-                    if current_idx != end_idx:
-                        queue.put({
-                            "type": "END_PARTITION",
-                        })
-                        raise JobCancelledError("premature end of frame iterator")
-                    break
-                assert len(chunk_stack) <= current_stack_size,\
-                    f"{len(chunk_stack)} <= {current_stack_size}"
+                assert len(frame_stack) <= current_stack_size,\
+                    f"{len(frame_stack)} <= {current_stack_size}"
                 t1 = time.perf_counter()
                 recv_time += t1 - t0
+                if frame_stack is None:
+                    if current_idx != end_idx:
+                        raise RuntimeError("premature end of frame iterator")
+                    break
 
                 t0 = time.perf_counter()
-                serialized = chunk_stack.serialize()
+                serialized = frame_stack.serialize()
                 queue.put({
-                    "type": "CHUNK_STACK",
+                    "type": "FRAME_STACK",
                 }, payload=serialized)
                 t1 = time.perf_counter()
                 put_time += t1 - t0
 
-                current_idx += len(chunk_stack)
+                current_idx += len(frame_stack)
             span.set_attributes({
                 "total_put_time": put_time,
                 "total_recv_time": recv_time,
@@ -139,9 +128,9 @@ class AsiCommHandler(TaskCommHandler):
         pass  # ... likewise here
 
 
-class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
+class AsiMpx3Acquisition(AcquisitionMixin, DataSet):
     '''
-    Acquisition from a ASI TPX3 detector
+    Acquisition from a ASI MPX3 detector
 
     Use :meth:`libertem_live.api.LiveContext.make_acquisition` to instantiate this
     class!
@@ -149,8 +138,8 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     Examples
     --------
 
-    >>> with ctx.make_connection('asi_tpx3').open(
-    ...     data_port=TPX3_PORT,
+    >>> with ctx.make_connection('asi_mpx3').open(
+    ...     data_port=MPX3_PORT,
     ... ) as conn:
     ...     pending_aq = conn.wait_for_acquisition(1.0)
     ...     aq = ctx.make_acquisition(
@@ -170,19 +159,19 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
         to adapt to the dwell time.
     pending_aq
         A pending acquisition in passive mode, obtained from
-        :meth:`AsiTpx3DetectorConnection.wait_for_acquisition`.
+        :meth:`AsiMpx3DetectorConnection.wait_for_acquisition`.
     hooks
         Acquisition hooks to react to certain events
     '''
     def __init__(
         self,
 
-        conn: AsiTpx3DetectorConnection,
+        conn: AsiMpx3DetectorConnection,
 
         hooks: Optional[Hooks] = None,
 
         # in passive mode, we get this:
-        pending_aq: Optional[AsiTpx3PendingAcquisition] = None,
+        pending_aq: Optional[AsiMpx3PendingAcquisition] = None,
 
         # this is for future compatibility with an active mode:
         controller: Optional[AcquisitionController] = None,
@@ -203,17 +192,15 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
             pending_aq=pending_aq,
             hooks=hooks,
         )
-        self._sig_shape: Tuple[int, ...] = ()
-        self._acquisition_header = pending_aq.header
+        sig_shape = pending_aq.sig_shape
+        assert sig_shape is not None, "sig_shape must be known"
+        self._sig_shape: Tuple[int, ...] = sig_shape
 
     def initialize(self, executor) -> "DataSet":
         ''
-        self._sig_shape = self._acquisition_header.get_sig_shape()
-        self._nav_shape = self._acquisition_header.get_nav_shape()
         self._meta = DataSetMeta(
             shape=Shape(self._nav_shape + self._sig_shape, sig_dims=2),
-            array_backends=[SCIPY_CSR],
-            raw_dtype=np.float32,  # this is a lie, the dtype can vary by chunk!
+            raw_dtype=np.float32,  # this is a lie, the dtype can vary by frame!
             dtype=np.float32,
         )
         return self
@@ -262,9 +249,10 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
 
     def adjust_tileshape(self, tileshape, roi):
         ""
-        depth = 512  # FIXME: hardcoded, hmm...
-        return (depth, *self.meta.shape.sig)
+        # depth = 512  # FIXME: hardcoded, hmm...
+        # return (depth, *self.meta.shape.sig)
         # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
+        return super().adjust_tileshape(tileshape, roi)
 
     def get_max_io_size(self):
         ""
@@ -340,58 +328,44 @@ class AsiLivePartition(Partition):
         assert len(tiling_scheme) == 1, "only supports full frames tiling scheme for now"
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
-        # FIXME: use depth?
-        # depth = tiling_scheme.depth
+        depth = tiling_scheme.depth
         tile_start = self._start_idx
-        stacks = get_chunk_stacks(self._worker_context)
-        sig_shape = tuple(self.slice.shape.sig)
-        sig_dims = len(sig_shape)
-        buf = None
+        sig_shape = tuple(self.shape.sig)
+        stacks = get_frame_stacks(self._worker_context)
+        buf = np.zeros((depth,) + tuple(tiling_scheme[0].shape), dtype=dest_dtype)
+        buf_cursor = 0
         while to_read > 0:
             try:
                 stack = next(stacks)
             except StopIteration:
-                if to_read != 0:
-                    raise JobCancelledError(
-                        f"we were still expecting to read {to_read} frames more!"
+                assert to_read == 0, f"we were still expecting to read {to_read} frames more!"
+                break
+
+            for mem, dtype in stack:
+                dtype = dtype.as_string()
+                frame_arr = np.frombuffer(mem, dtype=dtype).reshape(sig_shape)
+                buf[buf_cursor] = frame_arr
+                buf_cursor += 1
+                to_read -= 1
+                if buf_cursor == depth or to_read == 0:
+                    frames_in_tile = buf_cursor
+                    buf_cut = buf[:frames_in_tile]
+                    tile_shape = Shape(
+                        (frames_in_tile,) + tuple(tiling_scheme[0].shape),
+                        sig_dims=2
                     )
-            for (
-                chunk_layout,
-                chunk_indptr,
-                chunk_indices,
-                chunk_values
-            ) in stack:
-                chunk_values_arr = np.frombuffer(chunk_values, dtype=chunk_layout.get_value_dtype())
-                chunk_indices_arr = np.frombuffer(
-                    chunk_indices, dtype=chunk_layout.get_indices_dtype()
-                )
-                chunk_indptr_arr = np.frombuffer(
-                    chunk_indptr, dtype=chunk_layout.get_indptr_dtype()
-                )
-                if chunk_layout.get_value_dtype() != np.dtype(dest_dtype):
-                    if buf is None or buf.shape[0] < chunk_values_arr.shape[0]:
-                        buf = np.zeros_like(chunk_values_arr, dtype=dest_dtype)
-                    buf[:chunk_values_arr.shape[0]] = chunk_values_arr
-                    chunk_values_arr = buf[:chunk_values_arr.shape[0]]
-                arr = scipy.sparse.csr_matrix(
-                    (chunk_values_arr, chunk_indices_arr, chunk_indptr_arr),
-                    shape=(chunk_layout.get_nframes(), prod(self.slice.shape.sig)),
-                )
-                frames_in_tile = chunk_layout.get_nframes()
-                to_read -= frames_in_tile
+                    tile_slice = Slice(
+                        origin=(tile_start,) + (0, 0),
+                        shape=tile_shape,
+                    )
+                    self._preprocess(buf_cut, tile_slice)
+                    yield DataTile(
+                        buf_cut,
+                        tile_slice=tile_slice,
+                        scheme_idx=0,
+                    )
+                    tile_start += frames_in_tile
 
-                tile_slice = Slice(
-                    origin=(tile_start, ) + (0, ) * sig_dims,
-                    shape=Shape((arr.shape[0], ) + sig_shape, sig_dims=sig_dims),
-                )
-                assert tile_slice.origin[0] < self._end_idx
-                yield DataTile(
-                    data=arr,
-                    tile_slice=tile_slice,
-                    scheme_idx=0,
-                )
-
-                tile_start += frames_in_tile
         logger.debug("LivePartition.get_tiles: end of method")
 
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None, array_backend=None):

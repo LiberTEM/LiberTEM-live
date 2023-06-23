@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from libertem_live.detectors.asi_tpx3 import (
         AsiTpx3DetectorConnection, AsiTpx3ConnectionBuilder, AsiTpx3Acquisition,
     )
+    from libertem_live.detectors.asi_mpx3 import (
+        AsiMpx3DetectorConnection, AsiMpx3ConnectionBuilder, AsiMpx3Acquisition,
+    )
 
 tracer = trace.get_tracer(__name__)
 
@@ -70,6 +73,13 @@ class LiveContext(LiberTEM_Context):
     @overload
     def make_connection(
         self,
+        detector_type: Literal['asi_mpx3'],
+    ) -> "AsiMpx3ConnectionBuilder":
+        ...
+
+    @overload
+    def make_connection(
+        self,
         detector_type: Literal['dectris'],
     ) -> "DectrisConnectionBuilder":
         ...
@@ -92,12 +102,14 @@ class LiveContext(LiberTEM_Context):
         self,
         detector_type: Union[
             Literal['asi_tpx3'],
+            Literal['asi_mpx3'],
             Literal['dectris'],
             Literal['merlin'],
             Literal['memory']
         ],
     ) -> Union[
         "AsiTpx3ConnectionBuilder",
+        "AsiMpx3ConnectionBuilder",
         "DectrisConnectionBuilder",
         "MerlinConnectionBuilder",
         "MemoryConnectionBuilder",
@@ -126,6 +138,9 @@ class LiveContext(LiberTEM_Context):
         if detector_type == 'asi_tpx3':
             from libertem_live.detectors.asi_tpx3 import AsiTpx3ConnectionBuilder
             return AsiTpx3ConnectionBuilder()
+        if detector_type == 'asi_mpx3':
+            from libertem_live.detectors.asi_mpx3 import AsiMpx3ConnectionBuilder
+            return AsiMpx3ConnectionBuilder()
         elif detector_type == 'merlin':
             from libertem_live.detectors.merlin import MerlinConnectionBuilder
             return MerlinConnectionBuilder()
@@ -148,6 +163,19 @@ class LiveContext(LiberTEM_Context):
         pending_aq: Optional[PendingAcquisition] = None,
         hooks: Optional[Hooks] = None,
     ) -> "AsiTpx3Acquisition":
+        ...
+
+    @overload
+    def make_acquisition(
+        self,
+        *,
+        conn: "AsiMpx3DetectorConnection",
+        nav_shape: Optional[Tuple[int, ...]] = None,
+        frames_per_partition: Optional[int] = None,
+        controller: Optional[AcquisitionController] = None,
+        pending_aq: Optional[PendingAcquisition] = None,
+        hooks: Optional[Hooks] = None,
+    ) -> "AsiMpx3Acquisition":
         ...
 
     @overload
@@ -200,6 +228,7 @@ class LiveContext(LiberTEM_Context):
         hooks: Optional[Hooks] = None,
     ) -> Union[
         "AsiTpx3Acquisition",
+        "AsiMpx3Acquisition",
         "DectrisAcquisition",
         "MerlinAcquisition",
         "MemoryAcquisition",
