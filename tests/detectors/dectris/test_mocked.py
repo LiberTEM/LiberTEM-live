@@ -132,3 +132,56 @@ def test_context_manager_multi_block(ctx_pipelined: LiveContext, dectris_sim):
         _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
 
     assert conn._conn is None
+
+
+def test_cancellation(ctx_pipelined: LiveContext, dectris_sim):
+    try:
+        from libertem.exceptions import UDFRunCancelled
+    except ImportError:
+        pytest.skip("Needs LiberTEM v0.12+")
+    api_port, data_port = dectris_sim
+    with ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    ) as conn:
+        with pytest.raises(UDFRunCancelled):
+            ec = conn.get_api_client()
+            ec.sendDetectorCommand('arm')
+
+            pending_aq = conn.wait_for_acquisition(10.0)
+            assert pending_aq is not None
+            assert pending_aq.series == 34
+            assert pending_aq.detector_config is not None
+            assert pending_aq.nimages == 32 * 32
+
+            aq = ctx_pipelined.make_acquisition(
+                pending_aq=pending_aq,
+                conn=conn,
+                nav_shape=(32, 33),  # NOTE: one column more than we will actually get!
+                frames_per_partition=64,
+            )
+
+            # FIXME verify result
+            _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+
+        # on the same connection, we can still run the next acquisition:
+        ec = conn.get_api_client()
+        ec.sendDetectorCommand('arm')
+
+        pending_aq = conn.wait_for_acquisition(10.0)
+        assert pending_aq is not None
+        assert pending_aq.series == 34
+        assert pending_aq.detector_config is not None
+        assert pending_aq.nimages == 32 * 32
+
+        aq = ctx_pipelined.make_acquisition(
+            pending_aq=pending_aq,
+            conn=conn,
+            nav_shape=(32, 32),  # NOTE: now matches the number of frames actually sent
+            frames_per_partition=64,
+        )
+
+        # FIXME verify result
+        _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())

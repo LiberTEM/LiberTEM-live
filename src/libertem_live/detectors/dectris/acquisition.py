@@ -9,7 +9,10 @@ from opentelemetry import trace
 
 from libertem.common import Shape, Slice
 from libertem.common.math import prod
-from libertem.common.executor import WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler
+from libertem.common.executor import (
+    WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler,
+    JobCancelledError,
+)
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
@@ -138,13 +141,19 @@ class DectrisCommHandler(TaskCommHandler):
                 frame_stack = conn.get_next_stack(
                     max_size=current_chunk_size
                 )
+                if frame_stack is None:
+                    if current_idx != end_idx:
+                        queue.put({
+                            "type": "END_PARTITION",
+                        })
+                        raise JobCancelledError("premature end of frame iterator")
                 assert len(frame_stack) <= current_chunk_size,\
                     f"{len(frame_stack)} <= {current_chunk_size}"
                 t1 = time.perf_counter()
                 recv_time += t1 - t0
                 if len(frame_stack) == 0:
                     if current_idx != end_idx:
-                        raise RuntimeError("premature end of frame iterator")
+                        raise JobCancelledError("premature end of frame iterator")
                     break
 
                 dtype = dtype_from_frame(frame_stack)
