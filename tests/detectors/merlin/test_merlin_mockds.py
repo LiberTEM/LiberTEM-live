@@ -1,8 +1,10 @@
 import numpy as np
+import pytest
 from numpy.testing import assert_allclose
 
 from libertem.udf.sum import SumUDF
 from libertem.io.dataset.base import DataSet
+from libertem.common.math import prod
 
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
@@ -107,6 +109,44 @@ def test_acquisition_triggered_garbage(
                 mock_merlin_control_sim_garbage,
                 mock_merlin_trigger_sim_garbage
             ),
+            nav_shape=mock_merlin_ds.shape.nav,
+        )
+        udf = SumUDF()
+
+        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        ref = ctx_pipelined.run_udf(dataset=mock_merlin_ds, udf=udf)
+        assert_allclose(res['intensity'], ref['intensity'])
+
+
+def test_timeout_cancelled(
+    ctx_pipelined: LiveContext,
+    mock_merlin_ds,
+    mock_merlin_detector_sim,
+    mock_merlin_control_sim,
+):
+    try:
+        from libertem.exceptions import UDFRunCancelled
+    except ImportError:
+        pytest.skip("Needs LiberTEM v0.12+")
+    host, port = mock_merlin_detector_sim
+    api_host, api_port = mock_merlin_control_sim
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+    ) as conn:
+        with pytest.raises(UDFRunCancelled):
+            aq = ctx_pipelined.make_acquisition(
+                conn=conn,
+                nav_shape=(prod(mock_merlin_ds.shape.nav) + 1,),
+            )
+            udf = SumUDF()
+            res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+
+        # things are usable afterwards:
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
             nav_shape=mock_merlin_ds.shape.nav,
         )
         udf = SumUDF()

@@ -5,6 +5,7 @@ import numpy as np
 from libertem.common import Shape, Slice
 from libertem.common.executor import (
     TaskProtocol, WorkerQueue, TaskCommHandler, WorkerContext,
+    JobCancelledError,
 )
 from libertem.io.dataset.base import (
     DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
@@ -242,7 +243,6 @@ def get_frames_from_queue(
                     raw_frames.decode(
                         out_flat=out_flat,
                     )
-                assert raw_frames is not None
                 yield out[:raw_frames.num_frames], raw_frames.start_idx
             elif header_type == "END_PARTITION":
                 # print(f"partition {partition} done")
@@ -308,9 +308,15 @@ class MerlinCommHandler(TaskCommHandler):
                     read_upto_frame=end_idx,
                 )
                 if res is False:
-                    raise RuntimeError("timeout while handling task")
+                    queue.put({
+                        "type": "END_PARTITION",
+                    })
+                    raise JobCancelledError("timeout while handling task")
                 if res is True:
-                    raise RuntimeError("expected more data, didn't get any")
+                    queue.put({
+                        "type": "END_PARTITION",
+                    })
+                    raise JobCancelledError("expected more data, didn't get any")
                 frames_read += res.num_frames
                 queue.put({
                     "type": "FRAME",
