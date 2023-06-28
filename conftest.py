@@ -105,7 +105,7 @@ def add_helpers(doctest_namespace, ctx_pipelined):
 
 @pytest.fixture(autouse=True, scope='session')
 def add_sims(doctest_namespace):
-    if not HAVE_DECTRIS_TESTDATA or not HAVE_MIB_TESTDATA:
+    if not HAVE_DECTRIS_TESTDATA or not HAVE_MIB_TESTDATA or not HAVE_TPX3_TESTDATA:
         # FIXME: add some kind of proxy object that calls
         # pytest.skip on access? is this possible somehow?
         yield
