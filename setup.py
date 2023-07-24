@@ -84,7 +84,7 @@ setup(
         "tqdm",
         "numba",
         "opentelemetry-api",
-        "sparseconverter",
+        "sparseconverter>=0.3.3",
         "libertem-dectris>=0.2.10",
         "libertem-asi-tpx3>=0.2.10",
     ],
