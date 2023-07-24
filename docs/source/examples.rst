@@ -22,7 +22,6 @@ If you take setup, cancellation, timeouts etc. into account, it could look like
 this:
 
 .. code-block:: python
-    :skipif: not HAVE_DECTRIS_TESTDATA or UDFRunCancelled is None
 
     from libertem.viz.bqp import BQLive2DPlot
     from libertem_live.api import LiveContext
