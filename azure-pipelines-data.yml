@@ -92,6 +92,9 @@ stages:
       - bash: cd $(Build.SourcesDirectory)/LiberTEM-live/ && $(Agent.TempDirectory)/venv/bin/pytest --durations=10 --cov=libertem_live --cov-report=term --cov-report=html --cov-report=xml --cov-config=setup.cfg --junitxml=junit.xml tests/
         displayName: 'run LiberTEM-live tests'
 
+      - bash: cd $(Build.SourcesDirectory)/LiberTEM-live/ && ./scripts/codecov.sh -f ./coverage.xml
+        displayName: 'Submit coverage to codecov.io'
+
     - job: data_tests
       pool: DataAccess
       strategy:
