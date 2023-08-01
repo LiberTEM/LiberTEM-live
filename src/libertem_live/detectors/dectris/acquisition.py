@@ -147,7 +147,7 @@ class DectrisCommHandler(TaskCommHandler):
                             "type": "END_PARTITION",
                         })
                         raise JobCancelledError("premature end of frame iterator")
-                assert len(frame_stack) <= current_chunk_size,\
+                assert len(frame_stack) <= current_chunk_size, \
                     f"{len(frame_stack)} <= {current_chunk_size}"
                 t1 = time.perf_counter()
                 recv_time += t1 - t0
