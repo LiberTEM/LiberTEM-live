@@ -113,7 +113,7 @@ class AsiCommHandler(TaskCommHandler):
                         })
                         raise JobCancelledError("premature end of frame iterator")
                     break
-                assert len(chunk_stack) <= current_stack_size,\
+                assert len(chunk_stack) <= current_stack_size, \
                     f"{len(chunk_stack)} <= {current_stack_size}"
                 t1 = time.perf_counter()
                 recv_time += t1 - t0
