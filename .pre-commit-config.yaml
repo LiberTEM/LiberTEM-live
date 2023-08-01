@@ -10,7 +10,7 @@ repos:
   - id: check-added-large-files
     exclude: '^$|prototypes/|examples/'
 - repo: https://github.com/pycqa/flake8
-  rev: 6.0.0
+  rev: 6.1.0
   hooks:
   - id: flake8
     exclude: ^prototypes/
@@ -19,7 +19,7 @@ repos:
   hooks:
   - id: pyroma
 - repo: https://github.com/asottile/pyupgrade
-  rev: v3.9.0
+  rev: v3.10.1
   hooks:
     - id: pyupgrade
       args: ["--py37-plus"]
