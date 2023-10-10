@@ -27,6 +27,33 @@ if TYPE_CHECKING:
 tracer = trace.get_tracer(__name__)
 
 
+class CleanupResultGeneratorProxy:
+    def __init__(self, inner, callback):
+        self._inner = inner
+        self._inner_iter = iter(inner)
+        self._callback = callback
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return next(self._inner_iter)
+        except StopIteration:
+            raise
+        finally:
+            self._callback()
+
+    def close(self):
+        try:
+            self._inner.close()
+        finally:
+            self._callback()
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+
 class LiveContext(LiberTEM_Context):
     '''
     :class:`LiveContext` handles the computational resources needed to run
@@ -120,6 +147,8 @@ class LiveContext(LiberTEM_Context):
         ...     print("connected!")
         connected!
         """
+        # FIXME implement similar to LiberTEM datasets once
+        # we have more detector types to support
         if detector_type == 'dectris':
             from libertem_live.detectors.dectris import DectrisConnectionBuilder
             return DectrisConnectionBuilder()
@@ -229,8 +258,6 @@ class LiveContext(LiberTEM_Context):
         return instance.initialize(self.executor)
 
     def prepare_acquisition(self, detector_type, *args, trigger=None, **kwargs):
-        # FIXME implement similar to LiberTEM datasets once
-        # we have more detector types to support
         '''
         This method has been removed, please use `make_connection` and `make_acquisition`.
         '''
@@ -241,11 +268,16 @@ class LiveContext(LiberTEM_Context):
 
     def _run_sync(self, dataset, udf, iterate=False, *args, **kwargs):
         def _run_sync_iterate():
-            with self._do_acquisition(dataset, udf):
-                res = super(LiveContext, self)._run_sync(
-                    dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs
-                )
-                yield from res
+            # crimes:
+            context_manager = self._do_acquisition(dataset, udf)
+            context_manager.__enter__()
+            res = super(LiveContext, self)._run_sync(
+                dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs
+            )
+            # FML...
+            return CleanupResultGeneratorProxy(
+                res, callback=lambda: context_manager.__exit__(None, None, None)
+            )
 
         if iterate:
             return _run_sync_iterate()
