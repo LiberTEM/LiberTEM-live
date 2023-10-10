@@ -1,3 +1,5 @@
+import contextlib
+
 import numpy as np
 import pytest
 
@@ -53,3 +55,17 @@ def test_dataset(ltl_ctx):
 def test_removed_api(ltl_ctx):
     with pytest.raises(RuntimeError):
         ltl_ctx.prepare_acquisition('merlin')
+
+
+def test_update_parameters_iter_sync(ltl_ctx):
+    data = np.random.random((13, 17, 19, 23))
+
+    with ltl_ctx.make_connection('memory').open(data=data) as conn:
+        aq = ltl_ctx.make_acquisition(conn=conn)
+
+        udf1 = SignalMonitorUDF()
+        udf2 = NoOpUDF()
+        res_iter = ltl_ctx.run_udf_iter(dataset=aq, udf=[udf1, udf2], sync=True)
+        with contextlib.closing(res_iter):
+            for item in res_iter:
+                res_iter.update_parameters_experimental([{}, {}])
