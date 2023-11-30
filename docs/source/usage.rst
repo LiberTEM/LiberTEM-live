@@ -64,7 +64,9 @@ which is the :class:`~libertem_live.api.LiveContext`:
     ctx = LiveContext()
 
 This creates the appropriate resources for computation, in other words, it
-starts worker processes and prepares them for receiving data.
+starts worker processes and prepares them for receiving data. As it may take a
+while for the :class:`~libertem_live.api.LiveContext` to spawn the worker processes,
+it's best to keep the instance around as long as possible.
 
 The next step is to prepare a connection to the detector system; in most cases
 you'll specify network hostnames, IP addresses and/or ports here.
@@ -404,6 +406,34 @@ which will automatically add a live-updating plot to the notebook cell output.
 In some cases, updating the plot can become a bottleneck - one way to
 circumvent this is to use `bqplot` for visualization. Please see :ref:`the examples <examples>`
 for usage.
+
+Handling partial results
+------------------------
+
+If you'd like to access partial results while the acquisition is running,
+you can use :meth:`libertem:libertem.api.Context.run_udf_iter`. It returns
+a generator of :class:`libertem:libertem.udf.base.UDFResults`, which you
+can use like this:
+
+
+.. testcode::
+
+    import contextlib
+
+    part_iter = ctx.run_udf_iter(dataset=aq, udf=SumUDF())
+
+    for part_result in contextlib.closing(part_iter):
+        sum_arr = part_result.buffers[0]['intensity']
+
+
+:code:`part_result.buffers` is a list that has an entry for each UDF that is
+run, so in this case, it only has one entry for the :class:`~libertem.udf.sum.SumUDF`.
+Each list entry is a :code:`dict` of buffer names to their values.
+
+.. note::
+
+    Note the use :func:`contextlib.closing` - this makes sure that resources
+    are reliably released in case the iterator is not fully consumed.
 
 Included UDFs
 -------------
