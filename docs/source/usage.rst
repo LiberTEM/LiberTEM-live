@@ -417,13 +417,30 @@ can use like this:
 
 
 .. testcode::
+    :skipif: not HAVE_DECTRIS_TESTDATA
 
     import contextlib
 
-    part_iter = ctx.run_udf_iter(dataset=aq, udf=SumUDF())
+    with ctx.make_connection('dectris').open(
+        api_host="127.0.0.1",
+        api_port=DCU_API_PORT,
+        data_host="127.0.0.1",
+        data_port=DCU_DATA_PORT,
+    ) as conn:
+        aq = ctx.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+            controller=conn.get_active_controller(
+                # NOTE: parameters here are detector-specific
+                trigger_mode='exte',
+                frame_time=1e-3,
+            ),
+        )
 
-    for part_result in contextlib.closing(part_iter):
-        sum_arr = part_result.buffers[0]['intensity']
+        part_iter = ctx.run_udf_iter(dataset=aq, udf=SumUDF())
+
+        for part_result in contextlib.closing(part_iter):
+            sum_arr = part_result.buffers[0]['intensity']
 
 
 :code:`part_result.buffers` is a list that has an entry for each UDF that is
