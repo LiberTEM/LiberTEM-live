@@ -439,8 +439,9 @@ can use like this:
 
         part_iter = ctx.run_udf_iter(dataset=aq, udf=SumUDF())
 
-        for part_result in contextlib.closing(part_iter):
-            sum_arr = part_result.buffers[0]['intensity']
+        with contextlib.closing(part_iter):
+            for part_result in part_iter:
+                sum_arr = part_result.buffers[0]['intensity']
 
 
 :code:`part_result.buffers` is a list that has an entry for each UDF that is
