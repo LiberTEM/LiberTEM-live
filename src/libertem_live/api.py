@@ -39,10 +39,9 @@ class CleanupResultGeneratorProxy:
     def __next__(self):
         try:
             return next(self._inner_iter)
-        except StopIteration:
-            raise
-        finally:
+        except Exception:
             self._callback()
+            raise
 
     def close(self):
         try:
