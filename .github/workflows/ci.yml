@@ -40,7 +40,9 @@ jobs:
       - name: run tox
         run: tox -e 'py${{ matrix.python_version }}'
       - name: submit code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   additional:
     strategy:
@@ -60,7 +62,9 @@ jobs:
       - name: 'run tox for environment ${{ matrix.envs }}'
         run: tox -e '${{ matrix.envs }}'
       - name: submit code coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   build-docs:
     runs-on: ubuntu-latest
