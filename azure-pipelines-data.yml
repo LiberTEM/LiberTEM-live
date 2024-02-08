@@ -55,8 +55,9 @@ stages:
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
         displayName: 'Submit coverage to codecov.io'
-        env:
-          CODECOV_TOKEN: $(CODECOV_TOKEN)
+        ${{ if and(not(eq(variables['Build.Reason'], 'PullRequest')), eq(variables['Build.SourceBranch'], 'refs/heads/master')) }}:
+          env:
+            CODECOV_TOKEN: $(CODECOV_TOKEN)
 
       - task: PublishTestResults@2
         condition: succeededOrFailed()
@@ -97,8 +98,9 @@ stages:
 
       - bash: cd $(Build.SourcesDirectory)/LiberTEM-live/ && ./scripts/codecov.sh -f ./coverage.xml
         displayName: 'Submit coverage to codecov.io'
-        env:
-          CODECOV_TOKEN: $(CODECOV_TOKEN)
+        ${{ if and(not(eq(variables['Build.Reason'], 'PullRequest')), eq(variables['Build.SourceBranch'], 'refs/heads/master')) }}:
+          env:
+            CODECOV_TOKEN: $(CODECOV_TOKEN)
 
     - job: data_tests
       pool: DataAccess
@@ -143,8 +145,9 @@ stages:
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
         displayName: 'Submit coverage to codecov.io'
-        env:
-          CODECOV_TOKEN: $(CODECOV_TOKEN)
+        ${{ if and(not(eq(variables['Build.Reason'], 'PullRequest')), eq(variables['Build.SourceBranch'], 'refs/heads/master')) }}:
+          env:
+            CODECOV_TOKEN: $(CODECOV_TOKEN)
 
       - task: PublishTestResults@2
         condition: succeededOrFailed()
