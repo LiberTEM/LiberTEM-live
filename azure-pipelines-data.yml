@@ -1,5 +1,6 @@
 variables:
   - group: Packaging
+  - group: Coverage
   - name: PIP_CACHE_DIR
     value: $(Pipeline.Workspace)/.pip
   - name: npm_config_cache
@@ -54,6 +55,8 @@ stages:
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
         displayName: 'Submit coverage to codecov.io'
+        env:
+          CODECOV_TOKEN: $(CODECOV_TOKEN)
 
       - task: PublishTestResults@2
         condition: succeededOrFailed()
@@ -94,6 +97,8 @@ stages:
 
       - bash: cd $(Build.SourcesDirectory)/LiberTEM-live/ && ./scripts/codecov.sh -f ./coverage.xml
         displayName: 'Submit coverage to codecov.io'
+        env:
+          CODECOV_TOKEN: $(CODECOV_TOKEN)
 
     - job: data_tests
       pool: DataAccess
@@ -138,6 +143,8 @@ stages:
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
         displayName: 'Submit coverage to codecov.io'
+        env:
+          CODECOV_TOKEN: $(CODECOV_TOKEN)
 
       - task: PublishTestResults@2
         condition: succeededOrFailed()
