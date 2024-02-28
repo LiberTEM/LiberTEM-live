@@ -42,7 +42,7 @@ stages:
       - bash: python3.9 -m venv venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install tox
+      - bash: ./venv/bin/pip install tox tox-uv
         displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
@@ -106,14 +106,6 @@ stages:
       pool: DataAccess
       strategy:
         matrix:
-          # 3.7: oldest version
-          Python37:
-            python.version: '3.7'
-            TOXENV: 'py37-data'
-          # Python38:
-          #   python.version: '3.8'
-          #   TOXENV: 'py38'
-          # Most recent supported version
           Python39:
             python.version: '3.9'
             TOXENV: 'py39-data'
@@ -122,6 +114,9 @@ stages:
             TOXENV: 'py310-data'
           Python311:
             python.version: '3.11'
+            TOXENV: 'py311-data'
+          Python312:
+            python.version: '3.12'
             TOXENV: 'py311-data'
       variables:
         TESTDATA_BASE_PATH: '/data/'
@@ -137,7 +132,7 @@ stages:
       - bash: python3.9 -m venv venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install tox
+      - bash: ./venv/bin/pip install tox tox-uv
         displayName: 'install tox'
 
       - bash: ./venv/bin/tox -r
@@ -172,7 +167,7 @@ stages:
 
       - bash: apt install -y pandoc
         displayName: install required debian packages
-      - bash: pip install -U tox
+      - bash: pip install -U tox tox-uv
         displayName: 'install requirements'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:

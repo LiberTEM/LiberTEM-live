@@ -2,8 +2,9 @@ import logging
 import socket
 import time
 from typing import (
-    Generator, Optional, NamedTuple, Dict, Tuple,
+    Optional, NamedTuple
 )
+from collections.abc import Generator
 
 import numpy as np
 
@@ -26,11 +27,11 @@ logger = logging.getLogger(__name__)
 class AcquisitionHeader(NamedTuple):
     frames_in_acquisition: int
     frames_per_trigger: int
-    raw_keys: Dict[str, str]
+    raw_keys: dict[str, str]
 
     @classmethod
     def from_raw(cls, header: bytes) -> "AcquisitionHeader":
-        result: Dict[str, str] = {}
+        result: dict[str, str] = {}
         for line in header.decode("latin1").split('\n'):
             try:
                 if line.startswith("HDR") or line.startswith("End\t"):
@@ -76,8 +77,8 @@ class FrameHeader(NamedTuple):
     mib_dtype: str   # rXX or uXX
     mib_kind: str  # 'r' or 'u'
     bits_per_pixel: int
-    image_size: Tuple[int, int]
-    image_size_eff: Tuple[int, int]
+    image_size: tuple[int, int]
+    image_size_eff: tuple[int, int]
     image_size_bytes: int
     sequence_first_image: int
     num_chips: int

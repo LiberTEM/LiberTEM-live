@@ -2,7 +2,7 @@ from contextlib import contextmanager
 import base64
 import logging
 import time
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 from opentelemetry import trace
@@ -244,7 +244,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         # this replaces the {api,data}_{host,port} parameters:
         conn: "DectrisDetectorConnection",
 
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: int = 128,
 
         # in passive mode, we get this:
@@ -282,7 +282,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
             pending_aq=pending_aq,
         )
 
-        self._sig_shape: Tuple[int, ...] = ()
+        self._sig_shape: tuple[int, ...] = ()
         self._acq_state: Optional[AcquisitionParams] = None
 
     def get_api_client(self) -> DEigerClient:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import threading
-from typing import Optional, List, Tuple
+from typing import Optional
 import logging
 import socket
 import mmap
@@ -44,8 +44,8 @@ class CachedDataSource:
 class BufferedCachedSource(CachedDataSource):
     def __init__(
         self,
-        paths: Optional[List[str]] = None,
-        mock_nav_shape: Optional[Tuple[int, int]] = None
+        paths: Optional[list[str]] = None,
+        mock_nav_shape: Optional[tuple[int, int]] = None
     ):
         self._paths = paths
         if paths is not None:
@@ -59,7 +59,7 @@ class BufferedCachedSource(CachedDataSource):
     def _get_cache_view(self):
         return memoryview(self._cache)  # type: ignore
 
-    def _cache_data_mock(self, mock_nav_shape: Tuple[int, int]):
+    def _cache_data_mock(self, mock_nav_shape: tuple[int, int]):
         data = self._make_mock_data(mock_nav_shape)
         total_size = len(data)
         self._make_cache(total_size)
@@ -67,7 +67,7 @@ class BufferedCachedSource(CachedDataSource):
         cache_view[:] = data
         self._total_size = total_size
 
-    def _make_mock_data(self, mock_nav_shape: Tuple[int, int]) -> np.ndarray:
+    def _make_mock_data(self, mock_nav_shape: tuple[int, int]) -> np.ndarray:
         import sparse
         import sparseconverter
         from libertem_asi_tpx3 import make_sim_data
@@ -83,7 +83,7 @@ class BufferedCachedSource(CachedDataSource):
         ), dtype='uint8')
         return mock_data
 
-    def _cache_data(self, paths: List[str]):
+    def _cache_data(self, paths: list[str]):
         logger.info("populating cache...")
         total_size = 0
         for path in paths:
@@ -116,8 +116,8 @@ class BufferedCachedSource(CachedDataSource):
 class MemfdCachedSource(BufferedCachedSource):
     def __init__(
         self,
-        paths: Optional[List[str]] = None,
-        mock_nav_shape: Optional[Tuple[int, int]] = None
+        paths: Optional[list[str]] = None,
+        mock_nav_shape: Optional[tuple[int, int]] = None
     ):
         self._mmap = None
         super().__init__(paths=paths, mock_nav_shape=mock_nav_shape)
@@ -205,8 +205,8 @@ class TpxCameraSim:
         cached: str,
         port: int,
         sleep: float,
-        paths: Optional[List[str]] = None,
-        mock_nav_shape: Optional[Tuple[int, int]] = None,
+        paths: Optional[list[str]] = None,
+        mock_nav_shape: Optional[tuple[int, int]] = None,
     ):
         src: CachedDataSource
         if cached.lower() == 'mem':

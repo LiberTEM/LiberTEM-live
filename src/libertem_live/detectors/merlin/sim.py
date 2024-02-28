@@ -9,7 +9,6 @@ import platform
 import threading
 import logging
 import select
-from typing import List, Dict
 
 import click
 import numpy as np
@@ -31,7 +30,7 @@ from libertem_live.detectors.common import (
 logger = logging.getLogger(__name__)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def get_mpx_header(length):
     return b"MPX,%010d," % ((length + 1),)
 
@@ -52,7 +51,7 @@ class HeaderSocketSimulator:
     def __init__(
         self,
         path: str,
-        first_frame_headers: Dict,
+        first_frame_headers: dict,
         stop_event=None,
         nav_shape=None,
         continuous=False,
@@ -265,7 +264,7 @@ class DataSocketSimulator:
         )
 
     @property
-    def first_frame_headers(self) -> Dict:
+    def first_frame_headers(self) -> dict:
         self.open()
         first_file = self._ds._files_sorted[0]
         return first_file.fields
@@ -533,7 +532,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             self._params = initial_params
         super().__init__(host=host, port=port, name=self.__class__.__name__, stop_event=stop_event)
 
-    def encode_response(self, response_parts: List[str]) -> bytes:
+    def encode_response(self, response_parts: list[str]) -> bytes:
         resp_len = len(",".join(response_parts).encode("ASCII"))
         parts = [
             "MPX",

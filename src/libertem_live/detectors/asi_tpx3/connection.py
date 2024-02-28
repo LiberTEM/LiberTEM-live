@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Type, Tuple
+from typing import Optional
 import tempfile
 import logging
 
@@ -28,7 +28,7 @@ class AsiTpx3PendingAcquisition(PendingAcquisition):
         return prod(self.nav_shape)
 
     @property
-    def nav_shape(self) -> Tuple[int, ...]:
+    def nav_shape(self) -> tuple[int, ...]:
         return self._acquisition_header.get_nav_shape()
 
     def __repr__(self):
@@ -127,7 +127,7 @@ class AsiTpx3DetectorConnection(DetectorConnection):
     def log_stats(self):
         self._conn.log_shm_stats()
 
-    def get_acquisition_cls(self) -> Type[AcquisitionProtocol]:
+    def get_acquisition_cls(self) -> type[AcquisitionProtocol]:
         from .acquisition import AsiTpx3Acquisition
         return AsiTpx3Acquisition
 

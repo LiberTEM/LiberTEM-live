@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 from typing_extensions import Protocol
 from contextlib import contextmanager
 import logging
@@ -21,9 +21,9 @@ class AcquisitionTimeout(Exception):
 
 
 def _shape_with_placeholders(
-    shape_hint: Tuple[int, ...],
+    shape_hint: tuple[int, ...],
     nimages: int
-) -> Tuple[int, ...]:
+) -> tuple[int, ...]:
     fixed = tuple(val for val in shape_hint if val > -1)
     if 0 in fixed:
         raise ValueError("shape cannot contain zeros")
@@ -64,8 +64,8 @@ def determine_nav_shape(
     hooks: "Hooks",
     pending_aq: "PendingAcquisition",
     controller: Optional["AcquisitionController"],
-    shape_hint: Optional[Tuple[int, ...]],
-) -> Tuple[int, ...]:
+    shape_hint: Optional[tuple[int, ...]],
+) -> tuple[int, ...]:
     nimages = pending_aq.nimages
     # Order of operations to determine `nav_shape`:
     # - 1) If a concrete `nav_shape` is given as `shape_hint`, use that
@@ -135,7 +135,7 @@ class AcquisitionMixin:
         *,
         conn: "DetectorConnection",
         frames_per_partition: int,
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         controller: Optional["AcquisitionController"] = None,
         pending_aq: Optional["PendingAcquisition"] = None,
         hooks: Optional["Hooks"] = None,
@@ -185,7 +185,7 @@ class AcquisitionProtocol(Protocol):
         self,
         *,
         conn: "DetectorConnection",
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         controller: Optional["AcquisitionController"] = None,
         pending_aq: Optional["PendingAcquisition"] = None,

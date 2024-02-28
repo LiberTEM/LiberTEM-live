@@ -1,4 +1,4 @@
-from typing import Tuple, NamedTuple, TYPE_CHECKING, Optional
+from typing import NamedTuple, TYPE_CHECKING, Optional
 
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class DetermineNavShapeEnv(NamedTuple):
     The total number of images in the acquisition.
     """
 
-    shape_hint: Optional[Tuple[int, ...]]
+    shape_hint: Optional[tuple[int, ...]]
     """
     Shape that was passed into :meth:`~libertem_live.api.LiveContext.make_acquisition`, can contain
     placeholders, i.e. :code:`(-1, 256)` or :code:`(-1, -1)`.
@@ -68,7 +68,7 @@ class Hooks:
     def on_determine_nav_shape(
         self,
         env: DetermineNavShapeEnv,
-    ) -> Optional[Tuple[int, ...]]:
+    ) -> Optional[tuple[int, ...]]:
         """
         This hook is called to determine the N-D nav shape for the acquisition.
         This is needed as many detectors only know about the 1D shape, i.e. the

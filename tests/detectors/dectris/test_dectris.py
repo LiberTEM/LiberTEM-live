@@ -1,5 +1,5 @@
 import os
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import sparse
@@ -528,7 +528,7 @@ def test_shape_from_hook(ctx_pipelined: LiveContext, dectris_sim):
     )
 
     class _MyHooks(Hooks):
-        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[Tuple[int, ...]]:
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[tuple[int, ...]]:
             return (64, 256)
 
     try:
@@ -564,7 +564,7 @@ def test_shape_bad_hook(ctx_pipelined: LiveContext, dectris_sim):
     )
 
     class _MyHooks(Hooks):
-        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[Tuple[int, ...]]:
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[tuple[int, ...]]:
             return (256, 256)  # that's too much for the number of images in the acquisition!
 
     try:
@@ -610,8 +610,8 @@ def test_shape_bad_hook(ctx_pipelined: LiveContext, dectris_sim):
 def test_shape_with_placeholders(
     ctx_pipelined: LiveContext,
     dectris_sim,
-    shape_hint: Tuple[int, ...],
-    expected: Tuple[int, ...],
+    shape_hint: tuple[int, ...],
+    expected: tuple[int, ...],
 ):
     api_port, data_port = dectris_sim
     conn = ctx_pipelined.make_connection('dectris').open(

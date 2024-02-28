@@ -1,7 +1,7 @@
 import os
 import math
 import tempfile
-from typing import Optional, TYPE_CHECKING, Type
+from typing import Optional, TYPE_CHECKING
 
 from libertem_live.detectors.base.connection import (
     DetectorConnection,
@@ -315,7 +315,7 @@ class DectrisDetectorConnection(DetectorConnection):
     def log_stats(self):
         self._conn.log_shm_stats()
 
-    def get_acquisition_cls(self) -> Type["DectrisAcquisition"]:
+    def get_acquisition_cls(self) -> type["DectrisAcquisition"]:
         from .acquisition import DectrisAcquisition
         return DectrisAcquisition
 

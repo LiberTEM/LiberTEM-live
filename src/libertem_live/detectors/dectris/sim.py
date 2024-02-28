@@ -7,7 +7,8 @@ import multiprocessing
 from multiprocessing.synchronize import Event as EventClass
 import json
 import mmap
-from typing import TYPE_CHECKING, Dict, Generator, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
+from collections.abc import Generator
 import urllib
 
 import zmq
@@ -48,7 +49,7 @@ class StopException(Exception):
     pass
 
 
-def chunks(mm: mmap.mmap) -> Generator[Tuple[bytes, int], None, None]:
+def chunks(mm: mmap.mmap) -> Generator[tuple[bytes, int], None, None]:
     """
     Yield messages from memory map, including the offset to the start of the
     message (more correctly: the length field of the message).
@@ -448,7 +449,7 @@ api = Blueprint('api', __name__)
 
 
 @api.route("/detector/api/version/", methods=["GET"])
-def get_version() -> Dict:
+def get_version() -> dict:
     return {
         'value': '1.8.0',
         'value_type': 'string'
@@ -456,7 +457,7 @@ def get_version() -> Dict:
 
 
 @api.route("/detector/api/1.8.0/command/<parameter>", methods=["PUT"])
-def send_detector_command(parameter) -> Dict:
+def send_detector_command(parameter) -> dict:
     if parameter == 'arm':
         current_app.config['arm_event'].set()
     elif parameter == 'disarm':
@@ -474,7 +475,7 @@ def send_detector_command(parameter) -> Dict:
 
 
 @api.route("/stream/api/1.8.0/config/<parameter>", methods=["GET"])
-def get_stream_config(parameter) -> Dict:
+def get_stream_config(parameter) -> dict:
     if parameter == 'mode':
         return {
             'access_mode': 'rw',
@@ -506,7 +507,7 @@ def set_stream_config(parameter):
 
 
 @api.route("/detector/api/1.8.0/config/<parameter>", methods=["GET"])
-def get_detector_config(parameter) -> Dict:
+def get_detector_config(parameter) -> dict:
     defaults = {
         'x_pixels_in_detector': {
             'access_mode': 'r',

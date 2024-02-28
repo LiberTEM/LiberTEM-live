@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import logging
 
 from libertem.common.math import prod
@@ -58,7 +58,7 @@ class DectrisActiveController(AcquisitionController):
         ec = DEigerClient(self._api_host, port=self._api_port)
         return ec
 
-    def apply_scan_settings(self, nav_shape: Tuple[int, ...]):
+    def apply_scan_settings(self, nav_shape: tuple[int, ...]):
         ec = self.get_api_client()
         nimages = prod(nav_shape)
         if self._trigger_mode is not None:

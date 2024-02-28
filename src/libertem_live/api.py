@@ -1,5 +1,5 @@
 import contextlib
-from typing import TYPE_CHECKING, overload, Union, Tuple, Optional
+from typing import TYPE_CHECKING, overload, Union, Optional
 from typing_extensions import Literal
 
 from opentelemetry import trace
@@ -142,7 +142,7 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "AsiTpx3DetectorConnection",
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,
@@ -155,7 +155,7 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "DectrisDetectorConnection",
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,
@@ -168,7 +168,7 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "MerlinDetectorConnection",
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,
@@ -181,7 +181,7 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "MemoryConnection",
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,
@@ -193,7 +193,7 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: DetectorConnection,
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         controller: Optional[AcquisitionController] = None,
         pending_aq: Optional[PendingAcquisition] = None,

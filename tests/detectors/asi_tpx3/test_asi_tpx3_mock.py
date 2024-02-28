@@ -1,4 +1,4 @@
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 
@@ -28,7 +28,7 @@ def test_hooks(ctx_pipelined: LiveContext, tpx_sim_mock):
             self.ready_called = False
             self.det_shape_called = False
 
-        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[Tuple[int, ...]]:
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[tuple[int, ...]]:
             self.det_shape_called = True
             return None
 
