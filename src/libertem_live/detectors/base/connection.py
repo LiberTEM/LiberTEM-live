@@ -1,4 +1,4 @@
-from typing import Optional, Type, Tuple
+from typing import Optional
 
 from .acquisition import AcquisitionProtocol
 
@@ -19,7 +19,7 @@ class PendingAcquisition:
         raise NotImplementedError()
 
     @property
-    def nav_shape(self) -> Optional[Tuple[int, ...]]:
+    def nav_shape(self) -> Optional[tuple[int, ...]]:
         """
         The concrete `nav_shape`, if it is known by the detector
         """
@@ -66,7 +66,7 @@ class DetectorConnection:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def get_acquisition_cls(self) -> Type[AcquisitionProtocol]:
+    def get_acquisition_cls(self) -> type[AcquisitionProtocol]:
         """
         Returns the matching `Acquisition` class.
 

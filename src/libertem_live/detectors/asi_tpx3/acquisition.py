@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 import logging
 import time
-from typing import Tuple, Optional
+from typing import Optional
 
 import scipy
 import scipy.sparse
@@ -187,7 +187,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
         # this is for future compatibility with an active mode:
         controller: Optional[AcquisitionController] = None,
 
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
 
         frames_per_partition: Optional[int] = None,
     ):
@@ -203,7 +203,7 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
             pending_aq=pending_aq,
             hooks=hooks,
         )
-        self._sig_shape: Tuple[int, ...] = ()
+        self._sig_shape: tuple[int, ...] = ()
         self._acquisition_header = pending_aq.header
 
     def initialize(self, executor) -> "DataSet":

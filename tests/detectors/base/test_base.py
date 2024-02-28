@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import pytest
 
 from libertem_live.api import Hooks
@@ -108,7 +106,7 @@ def test_invalid_placeholder_too_many():
     ]
 )
 def test_shapes_with_placeholders(
-    nimages: int, shape_hint: Tuple[int, ...], expected: Tuple[int, ...],
+    nimages: int, shape_hint: tuple[int, ...], expected: tuple[int, ...],
 ):
     mock_pending_aq = MockPendingAq(
         nimages=nimages,

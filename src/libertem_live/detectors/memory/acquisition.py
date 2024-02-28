@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Dict, Optional, Tuple, Type
+from typing import Optional
 import logging
 
 import numpy as np
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryConnection(DetectorConnection):
-    def __init__(self, data: np.ndarray, extra_kwargs: Optional[Dict] = None):
+    def __init__(self, data: np.ndarray, extra_kwargs: Optional[dict] = None):
         self._data = data
         if extra_kwargs is None:
             extra_kwargs = {}
@@ -24,7 +24,7 @@ class MemoryConnection(DetectorConnection):
     def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
         return PendingMemAq()
 
-    def get_acquisition_cls(self) -> Type[AcquisitionMixin]:
+    def get_acquisition_cls(self) -> type[AcquisitionMixin]:
         return MemoryAcquisition
 
     def close(self):
@@ -32,7 +32,7 @@ class MemoryConnection(DetectorConnection):
 
 
 class MemoryConnectionBuilder:
-    def open(self, data: np.ndarray, extra_kwargs: Optional[Dict] = None):
+    def open(self, data: np.ndarray, extra_kwargs: Optional[dict] = None):
         return MemoryConnection(
             data=data,
             extra_kwargs=extra_kwargs,
@@ -82,7 +82,7 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
     def __init__(
         self,
         conn: "MemoryConnection",
-        nav_shape: Tuple[int, ...],
+        nav_shape: tuple[int, ...],
         frames_per_partition: int = 128,
         # in passive mode, we get this:
         pending_aq: Optional[PendingMemAq] = None,

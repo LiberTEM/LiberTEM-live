@@ -76,7 +76,7 @@ setup(
     license='GPL v3',
     include_package_data=True,
     zip_safe=False,
-    python_requires='>=3.7',
+    python_requires='>=3.9',
     install_requires=[
         "libertem>=0.11.0.dev0",
         "numpy",
@@ -115,11 +115,10 @@ setup(
     author="the LiberTEM team",
     classifiers=[
         'Development Status :: 4 - Beta',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Operating System :: POSIX :: Linux',
         'Operating System :: MacOS :: MacOS X',

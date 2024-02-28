@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 import logging
-from typing import Generator, Iterator, Tuple, Optional, NamedTuple
+from typing import Optional, NamedTuple
+from collections.abc import Generator, Iterator
 import numpy as np
 from libertem.common import Shape, Slice
 from libertem.common.executor import (
@@ -71,7 +72,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def __init__(
         self,
         conn: MerlinDetectorConnection,
-        nav_shape: Optional[Tuple[int, ...]] = None,
+        nav_shape: Optional[tuple[int, ...]] = None,
         frames_per_partition: Optional[int] = None,
         pending_aq: Optional[MerlinPendingAcquisition] = None,
         controller: Optional[MerlinActiveController] = None,
@@ -218,9 +219,9 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 def get_frames_from_queue(
     queue: WorkerQueue,
     tiling_scheme: TilingScheme,
-    sig_shape: Tuple[int, ...],
+    sig_shape: tuple[int, ...],
     dtype
-) -> Generator[Tuple[np.ndarray, int], None, None]:
+) -> Generator[tuple[np.ndarray, int], None, None]:
     out = np.zeros((tiling_scheme.depth,) + sig_shape, dtype=dtype)
     out_flat = out.reshape((tiling_scheme.depth, -1,))
     while True:
@@ -254,9 +255,9 @@ def get_frames_from_queue(
 
 
 def _accum_partition(
-    frames_iter: Iterator[Tuple[np.ndarray, int]],
+    frames_iter: Iterator[tuple[np.ndarray, int]],
     tiling_scheme: TilingScheme,
-    sig_shape: Tuple[int, ...],
+    sig_shape: tuple[int, ...],
     dtype
 ) -> np.ndarray:
     """

@@ -1,5 +1,6 @@
 import logging
-from typing import Optional, Type, Generator, Tuple
+from typing import Optional
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from libertem_live.detectors.base.connection import DetectorConnection, PendingAcquisition
@@ -140,7 +141,7 @@ class MerlinDetectorConnection(DetectorConnection):
         except AcquisitionTimeout:
             return None
 
-    def get_header_and_stream(self) -> Tuple[AcquisitionHeader, MerlinFrameStream]:
+    def get_header_and_stream(self) -> tuple[AcquisitionHeader, MerlinFrameStream]:
         assert self._data_socket is not None
         acq_header = self._data_socket.read_acquisition_header()
         stream = MerlinFrameStream.from_frame_header(
@@ -149,7 +150,7 @@ class MerlinDetectorConnection(DetectorConnection):
         )
         return acq_header, stream
 
-    def get_acquisition_cls(self) -> Type[AcquisitionProtocol]:
+    def get_acquisition_cls(self) -> type[AcquisitionProtocol]:
         from .acquisition import MerlinAcquisition
         return MerlinAcquisition
 
@@ -185,7 +186,7 @@ class MerlinDetectorConnection(DetectorConnection):
         with MerlinControl(host=self._api_host, port=self._api_port) as c:
             yield c
 
-    def read_sig_shape(self) -> Tuple[int, int]:
+    def read_sig_shape(self) -> tuple[int, int]:
         with self.control() as c:
             width = int(c.get('IMAGEX'))
             height = int(c.get('IMAGEY'))
