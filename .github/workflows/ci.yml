@@ -34,7 +34,7 @@ jobs:
            [[ "${{ matrix.os }}" = "ubuntu-latest" ]] && sudo apt-get install -y libcap-dev || true
         shell: bash
       - name: install tox
-        run: python3 -m pip install tox tox-uv
+        run: python3 -m pip install tox
       - name: run tox
         run: tox -e 'py${{ matrix.python_version }}'
       - name: submit code coverage
@@ -56,7 +56,7 @@ jobs:
           cache: 'pip'
       - run: sudo apt-get install -y pandoc libcap-dev
       - name: install tox
-        run: python3 -m pip install tox tox-uv
+        run: python3 -m pip install tox
       - name: 'run tox for environment ${{ matrix.envs }}'
         run: tox -e '${{ matrix.envs }}'
       - name: submit code coverage
@@ -75,7 +75,7 @@ jobs:
           cache: 'pip'
       - run: sudo apt-get install -y pandoc
       - name: install tox
-        run: python3 -m pip install tox tox-uv
+        run: python3 -m pip install tox
       - name: 'run tox for docs-build-ci'
         run: tox -e 'docs-build-ci'
       - uses: actions/upload-pages-artifact@v3.0.1
