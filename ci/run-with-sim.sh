@@ -4,10 +4,10 @@
 
 set -eu
 
-.tox/notebooks/bin/libertem-live-mib-sim --host 127.0.0.1 "$TESTDATA_BASE_PATH/20200518 165148/default.hdr" --cached=MEMFD --wait-trigger&
+libertem-live-mib-sim --host 127.0.0.1 "$TESTDATA_BASE_PATH/20200518 165148/default.hdr" --cached=MEMFD --wait-trigger&
 MERLIN_SIM_PID=$!
 
-.tox/notebooks/bin/libertem-live-dectris-sim "$TESTDATA_BASE_PATH/dectris/zmqdump.dat.128x128-id34-exte-bslz4" --port 8910 --zmqport 9999&
+libertem-live-dectris-sim "$TESTDATA_BASE_PATH/dectris/zmqdump.dat.128x128-id34-exte-bslz4" --port 8910 --zmqport 9999&
 DECTRIS_SIM_PID=$!
 
 cleanup() {
@@ -19,6 +19,20 @@ cleanup() {
 }
 
 trap cleanup EXIT
+
+sleep 1
+
+# check if the subprocesses failed already:
+
+if ! test -d /proc/"$MERLIN_SIM_PID"/; then
+    echo "merlin sim failed to start"
+    exit 1
+fi
+
+if ! test -d /proc/"$DECTRIS_SIM_PID"/; then
+    echo "dectris sim failed to start"
+    exit 1
+fi
 
 echo "started merlin simulator in background, pid=$MERLIN_SIM_PID"
 echo "started dectris simulator in background, pid=$DECTRIS_SIM_PID"
