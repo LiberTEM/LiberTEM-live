@@ -46,11 +46,11 @@ stages:
         displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
-        - bash: ./venv/bin/tox -vv -e notebooks -r -- examples/*.ipynb -v
+        - bash: ./venv/bin/tox -e notebooks -r -- examples/*.ipynb -v
           displayName: 'Run nbval tests $(Agent.OS) (recreating)'
 
       - ${{ if eq(parameters.recreate_tox, false) }}:
-        - bash: ./venv/bin/tox -vv -e notebooks -- examples/*.ipynb -v
+        - bash: ./venv/bin/tox -e notebooks -- examples/*.ipynb -v
           displayName: 'Run nbval tests $(Agent.OS)'
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
@@ -135,7 +135,7 @@ stages:
       - bash: ./venv/bin/pip install -U tox tox-uv uv
         displayName: 'install tox'
 
-      - bash: ./venv/bin/tox -r -vv
+      - bash: ./venv/bin/tox -r
         displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
