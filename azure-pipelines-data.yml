@@ -41,7 +41,7 @@ stages:
       - bash: python3.9 -m venv venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install tox tox-uv
+      - bash: ./venv/bin/pip install -U tox tox-uv uv
         displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
@@ -125,7 +125,7 @@ stages:
       - bash: python3.9 -m venv venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install tox tox-uv
+      - bash: ./venv/bin/pip install -U tox tox-uv uv
         displayName: 'install tox'
 
       - bash: ./venv/bin/tox -r -vv
@@ -157,7 +157,7 @@ stages:
 
       - bash: apt install -y pandoc
         displayName: install required debian packages
-      - bash: pip install -U tox tox-uv
+      - bash: pip install -U tox tox-uv uv
         displayName: 'install requirements'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
