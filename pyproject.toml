@@ -1,2 +1,81 @@
-# This file is a workaround for a pip bug.
-# https://stackoverflow.com/a/53698424
+[build-system]
+requires = ["hatchling", "hatch-build-scripts", "hatch-fancy-pypi-readme"]
+build-backend = "hatchling.build"
+
+[project]
+name = "libertem-live"
+dynamic = ["version", "readme"]
+description = "Live processing with LiberTEM"
+requires-python = ">=3.9"
+license-files = { paths = ["LICENSE", "src/libertem_live/detectors/LICENSE"] }
+dependencies = [
+    "libertem>=0.11.0.dev0",
+    "numpy",
+    "click",
+    "tqdm",
+    "numba",
+    "opentelemetry-api",
+    "sparseconverter>=0.3.3",
+    "libertem-dectris>=0.2.10",
+    "libertem-asi-tpx3>=0.2.10",
+]
+keywords = ["electron microscopy"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Visualization",
+]
+authors = [
+    { name = "Alexander Clausen", email = "a.clausen@fz-juelich.de" },
+]
+
+[project.optional-dependencies]
+sim = ["flask"]
+pymemfd = ["pymemfd"]
+pytango = ["pytango"]
+
+[project.scripts]
+libertem-live-mib-sim = "libertem_live.detectors.merlin.sim:main"
+libertem-live-dectris-sim = "libertem_live.detectors.dectris.sim:main"
+libertem-live-asi-tpx-sim = "libertem_live.detectors.asi_tpx3.sim:main"
+
+[project.urls]
+Repository = "https://github.com/LiberTEM/LiberTEM-live"
+Documentation = "https://libertem.github.io/LiberTEM-live"
+
+[tool.hatch.metadata.hooks.fancy-pypi-readme]
+"content-type" = "text/x-rst"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.fragments]]
+path = "README.rst"
+
+[[tool.hatch.metadata.hooks.fancy-pypi-readme.substitutions]]
+pattern = ":(cite|doc):`[^`]+` ?"
+replacement = ""
+
+[tool.hatch.version]
+path = "src/libertem_live/__version__.py"
+
+[[tool.hatch.build.hooks.build-scripts.scripts]]
+out_dir = "src/libertem_live/"
+work_dir = "build"
+commands = [
+    "python ../scripts/bake_rev.py",
+]
+artifacts = [
+    "_baked_revision.py",
+]
