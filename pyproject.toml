@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "hatch-build-scripts", "hatch-fancy-pypi-readme"]
+requires = ["hatchling", "hatch-fancy-pypi-readme"]
 build-backend = "hatchling.build"
 
 [project]
@@ -70,12 +70,5 @@ replacement = ""
 [tool.hatch.version]
 path = "src/libertem_live/__version__.py"
 
-[[tool.hatch.build.hooks.build-scripts.scripts]]
-out_dir = "src/libertem_live/"
-work_dir = "build"
-commands = [
-    "python ../scripts/bake_rev.py",
-]
-artifacts = [
-    "_baked_revision.py",
-]
+[tool.hatch.build.hooks.custom]
+# this enables hatch_build.py
