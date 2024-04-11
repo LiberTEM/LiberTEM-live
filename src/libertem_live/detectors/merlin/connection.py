@@ -86,10 +86,13 @@ class MerlinDetectorConnection(DetectorConnection):
         self._api_port = api_port
         self._data_host = data_host
         self._data_port = data_port
+        self._data_socket: Optional[MerlinRawSocket] = None
         self._drain = drain
-        self._connect()
+        self.connect()
 
-    def _connect(self):
+    def connect(self):
+        if self._data_socket is not None:
+            return self._data_socket  # already connected
         self._data_socket = MerlinRawSocket(
             host=self._data_host,
             port=self._data_port,
@@ -133,7 +136,7 @@ class MerlinDetectorConnection(DetectorConnection):
         {'intensity': ...}
         """
         if self._data_socket is None:
-            self._connect()
+            self.connect()
         assert self._data_socket is not None
         try:
             header = self._data_socket.read_acquisition_header(cancel_timeout=timeout)
@@ -156,7 +159,7 @@ class MerlinDetectorConnection(DetectorConnection):
 
     def __enter__(self):
         if self._data_socket is None:
-            self._connect()
+            self.connect()
         return self
 
     def close(self):

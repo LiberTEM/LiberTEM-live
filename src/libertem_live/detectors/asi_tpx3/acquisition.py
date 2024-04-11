@@ -242,15 +242,16 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
     def _acquire_active(self):
         raise NotImplementedError("")
 
-    @contextmanager
-    def acquire(self):
-        with tracer.start_as_current_span('acquire'):
+    def start_acquisition(self):
+        with tracer.start_as_current_span('start_acquisition'):
             if self._pending_aq is None:  # active mode:
                 with tracer.start_as_current_span("AsiAcquisition.on_ready_for_data"):
                     self._hooks.on_ready_for_data(ReadyForDataEnv(aq=self))
             else:
                 pass  # passive mode
-            yield
+
+    def end_acquisition(self):
+        return
 
     def check_valid(self):
         ""

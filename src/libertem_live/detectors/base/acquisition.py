@@ -1,6 +1,5 @@
 from typing import TYPE_CHECKING, Optional
 from typing_extensions import Protocol
-from contextlib import contextmanager
 import logging
 import math
 
@@ -166,8 +165,10 @@ class AcquisitionMixin:
 
         super().__init__()
 
-    @contextmanager
-    def acquire(self):
+    def start_acquisition(self):
+        raise NotImplementedError()
+
+    def end_acquisition(self):
         raise NotImplementedError()
 
 

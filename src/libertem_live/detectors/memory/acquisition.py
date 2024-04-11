@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 from typing import Optional
 import logging
 
@@ -108,10 +107,11 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
             **conn._extra_kwargs,
         )
 
-    @contextmanager
-    def acquire(self):
+    def start_acquisition(self):
         if self._pending_aq is None:
             self._hooks.on_ready_for_data(
                 ReadyForDataEnv(aq=self),
             )
-        yield
+
+    def end_acquisition(self):
+        pass
