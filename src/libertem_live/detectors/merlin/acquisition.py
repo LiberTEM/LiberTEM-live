@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import logging
 from typing import Optional, NamedTuple
 from collections.abc import Generator, Iterator
@@ -136,23 +135,18 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
     def meta(self):
         return self._meta
 
-    @contextmanager
-    def acquire(self):
+    def start_acquisition(self):
         if self._pending_aq is None:
             # active case, we manage the connection:
-            with self._conn:
-                self._conn.maybe_drain()
-                with tracer.start_as_current_span("MerlinAcquisition.trigger"):
-                    self._hooks.on_ready_for_data(ReadyForDataEnv(aq=self))
-                acq_header, stream = self._conn.get_header_and_stream()
-                self._acq_state = AcqState(
-                    acq_header=acq_header,
-                    stream=stream,
-                )
-                try:
-                    yield
-                finally:
-                    self._acq_state = None
+            self._conn.connect()
+            self._conn.maybe_drain()
+            with tracer.start_as_current_span("MerlinAcquisition.trigger"):
+                self._hooks.on_ready_for_data(ReadyForDataEnv(aq=self))
+            acq_header, stream = self._conn.get_header_and_stream()
+            self._acq_state = AcqState(
+                acq_header=acq_header,
+                stream=stream,
+            )
         else:
             # passive case, we don't manage the connection and we definitely
             # don't drain anything out of the socket!
@@ -165,10 +159,12 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
                 acq_header=acq_header,
                 stream=stream,
             )
-            try:
-                yield
-            finally:
-                self._acq_state = None
+
+    def end_acquisition(self):
+        # active case, we manage the connection:
+        if self._pending_aq is None:
+            self._conn.close()
+        self._acq_state = None
 
     def check_valid(self):
         ''

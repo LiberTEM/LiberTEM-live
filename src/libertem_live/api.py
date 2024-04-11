@@ -1,4 +1,3 @@
-import contextlib
 from typing import TYPE_CHECKING, overload, Union, Optional
 from typing_extensions import Literal
 
@@ -77,14 +76,13 @@ class LiveContext(LiberTEM_Context):
         '''
         return PipelinedExecutor()
 
-    @contextlib.contextmanager
-    def _do_acquisition(self, acquisition, udf):
-        with tracer.start_as_current_span("LiveContext._do_acquisition"):
-            if hasattr(acquisition, 'acquire'):
-                with acquisition.acquire():
-                    yield
-            else:
-                yield
+    def _start_acquisition(self, acquisition, udf):
+        if hasattr(acquisition, 'start_acquisition'):
+            acquisition.start_acquisition()
+
+    def _end_acquisition(self, acquisition, udf):
+        if hasattr(acquisition, 'end_acquisition'):
+            acquisition.end_acquisition()
 
     @overload
     def make_connection(
@@ -267,19 +265,22 @@ class LiveContext(LiberTEM_Context):
 
     def _run_sync(self, dataset, udf, iterate=False, *args, **kwargs):
         def _run_sync_iterate():
-            # crimes:
-            context_manager = self._do_acquisition(dataset, udf)
-            context_manager.__enter__()
+            self._start_acquisition(dataset, udf)
             res = super(LiveContext, self)._run_sync(
                 dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs
             )
-            # FML...
             return CleanupResultGeneratorProxy(
-                res, callback=lambda: context_manager.__exit__(None, None, None)
+                res, callback=lambda: self._end_acquisition(dataset, udf)
             )
 
         if iterate:
             return _run_sync_iterate()
         else:
-            with self._do_acquisition(dataset, udf):
-                return super()._run_sync(dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs)
+            self._start_acquisition(dataset, udf)
+            try:
+                result = super()._run_sync(
+                    dataset=dataset, udf=udf, iterate=iterate, *args, **kwargs
+                )
+                return result
+            finally:
+                self._end_acquisition(dataset, udf)

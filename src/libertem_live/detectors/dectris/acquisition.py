@@ -1,4 +1,3 @@
-from contextlib import contextmanager
 import base64
 import logging
 import time
@@ -355,10 +354,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         excluded_pixels = mask_arr > 0
         return CorrectionSet(excluded_pixels=excluded_pixels)
 
-    @contextmanager
-    def acquire(self):
+    def start_acquisition(self):
         ''
-        with tracer.start_as_current_span('acquire'):
+        with tracer.start_as_current_span('start_acquisition'):
             if self._controller is not None:
                 self._conn.prepare_for_active()
                 self._controller.apply_file_writing()
@@ -381,7 +379,8 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
                     nimages=nimages,
                 )
 
-            yield
+    def end_acquisition(self):
+        return
 
     def check_valid(self):
         ''
