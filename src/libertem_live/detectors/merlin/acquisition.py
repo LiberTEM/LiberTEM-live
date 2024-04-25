@@ -215,16 +215,21 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 def get_frames_from_queue(
     queue: WorkerQueue,
     tiling_scheme: TilingScheme,
+
+    # this one is possibly borked, contains what the integer format would look like, probably?
     sig_shape: tuple[int, ...],
     dtype
 ) -> Generator[tuple[np.ndarray, int], None, None]:
-    out = np.zeros((tiling_scheme.depth,) + sig_shape, dtype=dtype)
-    out_flat = out.reshape((tiling_scheme.depth, -1,))
+    out = out_flat = None
     while True:
         with queue.get() as msg:
             header, payload = msg
             header_type = header["type"]
             if header_type == "FRAME":
+                if out is None:
+                    fixed_sig_shape = header['first_frame_header'].image_size_eff
+                    out = np.zeros((tiling_scheme.depth,) + fixed_sig_shape, dtype=dtype)
+                    out_flat = out.reshape((tiling_scheme.depth, -1,))
                 raw_frames = MerlinRawFrames(
                     buffer=payload,
                     start_idx=header['start_idx'],
