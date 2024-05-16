@@ -1,5 +1,5 @@
 click
-sphinx
+sphinx<7.3
 sphinx-autobuild
 sphinxcontrib-bibtex>=2
 sphinx-issues
