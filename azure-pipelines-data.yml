@@ -167,13 +167,17 @@ stages:
 
       - bash: apt install -y pandoc
         displayName: install required debian packages
-      - bash: pip install -U tox tox-uv uv
-        displayName: 'install requirements'
+
+      - bash: python3.9 -m venv venv
+        displayName: 'create venv'
+
+      - bash: ./venv/bin/pip install -U tox tox-uv uv
+        displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
-        - bash: tox -r
+        - bash: ./venv/bin/tox -r
           displayName: 'Run tox tests $(TOXENV) $(Agent.OS) (recreating)'
 
       - ${{ if eq(parameters.recreate_tox, false) }}:
-        - bash: tox
+        - bash: ./venv/bin/tox
           displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
