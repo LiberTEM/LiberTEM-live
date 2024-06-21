@@ -171,7 +171,7 @@ stages:
       - bash: apt install -y pandoc
         displayName: install required debian packages
 
-      - bash: python3.9 -m venv venv
+      - bash: python3.9 -m venv ./venv
         displayName: 'create venv'
 
       - bash: ./venv/bin/pip install -U tox tox-uv uv
