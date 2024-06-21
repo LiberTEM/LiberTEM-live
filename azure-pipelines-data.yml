@@ -21,7 +21,7 @@ parameters:
   - name: recreate_tox
     displayName: Recreate tox environments?
     type: boolean
-    default: false
+    default: true
 
 stages:
   - stage: test
