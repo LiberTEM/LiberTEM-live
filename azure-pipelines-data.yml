@@ -174,7 +174,7 @@ stages:
       - bash: python3.9 -m venv ./venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install -U tox tox-uv uv
+      - bash: ./venv/bin/pip install -U tox
         displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
