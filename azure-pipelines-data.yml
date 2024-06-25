@@ -39,18 +39,18 @@ stages:
         inputs:
           versionSpec: '3.9'
 
-      - bash: python3.9 -m venv venv
+      - bash: python3.9 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install -U tox tox-uv uv
+      - bash: $(Agent.TempDirectory)/venv/bin/pip install -U tox tox-uv uv
         displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
-        - bash: ./venv/bin/tox -e notebooks -r -- examples/*.ipynb -v
+        - bash: $(Agent.TempDirectory)/venv/bin/tox -e notebooks -r -- examples/*.ipynb -v
           displayName: 'Run nbval tests $(Agent.OS) (recreating)'
 
       - ${{ if eq(parameters.recreate_tox, false) }}:
-        - bash: ./venv/bin/tox -e notebooks -- examples/*.ipynb -v
+        - bash: $(Agent.TempDirectory)/venv/bin/tox -e notebooks -- examples/*.ipynb -v
           displayName: 'Run nbval tests $(Agent.OS)'
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
@@ -132,13 +132,13 @@ stages:
         inputs:
           versionSpec: '$(python.version)'
 
-      - bash: python3.9 -m venv venv
+      - bash: python3.9 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install -U tox tox-uv uv
+      - bash: $(Agent.TempDirectory)/venv/bin/pip install -U tox tox-uv uv
         displayName: 'install tox'
 
-      - bash: ./venv/bin/tox -r
+      - bash: $(Agent.TempDirectory)/venv/bin/tox -r
         displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
 
       - bash: ./scripts/codecov.sh -f ./coverage.xml
@@ -171,16 +171,16 @@ stages:
       - bash: apt install -y pandoc
         displayName: install required debian packages
 
-      - bash: python3.9 -m venv ./venv
+      - bash: python3.9 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
-      - bash: ./venv/bin/pip install -U tox
+      - bash: $(Agent.TempDirectory)/venv/bin/pip install -U tox
         displayName: 'install tox'
 
       - ${{ if eq(parameters.recreate_tox, true) }}:
-        - bash: ./venv/bin/tox -r
+        - bash: $(Agent.TempDirectory)/venv/bin/tox -r
           displayName: 'Run tox tests $(TOXENV) $(Agent.OS) (recreating)'
 
       - ${{ if eq(parameters.recreate_tox, false) }}:
-        - bash: ./venv/bin/tox
+        - bash: $(Agent.TempDirectory)/venv/bin/tox
           displayName: 'Run tox tests $(TOXENV) $(Agent.OS)'
