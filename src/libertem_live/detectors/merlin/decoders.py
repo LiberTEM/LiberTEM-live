@@ -1,4 +1,5 @@
 import numba
+import numpy as np
 
 
 @numba.njit(cache=True)
@@ -7,8 +8,8 @@ def decode_u2(inp, out):
         row_out = out[y]
         row_in = inp[y]
         for i in range(row_in.shape[0] // 2):
-            o0 = row_in[i * 2 + 0] << 8
-            o1 = row_in[i * 2 + 1] << 0
+            o0 = np.uint16(row_in[i * 2 + 0]) << 8
+            o1 = np.uint16(row_in[i * 2 + 1]) << 0
             row_out[i] = o0 | o1
 
 
@@ -183,7 +184,7 @@ def decode_r12(inp, out):
             col = i % 4
             pos = i // 4
             out_pos = (pos + 1) * 4 - col - 1
-            row_out[out_pos] = (row_in[i * 2] << 8) + (row_in[i * 2 + 1] << 0)
+            row_out[out_pos] = (np.uint16(row_in[i * 2]) << 8) + (row_in[i * 2 + 1] << 0)
 
 
 @numba.njit(nogil=True, cache=True, parallel=False)
