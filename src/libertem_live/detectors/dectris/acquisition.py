@@ -58,35 +58,82 @@ def shape_from_frame(frame):
     return tuple(reversed(frame.get_shape()))
 
 
-def get_frames(request_queue):
-    """
-    Consume all FRAMES messages from the request queue until we get an
-    END_PARTITION message (which we also consume)
-    """
-    buf = None
-    depth = 0
-    with request_queue.get() as msg:
-        header, _ = msg
-        header_type = header["type"]
-        assert header_type == "BEGIN_TASK"
-        socket_path = header["socket"]
-        cam_client = libertem_dectris.CamClient(socket_path)
-    try:
+class GetFrames:
+    def __init__(self, request_queue, dtype, sig_shape):
+        self._request_queue = request_queue
+        self._dtype = dtype
+        self._sig_shape = sig_shape
+        self._cam_client = None
+        self._last_stack = None
+        self._last_stack_pos = None
+        self._buf = None
+
+    def __enter__(self):
+        with self._request_queue.get() as msg:
+            header, _ = msg
+            header_type = header["type"]
+            assert header_type == "BEGIN_TASK"
+            socket_path = header["socket"]
+            self._cam_client = libertem_dectris.CamClient(socket_path)
+
+    def __exit__(self, *args, **kwargs):
+        if self._cam_client is not None:
+            if self._last_stack is not None:
+                self._cam_client.done(self._last_stack)
+                self._last_stack = None
+                self._last_stack_pos = None
+            self._cam_client.close()
+            self._cam_client = None
+            self._buf = None
+
+    def _snack(self, frame_stack, depth, start_idx):
+        """
+        Return at most `depth` frames from `frame_stack` as decoded data, as a view
+        into a fixed array/buffer. Take note of left overs, which will be snacked upon
+        on the next call.
+        """
+        if self._buf is None or self._buf.shape[0] < depth:
+            self._buf = np.zeros((depth,) + self._sig_shape, self._dtype)
+
+        end_idx = min(start_idx + depth, len(frame_stack))
+        num_frames = end_idx - start_idx
+        view = self._buf[0:num_frames, ...]
+        self._cam_client.decode_range_into_buffer(
+            frame_stack,
+            view,
+            start_idx,
+            end_idx
+        )
+
+        if end_idx < len(frame_stack):
+            # we are not done, store our position:
+            self._last_stack = frame_stack
+            self._last_stack_pos = end_idx  # end_idx is the new start_idx
+        else:
+            self._last_stack = None
+            self._last_stack_pos = None
+            self._cam_client.done(frame_stack)
+        return view
+
+    def next_tile(self, depth):
+        """
+        Consume a FRAMES messages from the request queue, and return the next
+        tile, or return None if we get an END_PARTITION message (which we also
+        consume)
+        """
+
+        assert self._cam_client is not None, "should be connected"
+
+        if self._last_stack is not None:
+            return self._snack(self._last_stack, depth, self._last_stack_pos)
+
         while True:
-            with request_queue.get() as msg:
+            with self._request_queue.get() as msg:
                 header, payload = msg
                 header_type = header["type"]
                 if header_type == "FRAMES":
                     frame_stack = libertem_dectris.FrameStackHandle.deserialize(payload)
-                    if buf is None or len(frame_stack) > buf.shape[0]:
-                        depth = len(frame_stack)
-                        buf = np.zeros((depth,) + header['shape'], header['dtype'])
-                    cam_client.decompress_frame_stack(frame_stack, out=buf)
-                    buf_reshaped = buf.reshape((depth,) + tuple(header['shape']))
-                    try:
-                        yield buf_reshaped[:len(frame_stack)]
-                    finally:
-                        cam_client.done(frame_stack)
+                    return self._snack(frame_stack, depth, 0)
                 elif header_type == "END_PARTITION":
                     # print(f"partition {partition} done")
                     return
@@ -94,8 +141,6 @@ def get_frames(request_queue):
                     raise RuntimeError(
                         f"invalid header type {header['type']}; FRAME or END_PARTITION expected"
                     )
-    finally:
-        cam_client.close()
 
 
 class DectrisCommHandler(TaskCommHandler):
@@ -480,49 +525,45 @@ class DectrisLivePartition(Partition):
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
         depth = tiling_scheme.depth
-        # over-allocate buffer by a bit so we can handle larger incoming raw tiles
-        buf = np.zeros((2 * depth,) + tuple(tiling_scheme[0].shape), dtype=dest_dtype)
         tile_start = self._start_idx
-        frames = get_frames(self._worker_context.get_worker_queue())
+        frames = GetFrames(
+            request_queue=self._worker_context.get_worker_queue(),
+            dtype=dest_dtype,
+            sig_shape=tuple(tiling_scheme[0].shape),
+        )
         frames_in_tile = 0
-        while to_read > 0:
-            # 1) put frame into tile buffer (including dtype conversion if needed)
-            try:
-                raw_tile = next(frames)
-                frames_in_tile = raw_tile.shape[0]
-                if frames_in_tile > buf.shape[0]:
-                    buf = np.zeros(
-                        (frames_in_tile,) + tuple(tiling_scheme[0].shape),
-                        dtype=dest_dtype
+        with frames:
+            while to_read > 0:
+                raw_tile = frames.next_tile(depth)
+                if raw_tile is None and to_read > 0:
+                    raise RuntimeError(
+                        f"we were still expecting to read {to_read} frames more!"
                     )
-                # FIXME: make copy optional if dtype already matches
-                buf[:frames_in_tile] = raw_tile
+
+                frames_in_tile = raw_tile.shape[0]
                 to_read -= frames_in_tile
-            except StopIteration:
-                assert to_read == 0, f"we were still expecting to read {to_read} frames more!"
 
-            tile_buf = buf[:frames_in_tile]
-            if tile_buf.shape[0] == 0:
-                assert to_read == 0
-                continue  # we are done and the buffer is empty
+                if raw_tile.shape[0] == 0:
+                    assert to_read == 0
+                    continue  # we are done and the buffer is empty
 
-            tile_shape = Shape(
-                (frames_in_tile,) + tuple(tiling_scheme[0].shape),
-                sig_dims=2
-            )
-            tile_slice = Slice(
-                origin=(tile_start,) + (0, 0),
-                shape=tile_shape,
-            )
-            # print(f"yielding tile for {tile_slice}")
-            self._preprocess(tile_buf, tile_slice)
-            yield DataTile(
-                tile_buf,
-                tile_slice=tile_slice,
-                scheme_idx=0,
-            )
-            tile_start += frames_in_tile
-        logger.debug("LivePartition.get_tiles: end of method")
+                tile_shape = Shape(
+                    (frames_in_tile,) + tuple(tiling_scheme[0].shape),
+                    sig_dims=2
+                )
+                tile_slice = Slice(
+                    origin=(tile_start,) + (0, 0),
+                    shape=tile_shape,
+                )
+                # print(f"yielding tile for {tile_slice}")
+                self._preprocess(raw_tile, tile_slice)
+                yield DataTile(
+                    raw_tile,
+                    tile_slice=tile_slice,
+                    scheme_idx=0,
+                )
+                tile_start += frames_in_tile
+            logger.debug("LivePartition.get_tiles: end of method")
 
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None,
             array_backend: Optional["ArrayBackend"] = None):
