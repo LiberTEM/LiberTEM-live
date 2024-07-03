@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+import time
 
 import numpy as np
 import sparse
@@ -756,5 +757,38 @@ def test_active_after_passive_mode(ctx_pipelined: LiveContext, dectris_sim):
             res1['intensity'].data,
             res2['intensity'].data,
         )
+    finally:
+        conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.data
+def test_repeated_acquisition(ctx_pipelined: LiveContext, dectris_sim):
+    api_port, data_port = dectris_sim
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+    )
+
+    try:
+        ec = conn.get_api_client()
+        delta_t = 0
+        for i in range(5):
+            print(i)
+            ec.sendDetectorCommand('arm')
+            pending_aq = conn.wait_for_acquisition(1.0)
+            aq = ctx_pipelined.make_acquisition(
+                pending_aq=pending_aq,
+                conn=conn,
+                nav_shape=(128, 128),
+                frames_per_partition=512,
+            )
+            t0 = time.perf_counter()
+            res1 = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+            t1 = time.perf_counter()
+            delta_t += t1 - t0
+        print(f"total time: {delta_t:.2f}s")
     finally:
         conn.close()
