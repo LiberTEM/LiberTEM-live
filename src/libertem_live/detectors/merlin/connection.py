@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Optional
 from collections.abc import Generator
@@ -8,10 +9,11 @@ from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
 from .control import MerlinControl
 from .data import (
-    MerlinRawSocket, MerlinFrameStream, AcquisitionHeader, AcquisitionTimeout,
+    MerlinRawSocket, AcquisitionHeader,
 )
 
 from opentelemetry import trace
+import libertem_qd_mpx
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
@@ -86,18 +88,26 @@ class MerlinDetectorConnection(DetectorConnection):
         self._api_port = api_port
         self._data_host = data_host
         self._data_port = data_port
-        self._data_socket: Optional[MerlinRawSocket] = None
+        self._data_socket: Optional[libertem_qd_mpx.QdConnection] = None
         self._drain = drain
         self.connect()
 
     def connect(self):
         if self._data_socket is not None:
             return self._data_socket  # already connected
-        self._data_socket = MerlinRawSocket(
-            host=self._data_host,
-            port=self._data_port,
-        ).connect()
+        self._data_socket = libertem_qd_mpx.QdConnection(
+            data_host=self._data_host,
+            data_port=self._data_port,
+            frame_stack_size=16,  # FIXME! make configurable or determine automatically
+            shm_handle_path=self._make_socket_path(),
+        )
         return self._data_socket
+
+    @classmethod
+    def _make_socket_path(cls):
+        import tempfile
+        temp_path = tempfile.mkdtemp()
+        return os.path.join(temp_path, 'qd-shm-socket')
 
     def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
         """
@@ -137,21 +147,12 @@ class MerlinDetectorConnection(DetectorConnection):
         """
         if self._data_socket is None:
             self.connect()
+        self._data_socket.start_passive()
         assert self._data_socket is not None
-        try:
-            header = self._data_socket.read_acquisition_header(cancel_timeout=timeout)
-            return MerlinPendingAcquisition(header=header)
-        except AcquisitionTimeout:
-            return None
-
-    def get_header_and_stream(self) -> tuple[AcquisitionHeader, MerlinFrameStream]:
-        assert self._data_socket is not None
-        acq_header = self._data_socket.read_acquisition_header()
-        stream = MerlinFrameStream.from_frame_header(
-            raw_socket=self._data_socket,
-            acquisition_header=acq_header,
-        )
-        return acq_header, stream
+        if timeout is None:
+            timeout = 128
+        assert timeout is not None, "TODO: support indefinite timeout?"
+        return self._data_socket.wait_for_arm(timeout=timeout)
 
     def get_acquisition_cls(self) -> type[AcquisitionProtocol]:
         from .acquisition import MerlinAcquisition
@@ -169,16 +170,8 @@ class MerlinDetectorConnection(DetectorConnection):
             self._data_socket.close()
             self._data_socket = None
 
-    def maybe_drain(self, timeout: float = 1.0):
-        assert self._data_socket is not None
-        if self._drain:
-            with tracer.start_as_current_span("drain") as span:
-                drained_bytes = self._data_socket.drain()
-                span.set_attributes({
-                    "libertem_live.drained_bytes": drained_bytes,
-                })
-            if drained_bytes > 0:
-                logger.info(f"drained {drained_bytes} bytes of garbage")
+    def get_conn_impl(self):
+        return self._data_socket  # maybe remove `get_data_socket` function?
 
     def get_data_socket(self) -> MerlinRawSocket:
         assert self._data_socket is not None, "need to be connected to call this"

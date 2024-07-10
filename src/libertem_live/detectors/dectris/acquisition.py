@@ -1,24 +1,24 @@
 import base64
 import logging
-import time
 from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 from opentelemetry import trace
 
-from libertem.common import Shape, Slice
+from libertem.common import Shape
 from libertem.common.math import prod
 from libertem.common.executor import (
-    WorkerContext, TaskProtocol, WorkerQueue, TaskCommHandler,
-    JobCancelledError,
+    WorkerContext,
 )
 from libertem.io.dataset.base import (
-    DataTile, DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
+    DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
 from sparseconverter import ArrayBackend, NUMPY, CUDA
 
-from libertem_live.detectors.base.acquisition import AcquisitionMixin
+from libertem_live.detectors.base.acquisition import (
+    AcquisitionMixin, GenericCommHandler, GetFrames
+)
 from libertem_live.hooks import Hooks, ReadyForDataEnv
 from .controller import DectrisActiveController
 from .common import AcquisitionParams, DetectorConfig
@@ -58,166 +58,24 @@ def shape_from_frame(frame):
     return tuple(reversed(frame.get_shape()))
 
 
-class GetFrames:
-    def __init__(self, request_queue, dtype, sig_shape):
-        self._request_queue = request_queue
-        self._dtype = dtype
-        self._sig_shape = sig_shape
-        self._cam_client = None
-        self._last_stack = None
-        self._last_stack_pos = None
-        self._buf = None
-
-    def __enter__(self):
-        with self._request_queue.get() as msg:
-            header, _ = msg
-            header_type = header["type"]
-            assert header_type == "BEGIN_TASK"
-            socket_path = header["socket"]
-            self._cam_client = libertem_dectris.CamClient(socket_path)
-
-    def __exit__(self, *args, **kwargs):
-        if self._cam_client is not None:
-            if self._last_stack is not None:
-                self._cam_client.done(self._last_stack)
-                self._last_stack = None
-                self._last_stack_pos = None
-            self._cam_client.close()
-            self._cam_client = None
-            self._buf = None
-
-    def _snack(self, frame_stack, depth, start_idx):
-        """
-        Return at most `depth` frames from `frame_stack` as decoded data, as a view
-        into a fixed array/buffer. Take note of left overs, which will be snacked upon
-        on the next call.
-        """
-        if self._buf is None or self._buf.shape[0] < depth:
-            self._buf = np.zeros((depth,) + self._sig_shape, self._dtype)
-
-        end_idx = min(start_idx + depth, len(frame_stack))
-        num_frames = end_idx - start_idx
-        view = self._buf[0:num_frames, ...]
-        self._cam_client.decode_range_into_buffer(
-            frame_stack,
-            view,
-            start_idx,
-            end_idx
-        )
-
-        if end_idx < len(frame_stack):
-            # we are not done, store our position:
-            self._last_stack = frame_stack
-            self._last_stack_pos = end_idx  # end_idx is the new start_idx
-        else:
-            self._last_stack = None
-            self._last_stack_pos = None
-            self._cam_client.done(frame_stack)
-        return view
-
-    def next_tile(self, depth):
-        """
-        Consume a FRAMES messages from the request queue, and return the next
-        tile, or return None if we get an END_PARTITION message (which we also
-        consume)
-        """
-
-        assert self._cam_client is not None, "should be connected"
-
-        if self._last_stack is not None:
-            return self._snack(self._last_stack, depth, self._last_stack_pos)
-
-        while True:
-            with self._request_queue.get() as msg:
-                header, payload = msg
-                header_type = header["type"]
-                if header_type == "FRAMES":
-                    frame_stack = libertem_dectris.FrameStackHandle.deserialize(payload)
-                    return self._snack(frame_stack, depth, 0)
-                elif header_type == "END_PARTITION":
-                    # print(f"partition {partition} done")
-                    return
-                else:
-                    raise RuntimeError(
-                        f"invalid header type {header['type']}; FRAME or END_PARTITION expected"
-                    )
+class DectrisGetFrames(GetFrames):
+    CAM_CLIENT_CLS = libertem_dectris.CamClient
+    FRAME_STACK_CLS = libertem_dectris.FrameStackHandle
 
 
-class DectrisCommHandler(TaskCommHandler):
+class DectrisCommHandler(GenericCommHandler):
     def __init__(
         self,
         params: Optional[AcquisitionParams],
         conn: "DectrisDetectorConnection",
         controller: "Optional[DectrisActiveController]",
     ):
+        super().__init__(conn=conn)
         self.params = params
-        self.conn = conn
         self.controller = controller
 
-    def handle_task(self, task: TaskProtocol, queue: WorkerQueue):
-        conn = self.conn.get_conn_impl()
-        with tracer.start_as_current_span("DectrisCommHandler.handle_task") as span:
-            span.set_attribute(
-                "libertem_live.detectors.dectris:socket",
-                conn.get_socket_path(),
-            )
-            queue.put({
-                "type": "BEGIN_TASK",
-                "socket": conn.get_socket_path(),
-            })
-            put_time = 0.0
-            recv_time = 0.0
-            # send the data for this task to the given worker
-            partition = task.get_partition()
-            slice_ = partition.slice
-            start_idx = slice_.origin[0]
-            end_idx = slice_.origin[0] + slice_.shape[0]
-            span.set_attributes({
-                "libertem.partition.start_idx": start_idx,
-                "libertem.partition.end_idx": end_idx,
-            })
-            chunk_size = 128
-            current_idx = start_idx
-            while current_idx < end_idx:
-                current_chunk_size = min(chunk_size, end_idx - current_idx)
-
-                t0 = time.perf_counter()
-                frame_stack = conn.get_next_stack(
-                    max_size=current_chunk_size
-                )
-                if frame_stack is None:
-                    if current_idx != end_idx:
-                        queue.put({
-                            "type": "END_PARTITION",
-                        })
-                        raise JobCancelledError("premature end of frame iterator")
-                assert len(frame_stack) <= current_chunk_size, \
-                    f"{len(frame_stack)} <= {current_chunk_size}"
-                t1 = time.perf_counter()
-                recv_time += t1 - t0
-                if len(frame_stack) == 0:
-                    if current_idx != end_idx:
-                        raise JobCancelledError("premature end of frame iterator")
-                    break
-
-                dtype = dtype_from_frame(frame_stack)
-                shape = shape_from_frame(frame_stack)
-                t0 = time.perf_counter()
-                serialized = frame_stack.serialize()
-                queue.put({
-                    "type": "FRAMES",
-                    "dtype": dtype,
-                    "shape": shape,
-                    "encoding": frame_stack.get_encoding(),
-                }, payload=serialized)
-                t1 = time.perf_counter()
-                put_time += t1 - t0
-
-                current_idx += len(frame_stack)
-            span.set_attributes({
-                "total_put_time": put_time,
-                "total_recv_time": recv_time,
-            })
+    def get_conn_impl(self):
+        return self._conn.get_conn_impl()
 
     def start(self):
         if self.controller is not None and self.params is not None:
@@ -524,46 +382,18 @@ class DectrisLivePartition(Partition):
         assert len(tiling_scheme) == 1, "only supports full frames tiling scheme for now"
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
-        depth = tiling_scheme.depth
-        tile_start = self._start_idx
-        frames = GetFrames(
+        with DectrisGetFrames(
             request_queue=self._worker_context.get_worker_queue(),
             dtype=dest_dtype,
             sig_shape=tuple(tiling_scheme[0].shape),
-        )
-        frames_in_tile = 0
-        with frames:
-            while to_read > 0:
-                raw_tile = frames.next_tile(depth)
-                if raw_tile is None and to_read > 0:
-                    raise RuntimeError(
-                        f"we were still expecting to read {to_read} frames more!"
-                    )
-
-                frames_in_tile = raw_tile.shape[0]
-                to_read -= frames_in_tile
-
-                if raw_tile.shape[0] == 0:
-                    assert to_read == 0
-                    continue  # we are done and the buffer is empty
-
-                tile_shape = Shape(
-                    (frames_in_tile,) + tuple(tiling_scheme[0].shape),
-                    sig_dims=2
-                )
-                tile_slice = Slice(
-                    origin=(tile_start,) + (0, 0),
-                    shape=tile_shape,
-                )
-                # print(f"yielding tile for {tile_slice}")
-                self._preprocess(raw_tile, tile_slice)
-                yield DataTile(
-                    raw_tile,
-                    tile_slice=tile_slice,
-                    scheme_idx=0,
-                )
-                tile_start += frames_in_tile
-            logger.debug("LivePartition.get_tiles: end of method")
+        ) as frames:
+            yield from frames.get_tiles(
+                to_read=to_read,
+                start_idx=self._start_idx,
+                tiling_scheme=tiling_scheme,
+                roi=roi,
+                array_backend=array_backend,
+            )
 
     def get_tiles(self, tiling_scheme, dest_dtype="float32", roi=None,
             array_backend: Optional["ArrayBackend"] = None):
