@@ -80,11 +80,11 @@ class DectrisCommHandler(GenericCommHandler):
     def start(self):
         if self.controller is not None and self.params is not None:
             logger.info(f"arming for acquisition with id={self.params.sequence_id}")
-            self.controller.handle_start(self.conn, self.params.sequence_id)
+            self.controller.handle_start(self._conn, self.params.sequence_id)
 
     def done(self):
         if self.controller is not None:
-            self.controller.handle_stop(self.conn)
+            self.controller.handle_stop(self._conn)
 
 
 # FIXME: naming: native `DetectorConnection` vs this is confusing?
@@ -291,7 +291,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     def need_decode(self, read_dtype, roi, corrections):
         ''
-        return True  # FIXME: we just do this to get a large tile size
+        return True
 
     def adjust_tileshape(self, tileshape, roi):
         ''
