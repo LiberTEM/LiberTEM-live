@@ -25,6 +25,7 @@ from libertem_live.detectors.merlin.utils import (
     encode_r12,
     encode_quad,
 )
+from libertem_qd_mpx import QdDecoder
 
 
 def encode_roundtrip(encode, decode, bits_per_pixel, shape=(512, 512)):
@@ -135,3 +136,149 @@ def encode_roundtrip_quad(encode, decode, bits_per_pixel, num_frames=2, input_da
 def test_encode_roundtrip_quad(encode, decode, bits_per_pixel):
     data, decoded = encode_roundtrip_quad(encode, decode, bits_per_pixel, num_frames=3)
     assert_allclose(data, decoded)
+
+
+@pytest.mark.parametrize(
+    'counter_depth,bits_per_pixel,encode_fn,mpx_dtype', [
+        (1, 1, encode_r1, 'R64'),
+        (6, 8, encode_r6, 'R64'),
+        (12, 16, encode_r12, 'R64'),
+
+        (1, 8, encode_u1, 'U01'),
+        (12, 16, encode_u2, 'U16'),
+    ]
+)
+@pytest.mark.parametrize(
+    'decode_fn,dest_dtype', [
+        ('decode_to_u64', np.uint64),
+        ('decode_to_f32', np.float32),
+        ('decode_to_f64', np.float64),
+    ]
+)
+def test_rs_decoders(
+    counter_depth, bits_per_pixel, encode_fn, mpx_dtype,
+    decode_fn, dest_dtype,
+):
+    # minimal shape for debuggability (but not too simple to hide bugs!)
+    shape = (1, 128)
+
+    decoder = QdDecoder(layout="1x1", dtype=mpx_dtype, counter_depth=counter_depth)
+
+    max_value = (1 << counter_depth) - 1
+    data = np.random.randint(0, max_value + 1, shape).astype(np.uint64)
+    encoded = np.zeros(data.size // 8 * bits_per_pixel, dtype=np.uint8)
+    encoded = encoded.reshape((shape[0], -1))
+    encode_fn(inp=data, out=encoded)
+
+    decoded = np.zeros_like(data, dtype=dest_dtype).reshape((-1,))
+
+    # print(encoded.dtype, decoded.dtype)
+    decode_fn = getattr(decoder, decode_fn)
+    decode_fn(input=encoded.reshape(-1), output=decoded)
+
+    if dest_dtype == np.uint64:
+        print("  data", "decoded")
+        for i in range(8):
+            print(hex(data[0, i]), hex(decoded.reshape(shape)[0, i]))
+
+    assert_allclose(data, decoded.reshape(shape))
+
+
+@pytest.mark.parametrize(
+    'counter_depth,bits_per_pixel,encode_fn,mpx_dtype', [
+        (1, 1, encode_r1, 'R64'),
+        (6, 8, encode_r6, 'R64'),
+        (12, 16, encode_r12, 'R64'),
+    ]
+)
+@pytest.mark.parametrize(
+    'decode_fn,dest_dtype', [
+        ('decode_to_u64', np.uint64),
+        ('decode_to_f32', np.float32),
+        ('decode_to_f64', np.float64),
+    ]
+)
+def test_rs_decoders_quad_raw(
+    counter_depth, bits_per_pixel, encode_fn, mpx_dtype,
+    decode_fn, dest_dtype,
+):
+    shape = (2, 512, 512)
+
+    decoder = QdDecoder(layout="2x2", dtype=mpx_dtype, counter_depth=counter_depth)
+
+    max_value = (1 << counter_depth) - 1
+    data = np.random.randint(0, max_value + 1, shape).astype(np.uint64)
+    print("calling encode_quad", encode_fn, data, bits_per_pixel, False)
+    encoded = encode_quad(
+        encode=encode_fn,
+        data=data,
+        bits_per_pixel=bits_per_pixel,
+        with_headers=False
+    ).reshape((shape[0], -1))
+
+    decoded = np.zeros_like(data, dtype=dest_dtype)
+
+    assert encoded.size == data.size // 8 * bits_per_pixel
+
+    # print(encoded.dtype, decoded.dtype)
+    decode_fn = getattr(decoder, decode_fn)
+    for i in range(shape[0]):
+        decode_fn(input=encoded[i].reshape((-1,)), output=decoded[i].reshape((-1,)))
+
+    print("encoded beginning:", encoded.reshape((-1,))[:32])
+
+    if dest_dtype == np.uint64:
+        print("  data", "decoded")
+        for i in range(8):
+            print(i, hex(data[0, 0, i]), hex(decoded.reshape(shape)[0, 0, i]))
+
+    # for each frame?
+    for i in range(shape[0]):
+        assert_allclose(decoded[i].reshape(shape[1:]), desired=data[i])
+
+    assert_allclose(decoded.reshape(shape), desired=data)
+
+
+@pytest.mark.parametrize(
+    'counter_depth,bits_per_pixel,encode_fn,mpx_dtype', [
+        (1, 8, encode_u1, 'U01'),
+        (12, 16, encode_u2, 'U16'),
+    ]
+)
+@pytest.mark.parametrize(
+    'decode_fn,dest_dtype', [
+        ('decode_to_u64', np.uint64),
+        ('decode_to_f32', np.float32),
+        ('decode_to_f64', np.float64),
+    ]
+)
+def test_rs_decoders_quad_uint(
+    counter_depth, bits_per_pixel, encode_fn, mpx_dtype,
+    decode_fn, dest_dtype,
+):
+    shape = (512, 512)
+
+    decoder = QdDecoder(layout="2x2", dtype=mpx_dtype, counter_depth=counter_depth)
+
+    max_value = (1 << counter_depth) - 1
+    data = np.random.randint(0, max_value + 1, shape).astype(np.uint64)
+
+    # quad in uint mode is just like "normal" uints:
+    encoded = np.zeros(data.size // 8 * bits_per_pixel, dtype=np.uint8)
+    encoded = encoded.reshape((shape[0], -1))
+    encode_fn(inp=data, out=encoded)
+
+    decoded = np.zeros_like(data, dtype=dest_dtype).reshape((-1,))
+
+    # print(encoded.dtype, decoded.dtype)
+    decode_fn = getattr(decoder, decode_fn)
+    decode_fn(input=encoded.reshape((-1,)), output=decoded)
+
+    print("encoded beginning:", encoded.reshape((-1,))[:32])
+
+    if dest_dtype == np.uint64:
+        print("  data", "decoded")
+        for i in range(8):
+            print(i, hex(data[0, i]), hex(decoded.reshape(shape)[0, i]))
+
+    assert_allclose(decoded.reshape(shape), desired=data)

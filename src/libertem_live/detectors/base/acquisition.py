@@ -281,6 +281,9 @@ class GenericCommHandler(TaskCommHandler):
                 put_time += t1 - t0
 
                 current_idx += len(frame_stack)
+            queue.put({
+                "type": "END_PARTITION",
+            })
             span.set_attributes({
                 "total_put_time": put_time,
                 "total_recv_time": recv_time,
@@ -299,6 +302,7 @@ class GetFrames:
         self._last_stack = None
         self._last_stack_pos = None
         self._buf = None
+        self._end_seen = False
 
     def __enter__(self):
         with self._request_queue.get() as msg:
@@ -319,7 +323,7 @@ class GetFrames:
             self._cam_client = None
             self._buf = None
 
-    def _snack(self, frame_stack, depth, start_idx):
+    def _snack(self, frame_stack, depth: int, start_idx: int):
         """
         Return at most `depth` frames from `frame_stack` as decoded data, as a view
         into a fixed array/buffer. Take note of left overs, which will be snacked upon
@@ -348,11 +352,46 @@ class GetFrames:
             self._cam_client.done(frame_stack)
         return view
 
-    def next_tile(self, depth):
+    def get_partition_tile(self, depth: int) -> np.ndarray:
+        """
+        Like `next_tile`, but always reads _all_ FRAMES messages that belong
+        to the current partition, and decodes them directly into a
+        larger buffer.
+        """
+        assert self._cam_client is not None, "should be connected"
+
+        buf = np.zeros((depth,) + self._sig_shape, self._dtype)
+        start_idx = 0
+        while True:
+            with self._request_queue.get() as msg:
+                header, payload = msg
+                header_type = header["type"]
+                if header_type == "FRAMES":
+                    frame_stack = self.FRAME_STACK_CLS.deserialize(payload)
+                    num_frames = len(frame_stack)
+                    view = buf[start_idx:start_idx+num_frames, ...]
+                    self._cam_client.decode_range_into_buffer(
+                        frame_stack,
+                        view,
+                        0,
+                        len(frame_stack)
+                    )
+                    self._cam_client.done(frame_stack)
+                    start_idx += num_frames
+                elif header_type == "END_PARTITION":
+                    self._end_seen = True
+                    return buf
+                else:
+                    raise RuntimeError(
+                        f"invalid header type {header['type']}; FRAME or END_PARTITION expected;"
+                        f" (header={header})"
+                    )
+
+    def next_tile(self, depth: int) -> Optional[np.ndarray]:
         """
         Consume a FRAMES messages from the request queue, and return the next
         tile, or return None if we get an END_PARTITION message (which we also
-        consume)
+        consume). The tile will contain less than or equal to `depth` frames.
         """
 
         assert self._cam_client is not None, "should be connected"
@@ -368,12 +407,28 @@ class GetFrames:
                     frame_stack = self.FRAME_STACK_CLS.deserialize(payload)
                     return self._snack(frame_stack, depth, 0)
                 elif header_type == "END_PARTITION":
-                    # print(f"partition {partition} done")
-                    return
+                    self._end_seen = True
+                    if self._last_stack is not None:
+                        return self._snack(self._last_stack, depth, self._last_stack_pos)
+                    return None
                 else:
                     raise RuntimeError(
-                        f"invalid header type {header['type']}; FRAME or END_PARTITION expected"
+                        f"invalid header type {header['type']}; FRAME or END_PARTITION expected;"
+                        f" (header={header})"
                     )
+
+    def expect_end(self):
+        if self._end_seen:
+            return
+        with self._request_queue.get() as msg:
+            header, _ = msg
+            header_type = header["type"]
+            if header_type != "END_PARTITION":
+                raise RuntimeError(
+                    f"invalid header type {header['type']}; END_PARTITION expected;"
+                    f" (header={header})"
+                )
+            self._end_seen = True
 
     def get_tiles(
         self,
@@ -388,14 +443,20 @@ class GetFrames:
         depth = tiling_scheme.depth
         frames_in_tile = 0
         while to_read > 0:
-            raw_tile = self.next_tile(depth)
-            if raw_tile is None and to_read > 0:
-                raise RuntimeError(
-                    f"we were still expecting to read {to_read} frames more!"
-                )
+            if tiling_scheme.intent == "partition":
+                raw_tile = self.get_partition_tile(depth=to_read)
+            else:
+                raw_tile = self.next_tile(depth)
+                if raw_tile is None:
+                    raise RuntimeError(
+                        f"we were still expecting to read {to_read} frames more!"
+                    )
 
             frames_in_tile = raw_tile.shape[0]
             to_read -= frames_in_tile
+
+            if tiling_scheme.intent == "partition":
+                assert to_read == 0
 
             if raw_tile.shape[0] == 0:
                 assert to_read == 0
@@ -417,4 +478,5 @@ class GetFrames:
                 scheme_idx=0,
             )
             tile_start += frames_in_tile
+        self.expect_end()
         logger.debug("GetFrames.get_tiles: end of method")

@@ -155,7 +155,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         else:
             # passive case, we don't manage the connection and we definitely
             # don't drain anything out of the socket!
-            acq_header = self._pending_aq.header
+            acq_header = self._pending_aq
             self._acq_state = AcqState(
                 acq_header=acq_header,
             )
@@ -174,20 +174,17 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         ''
         return True  # FIXME: we just do this to get a large tile size
 
-    def adjust_tileshape(self, tileshape, roi):
-        ''
-        depth = 24
-        return (depth, *self.meta.shape.sig)
-        # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
-
     def get_max_io_size(self):
         ''
         # return 12*256*256*8
         # FIXME magic numbers?
-        return 24*np.prod(self.meta.shape.sig)*8
+        return 128 * np.prod(self.meta.shape.sig) * 8
 
     def get_base_shape(self, roi):
         return (1, 1, self.meta.shape.sig[-1])
+
+    def adjust_tileshape(self, tile_shape, roi):
+        return (tuple(tile_shape)[0], *self.meta.shape.sig)
 
     def get_partitions(self):
         ''
@@ -268,7 +265,7 @@ class MerlinLivePartition(Partition):
         with QdGetFrames(
             request_queue=self._worker_context.get_worker_queue(),
             dtype=dest_dtype,
-            sig_shape=tuple(tiling_scheme[0].shape),
+            sig_shape=tuple(self.shape.sig),
         ) as frames:
             yield from frames.get_tiles(
                 to_read=to_read,

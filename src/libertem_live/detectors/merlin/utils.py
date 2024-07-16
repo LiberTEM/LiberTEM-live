@@ -59,6 +59,7 @@ def encode_r12(inp, out):
             pos = i // 4
             in_pos = (pos + 1) * 4 - col - 1
             in_value = row_in[in_pos]
+            # write u2 big endian value:
             row_out[i * 2] = (0xFF00 & in_value) >> 8
             row_out[i * 2 + 1] = 0xFF & in_value
 
@@ -117,4 +118,4 @@ def encode_quad(encode, data, bits_per_pixel, with_headers=False):
         encoded_data = encoded.reshape((num_frames, -1,))[:, header_bytes:].reshape(
             (num_frames, data.shape[1], -1)
         )
-        return encoded_data
+        return encoded_data.copy()

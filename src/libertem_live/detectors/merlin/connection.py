@@ -8,9 +8,6 @@ from libertem_live.detectors.base.connection import DetectorConnection, PendingA
 from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
 from .control import MerlinControl
-from .data import (
-    MerlinRawSocket, AcquisitionHeader,
-)
 
 from opentelemetry import trace
 import libertem_qd_mpx
@@ -20,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class MerlinPendingAcquisition(PendingAcquisition):
-    def __init__(self, header: AcquisitionHeader):
+    def __init__(self, header):
         self._header = header
 
     @property
@@ -29,7 +26,7 @@ class MerlinPendingAcquisition(PendingAcquisition):
 
     @property
     def nimages(self) -> int:
-        return self.header.frames_in_acquisition
+        return self.header.frames_in_acquisition()
 
 
 class MerlinDetectorConnection(DetectorConnection):
@@ -100,7 +97,9 @@ class MerlinDetectorConnection(DetectorConnection):
             data_port=self._data_port,
             frame_stack_size=16,  # FIXME! make configurable or determine automatically
             shm_handle_path=self._make_socket_path(),
+            drain=self._drain,
         )
+        self._data_socket.start_passive()
         return self._data_socket
 
     @classmethod
@@ -152,7 +151,10 @@ class MerlinDetectorConnection(DetectorConnection):
         if timeout is None:
             timeout = 128
         assert timeout is not None, "TODO: support indefinite timeout?"
-        return self._data_socket.wait_for_arm(timeout=timeout)
+        acq_header = self._data_socket.wait_for_arm(timeout=timeout)
+        if acq_header is None:
+            return None
+        return MerlinPendingAcquisition(header=acq_header)
 
     def get_acquisition_cls(self) -> type[AcquisitionProtocol]:
         from .acquisition import MerlinAcquisition
@@ -173,7 +175,7 @@ class MerlinDetectorConnection(DetectorConnection):
     def get_conn_impl(self):
         return self._data_socket  # maybe remove `get_data_socket` function?
 
-    def get_data_socket(self) -> MerlinRawSocket:
+    def get_data_socket(self) -> libertem_qd_mpx.QdConnection:
         assert self._data_socket is not None, "need to be connected to call this"
         return self._data_socket
 
