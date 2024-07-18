@@ -15,7 +15,6 @@ from libertem_live.detectors.base.acquisition import (
     AcquisitionMixin, GenericCommHandler, GetFrames,
 )
 from libertem_live.hooks import Hooks, ReadyForDataEnv
-from .data import AcquisitionHeader
 from .connection import MerlinDetectorConnection, MerlinPendingAcquisition
 from .controller import MerlinActiveController
 
@@ -32,7 +31,7 @@ class QdGetFrames(GetFrames):
 
 
 class AcqState(NamedTuple):
-    acq_header: AcquisitionHeader
+    acq_header: libertem_qd_mpx.QdAcquisitionHeader
 
 
 class MerlinAcquisition(AcquisitionMixin, DataSet):
