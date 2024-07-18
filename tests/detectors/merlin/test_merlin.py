@@ -8,7 +8,6 @@ from numpy.testing import assert_allclose
 
 from libertem.udf import UDF
 from libertem.udf.sum import SumUDF
-from libertem.udf.sumsigudf import SumSigUDF
 from libertem.contrib.daskadapter import make_dask_array
 from libertem.io.dataset.base import TilingScheme, DataSet
 from libertem.common import Shape
@@ -16,7 +15,7 @@ from libertem.common import Shape
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
 from libertem_live.detectors.merlin import (
-    MerlinControl, MerlinDataSource,
+    MerlinControl,
 )
 from libertem_live.detectors.merlin.sim import TriggerClient
 
@@ -380,53 +379,6 @@ def test_acquisition_triggered_control(
         ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
         assert_allclose(res['intensity'], ref['intensity'])
-
-
-@pytest.mark.parametrize(
-    'inline', (True, False),
-)
-@pytest.mark.parametrize(
-    # auto, correct, wrong
-    'sig_shape', (None, (256, 256), (512, 512)),
-)
-def test_datasource(
-    ctx_pipelined: LiveContext,
-    merlin_detector_sim,
-    merlin_ds,
-    inline,
-    sig_shape,
-):
-    print("Merlin sim:", merlin_detector_sim)
-    source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape, pool_size=16)
-
-    res = np.zeros(merlin_ds.shape.sig)
-    try:
-        with source:
-            if inline:
-                for chunk in source.inline_stream():
-                    res += chunk.sum(axis=0)
-            else:
-                for chunk in source.stream(num_frames=32 * 32):
-                    res += chunk.buf.sum(axis=0)
-        udf = SumUDF()
-        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-        assert_allclose(res, ref['intensity'])
-        assert (sig_shape is None) or (sig_shape == tuple(merlin_ds.shape.sig))
-    except ValueError as e:
-        assert sig_shape != tuple(merlin_ds.shape.sig)
-        assert 'received "image_size" header' in e.args[0]
-
-
-def test_datasource_nav(ctx_pipelined: LiveContext, merlin_detector_sim, merlin_ds):
-    source = MerlinDataSource(*merlin_detector_sim, pool_size=16)
-
-    res = np.zeros(merlin_ds.shape.nav).reshape((-1,))
-    with source:
-        for chunk in source.stream(num_frames=merlin_ds.shape.nav.size):
-            res[chunk.start:chunk.stop] = chunk.buf.sum(axis=(-1, -2))
-    udf = SumSigUDF()
-    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-    assert_allclose(res.reshape(merlin_ds.shape.nav), ref['intensity'])
 
 
 def test_control(merlin_control_sim, tmp_path):

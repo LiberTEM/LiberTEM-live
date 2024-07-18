@@ -9,6 +9,7 @@ import platform
 import threading
 import logging
 import select
+from typing import NamedTuple
 
 import click
 import numpy as np
@@ -21,10 +22,36 @@ from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
 
-from libertem_live.detectors.merlin.data import AcquisitionHeader
 from libertem_live.detectors.common import (
     UndeadException, StopException, ServerThreadMixin,
 )
+
+
+class AcquisitionHeader(NamedTuple):
+    frames_in_acquisition: int
+    frames_per_trigger: int
+    raw_keys: dict[str, str]
+
+    @classmethod
+    def from_raw(cls, header: bytes) -> "AcquisitionHeader":
+        result: dict[str, str] = {}
+        for line in header.decode("latin1").split('\n'):
+            try:
+                if line.startswith("HDR") or line.startswith("End\t"):
+                    continue
+                k, v = line.split("\t", 1)
+                k = k.rstrip(':')
+                v = v.rstrip("\r")
+                v = v.rstrip("\n")
+            except ValueError:
+                logger.warn("error while parsing line %r", line)
+                raise
+            result[k] = v
+        return AcquisitionHeader(
+            raw_keys=result,
+            frames_in_acquisition=int(result['Frames in Acquisition (Number)']),
+            frames_per_trigger=int(result['Frames per Trigger (Number)']),
+        )
 
 
 logger = logging.getLogger(__name__)
