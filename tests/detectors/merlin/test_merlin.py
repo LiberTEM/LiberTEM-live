@@ -44,7 +44,6 @@ class MyHooks(Hooks):
         assert env.aq.shape.nav == self.ds.shape.nav
 
 
-@pytest.mark.with_numba  # Get coverage for decoders
 def test_acquisition(
     ctx_pipelined: LiveContext,
     merlin_ds,
@@ -66,6 +65,47 @@ def test_acquisition(
     ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
+
+
+def test_small_shm(
+    ctx_pipelined: LiveContext,
+    merlin_detector_sim,
+    merlin_control_sim,  # XXX not really the matching control, but it kinda works...
+    merlin_ds,
+):
+    host, port = merlin_detector_sim
+    api_host, api_port = merlin_control_sim
+
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=False,
+    ) as conn:
+        import libertem_qd_mpx
+        # monkey-patch in a different underlying connection:
+        conn._data_socket.close()
+        conn._data_socket = libertem_qd_mpx.QdConnection(
+            data_host=host,
+            data_port=port,
+            frame_stack_size=1,
+            num_slots=4,  # NOTE this ridiculously small value
+            shm_handle_path=conn._make_socket_path(),
+            drain=False,
+        )
+        conn._data_socket.start_passive()
+
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            nav_shape=(32, 32),
+        )
+        udf = SumUDF()
+
+        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+
+        assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_passive_acquisition(

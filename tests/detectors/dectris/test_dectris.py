@@ -141,6 +141,40 @@ def test_conn_parameters(ctx_pipelined: LiveContext, dectris_sim):
 
 
 @pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
+@pytest.mark.slow
+@pytest.mark.data
+def test_small_shm(ctx_pipelined: LiveContext, dectris_sim):
+    """
+    Run this with LIBERTEM_DECTRIS_LOG_LEVEL=info to verify that
+    this is hitting back pressure.
+    """
+    api_port, data_port = dectris_sim
+
+    conn = ctx_pipelined.make_connection('dectris').open(
+        api_host='127.0.0.1',
+        api_port=api_port,
+        data_host='127.0.0.1',
+        data_port=data_port,
+        buffer_size=2,  # NOTE 2MiB, already too small for a continously running acquisition
+        bytes_per_frame=512*512//4,
+        frame_stack_size=2,
+        huge_pages=False,
+    )
+    try:
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            nav_shape=(128, 128),
+            frames_per_partition=512,
+            controller=conn.get_active_controller(trigger_mode='exte'),
+        )
+
+        udf = SumUDF()
+        ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    finally:
+        conn.close()
+
+
+@pytest.mark.skipif(not HAVE_DECTRIS_TESTDATA, reason="need DECTRIS testdata")
 @pytest.mark.data
 def test_udf_nav(ctx_pipelined: LiveContext, dectris_sim):
     api_port, data_port = dectris_sim
@@ -786,7 +820,7 @@ def test_repeated_acquisition(ctx_pipelined: LiveContext, dectris_sim):
                 frames_per_partition=512,
             )
             t0 = time.perf_counter()
-            res1 = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+            ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
             t1 = time.perf_counter()
             delta_t += t1 - t0
         print(f"total time: {delta_t:.2f}s")
