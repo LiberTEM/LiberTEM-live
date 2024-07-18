@@ -148,9 +148,6 @@ class MerlinDetectorConnection(DetectorConnection):
             self.connect()
         self._data_socket.start_passive()
         assert self._data_socket is not None
-        if timeout is None:
-            timeout = 128
-        assert timeout is not None, "TODO: support indefinite timeout?"
         acq_header = self._data_socket.wait_for_arm(timeout=timeout)
         if acq_header is None:
             return None
