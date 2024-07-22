@@ -130,7 +130,10 @@ class HeaderSocketSimulator:
         yield get_mpx_header(len(hdr))
         yield hdr
 
-    def handle_conn(self, conn):
+    def send_acquisition_header(self, conn):
+        """
+        Send the acquisition header via `conn`.
+        """
         for chunk in self.get_chunks():
             conn.sendall(chunk)
 
@@ -325,10 +328,12 @@ class DataSocketSimulator:
             if self._max_runs != -1 and i >= self._max_runs:
                 raise StopException("max_runs exceeded")
 
-    def handle_conn(self, conn):
+    def handle_acquisition(self, conn):
+        """
+        Send all data for a single acquisition to `conn`
+        """
         for chunk in self.get_chunks():
             conn.sendall(chunk)
-        conn.close()
 
     def is_stopped(self):
         return self.stop_event.is_set()
@@ -421,7 +426,10 @@ class MemfdSocketSim(DataSocketSimulator):
             reps += 1
         logger.info("_send_full_file took %d reps" % reps)
 
-    def handle_conn(self, conn):
+    def handle_acquisition(self, conn):
+        """
+        Send all data for a single acquisition to `conn`
+        """
         if self._continuous:
             i = 0
             while True:
@@ -440,7 +448,6 @@ class MemfdSocketSim(DataSocketSimulator):
             t1 = time.time()
             throughput = self._size / (t1 - t0) / 1024 / 1024
             logger.info(f"single scan took {t1 - t0:.05f}s ({throughput:.2f}MiB/s)")
-        conn.close()
 
 
 def wait_with_socket(event: threading.Event, connection):
@@ -494,30 +501,36 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
 
     def handle_conn(self, connection):
         try:
-            if self._wait_trigger or self._manual_trigger:
-                if self._garbage:
-                    logger.info("Sending some garbage...")
-                    connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
-                logger.info("Waiting for acquisition start...")
-                if not wait_with_socket(self.acquisition_event, connection):
-                    logger.info("Readable socket yielded no result, probably closed")
-                    connection.close()
-                    return
-                self.acquisition_event.clear()
-            self._headers.handle_conn(connection)
-            if self._manual_trigger:
-                _ = input("Press key to trigger...\n")
-                self.trigger_event.set()
-            if self._wait_trigger or self._manual_trigger:
-                logger.info("Waiting for trigger...")
-                if not wait_with_socket(self.trigger_event, connection):
-                    logger.info("Readable socket yielded no result, probably closed")
-                    connection.close()
-                    return
-                self.trigger_event.clear()
-            return self._sim.handle_conn(connection)
+            # send garbage only in case we wait for a trigger, otherwise
+            # the client doesn't have any chance of draining out the garbage:
+            if self._garbage and (self._wait_trigger or self._manual_trigger):
+                logger.info("Sending some garbage...")
+                connection.send(b'GARBAGEGARBAGEGARBAGE'*1024)
+
+            # wait for STARTACQUISITION events and triggers
+            # on other channels (SOFTTRIGGER and the sim triggering socket):
+            while True:
+                if self._wait_trigger or self._manual_trigger:
+                    logger.info("Waiting for STARTACQUISITION...")
+                    if not wait_with_socket(self.acquisition_event, connection):
+                        logger.info("Readable socket yielded no result, probably closed")
+                        return
+                    self.acquisition_event.clear()
+                logger.info("Sending acquisition header...")
+                self._headers.send_acquisition_header(connection)
+                if self._manual_trigger:
+                    _ = input("Press key to trigger...\n")
+                    self.trigger_event.set()
+                if self._wait_trigger or self._manual_trigger:
+                    logger.info("Waiting for trigger...")
+                    if not wait_with_socket(self.trigger_event, connection):
+                        logger.info("Readable socket yielded no result, probably closed")
+                        return
+                    self.trigger_event.clear()
+                self._sim.handle_acquisition(connection)
+                self.finish_event.set()
         finally:
-            self.finish_event.set()
+            connection.close()
 
 
 class ControlSocketServer(ServerThreadMixin, threading.Thread):
@@ -560,7 +573,17 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
         #       3 -> parameter out of range
         while not self.is_stopped():
             try:
-                chunk = connection.recv(1024*1024)
+                mpx_prefix = connection.recv(15).decode("ascii")
+                if len(mpx_prefix) == 0:
+                    logger.info("closed control")
+                    return
+                logger.debug(f"mpx prefix='{mpx_prefix}'")
+                p0, p1, _ = mpx_prefix.split(",")
+                assert p0.lower() == "mpx"
+                length = int(p1) - 1
+                chunk = connection.recv(length)
+                assert len(chunk) == length
+                logger.debug(f"{chunk}")
             except socket.timeout:
                 continue
             if len(chunk) == 0:
@@ -569,8 +592,8 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             parts = chunk.split(b',')
             logger.info(f"Control command received: {chunk}")
             parts = [part.decode('ascii') for part in parts]
-            method = parts[2]
-            param = parts[3]
+            method = parts[0]
+            param = parts[1]
             if method == 'GET':
                 response = self.encode_response(
                     response_parts=[
@@ -582,7 +605,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                 )
             elif method == 'SET':
                 # handle the actual operation:
-                value = parts[4]
+                value = parts[2]
                 self._params[param] = value
 
                 # and generate a response
@@ -613,6 +636,11 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
 
 
 class TriggerSocketServer(ServerThreadMixin, threading.Thread):
+    """
+    Simulats a "hardware" trigger, meaning an out-of-band signal that
+    behaves as if a SOFTTRIGGER was sent over the control channel.
+    (server part, see `TriggerClient` below)
+    """
     def __init__(self, trigger_event, finish_event, stop_event=None, host='0.0.0.0', port=6343):
         self._trigger_event = trigger_event
         self._finish_event = finish_event
@@ -640,6 +668,12 @@ class TriggerSocketServer(ServerThreadMixin, threading.Thread):
 
 
 class TriggerClient():
+    """
+    Simulats a "hardware" trigger, meaning an out-of-band signal that
+    behaves as if a SOFTTRIGGER was sent over the control channel.
+    (client part)
+    """
+
     def __init__(self, host='localhost', port=6343):
         self._host = host
         self._port = port

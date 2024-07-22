@@ -330,15 +330,21 @@ def test_acquisition_triggered_garbage(
         assert_allclose(res['intensity'], ref['intensity'])
 
 
-def test_acquisition_triggered_control(ctx_pipelined, merlin_control_sim, garbage_sim, merlin_ds):
+def test_acquisition_triggered_control(
+    ctx_pipelined: "LiveContext",
+    merlin_ds,
+    merlin_triggered_sim_threads,
+):
     pool = concurrent.futures.ThreadPoolExecutor(1)
     trig_res = {
         0: None
     }
+    host, port = merlin_triggered_sim_threads.server_t.sockname
+    api_host, api_port = merlin_triggered_sim_threads.control_t.sockname
 
     class _MyHooks(Hooks):
         def on_ready_for_data(self, env: ReadyForDataEnv):
-            control = MerlinControl(*merlin_control_sim)
+            control = MerlinControl(host=api_host, port=api_port)
             with control:
                 control.cmd('STARTACQUISITION')
 
@@ -353,14 +359,12 @@ def test_acquisition_triggered_control(ctx_pipelined, merlin_control_sim, garbag
             fut = pool.submit(do_scan)
             trig_res[0] = fut
 
-    host, port = garbage_sim
-    api_host, api_port = merlin_control_sim
     with ctx_pipelined.make_connection('merlin').open(
         data_host=host,
         data_port=port,
         api_host=api_host,
         api_port=api_port,
-        drain=True,
+        drain=False,
     ) as conn:
         aq = ctx_pipelined.make_acquisition(
             conn=conn,
@@ -467,3 +471,47 @@ def test_passive_auto_nav_shape(
     )
     assert tuple(aq.shape.nav) == expected
     _ = ctx_pipelined.run_udf(dataset=aq, udf=SumUDF())
+
+
+def test_passive_trigger_multi(
+    ctx_pipelined: LiveContext,
+    merlin_ds,
+    merlin_triggered_sim_threads,
+):
+    host, port = merlin_triggered_sim_threads.server_t.sockname
+    api_host, api_port = merlin_triggered_sim_threads.control_t.sockname
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=False,
+    ) as conn_triggered:
+        udf = SumUDF()
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+
+        trigger_host, trigger_port = merlin_triggered_sim_threads.trigger_t.sockname
+        tr = TriggerClient(host=trigger_host, port=trigger_port)
+
+        for i in range(3):
+            print(f"Arming detector... {i}")
+            control = MerlinControl(host=api_host, port=api_port)
+            with control:
+                control.cmd('STARTACQUISITION')
+            print(f"triggering {i}")
+            with tr:
+                tr.trigger()
+            pending_aq = conn_triggered.wait_for_acquisition(10)
+            assert pending_aq is not None
+            print(f"starting {i}")
+            aq = ctx_pipelined.make_acquisition(
+                conn=conn_triggered,
+                nav_shape=(32, 32),
+                pending_aq=pending_aq,
+            )
+            res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+            assert_allclose(res['intensity'].data, ref['intensity'].data)
+            print(f"done {i}")
+            import time
+            time.sleep(1)
+        tr.close()
