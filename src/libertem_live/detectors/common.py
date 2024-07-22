@@ -110,9 +110,11 @@ class ServerThreadMixin(ErrThreadMixin):
                     continue
                 except BrokenPipeError:
                     if "client_addr" in locals():
-                        logger.info(f"BrokenPipeError: {locals()['client_addr']}")
+                        logger.info(
+                            f"{self.__class__.__name__}: BrokenPipeError: {locals()['client_addr']}"
+                        )
                     else:
-                        logger.info("BrokenPipeError")
+                        logger.info(f"{self.__class__.__name__}: BrokenPipeError")
 
                     continue  # the other end died, but that doesn't mean we have to die
                 except (ConnectionResetError, ConnectionAbortedError):
