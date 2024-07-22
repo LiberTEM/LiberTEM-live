@@ -146,7 +146,6 @@ class MerlinDetectorConnection(DetectorConnection):
         """
         if self._data_socket is None:
             self.connect()
-        self._data_socket.start_passive()
         assert self._data_socket is not None
         acq_header = self._data_socket.wait_for_arm(timeout=timeout)
         if acq_header is None:
