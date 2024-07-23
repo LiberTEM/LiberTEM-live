@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Optional
+from typing import Optional, Literal, Union
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -55,6 +55,9 @@ class MerlinDetectorConnection(DetectorConnection):
         Drain the socket before triggering. Enable this when
         using old versions of the Merlin software, but not when
         using an internal trigger.
+    recovery_strategy
+        What to do in case of errors - try to drain the socket
+        or immediately reconnect.
 
     Examples
     --------
@@ -80,6 +83,10 @@ class MerlinDetectorConnection(DetectorConnection):
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
+        recovery_strategy: Union[
+            Literal['immediate_reconnect'],
+            Literal['drain_then_reconnect']
+        ] = "immediate_reconnect",
     ):
         self._api_host = api_host
         self._api_port = api_port
@@ -87,6 +94,7 @@ class MerlinDetectorConnection(DetectorConnection):
         self._data_port = data_port
         self._data_socket: Optional[libertem_qd_mpx.QdConnection] = None
         self._drain = drain
+        self._recovery_strategy = recovery_strategy
         self.connect()
 
     def connect(self):
@@ -98,6 +106,7 @@ class MerlinDetectorConnection(DetectorConnection):
             frame_stack_size=16,  # FIXME! make configurable or determine automatically
             shm_handle_path=self._make_socket_path(),
             drain=self._drain,
+            recovery_strategy=self._recovery_strategy,
         )
         self._data_socket.start_passive()
         return self._data_socket
@@ -209,6 +218,10 @@ class MerlinConnectionBuilder:
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
+        recovery_strategy: Union[
+            Literal['immediate_reconnect'],
+            Literal['drain_then_reconnect']
+        ] = "immediate_reconnect",
     ) -> MerlinDetectorConnection:
         """
         Connect to a Merlin Medipix detector system.
@@ -250,4 +263,5 @@ class MerlinConnectionBuilder:
             data_host=data_host,
             data_port=data_port,
             drain=drain,
+            recovery_strategy=recovery_strategy,
         )
