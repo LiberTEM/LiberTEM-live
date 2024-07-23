@@ -657,7 +657,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
             parts = [part.decode('ascii') for part in parts]
             method = parts[0]
             param = parts[1]
-            if method == 'GET':
+            if method.upper() == 'GET':
                 response = self.encode_response(
                     response_parts=[
                         method,
@@ -666,7 +666,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                         "0"  # error code: success
                     ]
                 )
-            elif method == 'SET':
+            elif method.upper() == 'SET':
                 # handle the actual operation:
                 value = parts[2]
                 self._params[param] = value
@@ -679,10 +679,10 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                         "0",  # 4 - error code: success
                     ]
                 )
-            elif method == 'CMD':
-                if param == 'SOFTTRIGGER':
+            elif method.upper() == 'CMD':
+                if param.upper() == 'SOFTTRIGGER':
                     self._trigger_event.set()
-                elif param == 'STARTACQUISITION':
+                elif param.upper() == 'STARTACQUISITION':
                     self._acquisition_event.set()
 
                 response = self.encode_response(
