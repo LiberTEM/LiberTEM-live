@@ -11,6 +11,7 @@ from libertem.udf.sum import SumUDF
 from libertem.contrib.daskadapter import make_dask_array
 from libertem.io.dataset.base import TilingScheme, DataSet
 from libertem.common import Shape
+from libertem.utils.devices import detect
 
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
@@ -507,3 +508,52 @@ def test_passive_trigger_multi(
             import time
             time.sleep(1)
         tr.close()
+
+
+# inline version of `test_cupy`, mostly for debugging...
+def test_cupy_inline(
+    merlin_ds,
+    default_conn,
+):
+    d = detect()
+    if not d['cudas'] or not d['has_cupy']:
+        pytest.skip("No CUDA device or no CuPy, skipping CuPy test")
+
+    from libertem.common.backend import set_use_cuda
+    set_use_cuda(0)
+
+    ctx = LiveContext.make_with('inline')
+
+    aq = ctx.make_acquisition(
+        conn=default_conn,
+        nav_shape=(32, 32),
+    )
+    udf = SumUDF()
+
+    res = ctx.run_udf(dataset=aq, udf=udf, backends=('cupy',))
+    ref = ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert_allclose(res['intensity'], ref['intensity'])
+
+
+def test_cupy(
+    ctx_pipelined_gpu: LiveContext,
+    merlin_ds,
+    default_conn,
+):
+    d = detect()
+    if not d['cudas'] or not d['has_cupy']:
+        pytest.skip("No CUDA device or no CuPy, skipping CuPy test")
+
+    ctx = ctx_pipelined_gpu
+
+    aq = ctx.make_acquisition(
+        conn=default_conn,
+        nav_shape=(32, 32),
+    )
+    udf = SumUDF()
+
+    res = ctx.run_udf(dataset=aq, udf=udf, backends=('cupy',))
+    ref = ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert_allclose(res['intensity'], ref['intensity'])

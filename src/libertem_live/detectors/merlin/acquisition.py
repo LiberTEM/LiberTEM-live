@@ -1,6 +1,6 @@
 import logging
 from typing import Optional, NamedTuple
-from collections.abc import Iterator
+from collections.abc import Sequence
 import numpy as np
 from libertem.common import Shape
 from libertem.common.executor import (
@@ -9,7 +9,7 @@ from libertem.common.executor import (
 from libertem.io.dataset.base import (
     DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
-from sparseconverter import ArrayBackend, NUMPY, CUDA
+from sparseconverter import ArrayBackend, NUMPY, CUDA, CUPY
 
 from libertem_live.detectors.base.acquisition import (
     AcquisitionMixin, GenericCommHandler, GetFrames,
@@ -100,6 +100,10 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
             hooks=hooks,
         )
 
+    @property
+    def array_backends(self) -> Sequence[ArrayBackend]:
+        return (NUMPY, CUDA, CUPY)
+
     def initialize(self, executor):
         ''
         # FIXME: possibly need to have an "acquisition plan" object
@@ -118,6 +122,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 
         self._meta = DataSetMeta(
             shape=Shape(self._nav_shape + sig_shape, sig_dims=2),
+            array_backends=(CUPY, CUDA, NUMPY),
             raw_dtype=dtype,
             dtype=dtype,
         )
@@ -205,24 +210,6 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         )
 
 
-def _accum_partition(
-    frames_iter: Iterator[tuple[np.ndarray, int]],
-    tiling_scheme: TilingScheme,
-    sig_shape: tuple[int, ...],
-    dtype
-) -> np.ndarray:
-    """
-    Accumulate frame stacks for a partition
-    """
-    out = np.zeros((tiling_scheme.depth,) + sig_shape, dtype=dtype)
-    offset = 0
-    for frame_stack, _ in frames_iter:
-        out[offset:offset+frame_stack.shape[0]] = frame_stack
-        offset += frame_stack.shape[0]
-    assert offset == tiling_scheme.depth
-    return out
-
-
 class MerlinCommHandler(GenericCommHandler):
     def get_conn_impl(self):
         return self._conn.get_conn_impl()
@@ -255,8 +242,7 @@ class MerlinLivePartition(Partition):
 
     def _get_tiles_fullframe(self, tiling_scheme: TilingScheme, dest_dtype="float32", roi=None,
             array_backend: Optional["ArrayBackend"] = None):
-        assert array_backend in (None, NUMPY, CUDA)
-        # assert len(tiling_scheme) == 1
+        assert array_backend in (None, NUMPY, CUDA, CUPY)
         tiling_scheme = tiling_scheme.adjust_for_partition(self)
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx

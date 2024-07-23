@@ -1,6 +1,7 @@
 import base64
 import logging
 from typing import Optional, TYPE_CHECKING
+from collections.abc import Sequence
 
 import numpy as np
 from opentelemetry import trace
@@ -14,7 +15,7 @@ from libertem.io.dataset.base import (
     DataSetMeta, BasePartition, Partition, DataSet, TilingScheme,
 )
 from libertem.corrections.corrset import CorrectionSet
-from sparseconverter import ArrayBackend, NUMPY, CUDA
+from sparseconverter import ArrayBackend, NUMPY, CUDA, CUPY
 
 from libertem_live.detectors.base.acquisition import (
     AcquisitionMixin, GenericCommHandler, GetFrames
@@ -227,6 +228,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         self._sig_shape = (dc.y_pixels_in_detector, dc.x_pixels_in_detector)
         self._meta = DataSetMeta(
             shape=Shape(self._nav_shape + self._sig_shape, sig_dims=2),
+            array_backends=(CUPY, CUDA, NUMPY),
             raw_dtype=dtype,
             dtype=dtype,
         )
@@ -246,6 +248,10 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
     @property
     def meta(self):
         return self._meta
+
+    @property
+    def array_backends(self) -> Sequence[ArrayBackend]:
+        return (NUMPY, CUDA, CUPY)
 
     def get_correction_data(self):
         ''
@@ -378,7 +384,7 @@ class DectrisLivePartition(Partition):
         roi=None,
         array_backend: Optional["ArrayBackend"] = None
     ):
-        assert array_backend in (None, NUMPY, CUDA)
+        assert array_backend in (None, NUMPY, CUDA, CUPY)
         assert len(tiling_scheme) == 1, "only supports full frames tiling scheme for now"
         logger.debug("reading up to frame idx %d for this partition", self._end_idx)
         to_read = self._end_idx - self._start_idx
