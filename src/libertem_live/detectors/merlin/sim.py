@@ -871,7 +871,10 @@ class CameraSim:
 
 
 @click.command()
-@click.argument('path', type=click.Path(exists=True))
+@click.argument(
+    'path',
+    type=click.Path(exists=True),
+)
 @click.option('--nav-shape', type=(int, int), default=(0, 0))
 @click.option(
     '--continuous',
@@ -910,6 +913,10 @@ class CameraSim:
 def main(path, nav_shape, continuous,
         host, data_port, control_port, trigger_port, wait_trigger,
         manual_trigger, garbage, cached, max_runs):
+    """
+    Minimal Merlin simulator. Point PATH at a .hdr file, and that mib dataset
+    will be replayed over the data socket.
+    """
     logging.basicConfig(level=logging.INFO)
 
     if continuous and cached.upper() in ['MEM', 'MEMFD']:

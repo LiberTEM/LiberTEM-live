@@ -100,30 +100,45 @@ and how to run a LiberTEM UDF on the data stream.
 Simulator
 ---------
 
-A simple simulator for testing live acquisition without the actual hardware is
-included in LiberTEM-live. It replays an MIB dataset and accepts the following
-parameters:
+A simple simulator that replays MIB datasets is included in LiberTEM-live.
+
+Note that it is not a complete simulation of the Merlin software and
+detector, but rather only meant for integration testing and development without
+access to a real detector.
+
+The simulator accepts the following parameters:
 
 .. code-block:: shell
 
     (libertem) $ libertem-live-mib-sim --help
     Usage: libertem-live-mib-sim [OPTIONS] PATH
 
+      Minimal Merlin simulator. Point PATH at a .hdr file, and that mib dataset
+      will be replayed over the data socket.
+
     Options:
-    --nav-shape <INTEGER INTEGER>...
-    --continuous
-    --cached [NONE|MEM|MEMFD]
-    --host TEXT                     Address to listen on (data, control, and
-                                    trigger sockets)
-    --data-port INTEGER
-    --control-port INTEGER
-    --wait-trigger                  Wait for a SOFTTRIGGER command on the
-                                    control port, or a trigger signal on the
-                                    trigger socket
-    --garbage                       Send garbage before trigger. Implies --wait-
-                                    trigger
-    --max-runs INTEGER
-    --help                          Show this message and exit.
+      --nav-shape <INTEGER INTEGER>...
+      --continuous                    In untriggered mode, send a single
+                                      continuous acquisition by repeating the
+                                      input file indefinitely (or `max_runs`
+                                      times)
+      --cached [NONE|MEM|MEMFD]
+      --host TEXT                     Address to listen on (data, control, and
+                                      trigger sockets)
+      --data-port INTEGER
+      --control-port INTEGER
+      --trigger-port INTEGER
+      --wait-trigger                  Wait for a SOFTTRIGGER command on the
+                                      control port, or a trigger signal on the
+                                      trigger socket
+      --manual-trigger                Wait for a manual trigger by user input
+                                      after ARM
+      --garbage                       Send garbage before trigger. Implies --wait-
+                                      trigger
+      --max-runs INTEGER              Maximum number of runs through the input
+                                      file in continuous mode
+      --help                          Show this message and exit.
+
 
 A suitable MIB dataset for testing can be downloaded at
 https://zenodo.org/record/5113449.
