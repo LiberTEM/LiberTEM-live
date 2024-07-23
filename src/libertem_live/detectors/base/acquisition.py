@@ -13,7 +13,7 @@ from libertem.io.dataset.base import (
     DataTile, TilingScheme,
 )
 from libertem_live.hooks import Hooks, DetermineNavShapeEnv
-from sparseconverter import ArrayBackend
+from sparseconverter import ArrayBackend, NUMPY, CUPY, CUDA
 from opentelemetry import trace
 import numpy as np
 
@@ -323,14 +323,29 @@ class GetFrames:
             self._cam_client = None
             self._buf = None
 
-    def _snack(self, frame_stack, depth: int, start_idx: int):
+    def _buf_for_backend(self, depth, array_backend: Optional["ArrayBackend"]):
+        if array_backend in (None, NUMPY, CUDA):
+            return np.zeros((depth,) + self._sig_shape, self._dtype)
+        elif array_backend == CUPY:
+            import cupyx
+            return cupyx.empty_pinned((depth,) + self._sig_shape, self._dtype)
+        else:
+            raise ValueError(f"Unsupported backend: {array_backend}")
+
+    def _snack(
+        self,
+        frame_stack,
+        depth: int,
+        start_idx: int,
+        array_backend: Optional[ArrayBackend],
+    ):
         """
         Return at most `depth` frames from `frame_stack` as decoded data, as a view
         into a fixed array/buffer. Take note of left overs, which will be snacked upon
         on the next call.
         """
         if self._buf is None or self._buf.shape[0] < depth:
-            self._buf = np.zeros((depth,) + self._sig_shape, self._dtype)
+            self._buf = self._buf_for_backend(depth, array_backend=array_backend)
 
         end_idx = min(start_idx + depth, len(frame_stack))
         num_frames = end_idx - start_idx
@@ -352,7 +367,11 @@ class GetFrames:
             self._cam_client.done(frame_stack)
         return view
 
-    def get_partition_tile(self, depth: int) -> np.ndarray:
+    def get_partition_tile(
+        self,
+        depth: int,
+        array_backend: 'Optional["ArrayBackend"]',
+    ) -> np.ndarray:
         """
         Like `next_tile`, but always reads _all_ FRAMES messages that belong
         to the current partition, and decodes them directly into a
@@ -360,7 +379,7 @@ class GetFrames:
         """
         assert self._cam_client is not None, "should be connected"
 
-        buf = np.zeros((depth,) + self._sig_shape, self._dtype)
+        buf = self._buf_for_backend(depth, array_backend=array_backend)
         start_idx = 0
         while True:
             with self._request_queue.get() as msg:
@@ -387,7 +406,11 @@ class GetFrames:
                         f" (header={header})"
                     )
 
-    def next_tile(self, depth: int) -> Optional[np.ndarray]:
+    def next_tile(
+        self,
+        depth: int,
+        array_backend: 'Optional["ArrayBackend"]',
+    ) -> Optional[np.ndarray]:
         """
         Consume a FRAMES messages from the request queue, and return the next
         tile, or return None if we get an END_PARTITION message (which we also
@@ -397,7 +420,9 @@ class GetFrames:
         assert self._cam_client is not None, "should be connected"
 
         if self._last_stack is not None:
-            return self._snack(self._last_stack, depth, self._last_stack_pos)
+            return self._snack(
+                self._last_stack, depth, self._last_stack_pos, array_backend,
+            )
 
         while True:
             with self._request_queue.get() as msg:
@@ -405,11 +430,13 @@ class GetFrames:
                 header_type = header["type"]
                 if header_type == "FRAMES":
                     frame_stack = self.FRAME_STACK_CLS.deserialize(payload)
-                    return self._snack(frame_stack, depth, 0)
+                    return self._snack(frame_stack, depth, 0, array_backend)
                 elif header_type == "END_PARTITION":
                     self._end_seen = True
                     if self._last_stack is not None:
-                        return self._snack(self._last_stack, depth, self._last_stack_pos)
+                        return self._snack(
+                            self._last_stack, depth, self._last_stack_pos, array_backend,
+                        )
                     return None
                 else:
                     raise RuntimeError(
@@ -444,9 +471,9 @@ class GetFrames:
         frames_in_tile = 0
         while to_read > 0:
             if tiling_scheme.intent == "partition":
-                raw_tile = self.get_partition_tile(depth=to_read)
+                raw_tile = self.get_partition_tile(depth=to_read, array_backend=array_backend)
             else:
-                raw_tile = self.next_tile(depth)
+                raw_tile = self.next_tile(depth, array_backend=array_backend)
                 if raw_tile is None:
                     raise RuntimeError(
                         f"we were still expecting to read {to_read} frames more!"

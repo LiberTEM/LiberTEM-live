@@ -82,6 +82,16 @@ def ctx_pipelined():
             executor.close()
 
 
+@pytest.fixture(scope="session")
+def ctx_pipelined_gpu():
+    with ltl.LiveContext.make_with(
+        gpus=1,
+        plot_class=Dummy2DPlot,
+        executor_spec="pipelined",
+    ) as ctx:
+        yield ctx
+
+
 @pytest.fixture()
 def default_aq(ltl_ctx):
     conn = ltl_ctx.make_connection('memory').open(
