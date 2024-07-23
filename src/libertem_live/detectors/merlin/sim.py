@@ -96,12 +96,17 @@ class HeaderSocketSimulator:
         self._first_frame_headers = first_frame_headers
 
     def _make_hdr(self):
-        # FIXME: support for continuous mode - need to fake a better header here in that case
         bpp = self._first_frame_headers['bits_per_pixel']
+        if self._continuous:
+            num_frames = 0
+            frames_per_trigger = 1
+        else:
+            num_frames = np.prod(self._nav_shape, dtype=np.int64)
+            frames_per_trigger = self._nav_shape[1]
         hdr = (
             f"HDR,\n"
-            f"Frames in Acquisition (Number):\t{np.prod(self._nav_shape, dtype=np.int64)}\n"
-            f"Frames per Trigger (Number):\t{self._nav_shape[1]}\n"
+            f"Frames in Acquisition (Number):\t{num_frames}\n"
+            f"Frames per Trigger (Number):\t{frames_per_trigger}\n"
             f"Counter Depth (number):\t{bpp}\n"
             f"End\t"
         )
@@ -272,7 +277,7 @@ class DataSocketSimulator:
         first_file = self._ds._files_sorted[0]
         return first_file.fields
 
-    def _get_single_scan(self, roi):
+    def _get_single_scan(self, roi, sequence_offset=0):
         fileset = self._ds._get_fileset()
         ds_shape = self._ds.shape
         tiling_scheme = TilingScheme.make_for_shape(
@@ -310,7 +315,16 @@ class DataSocketSimulator:
                 fh, local_idx, full_frame_size
             )
             yield mpx_header
-            yield frame_w_header
+            if sequence_offset > 0:
+                # patch the sequence number for the continuous-repeat case:
+                # MQ1,000001 -> MQ1,{000001 + sequence_offset}
+                prefix = frame_w_header[:10]
+                seq = int(prefix.decode("ascii").split(",")[1])
+                yield b"MQ1,"
+                yield f"{seq + sequence_offset:0>6}".encode("ascii")
+                yield frame_w_header[10:]
+            else:
+                yield frame_w_header
 
     def _get_continuous(self):
         if self._rois:
@@ -319,14 +333,18 @@ class DataSocketSimulator:
             rois = [np.ones(self._ds.shape.nav, dtype=bool)]
 
         i = 0
+        offset = 0
         for roi in itertools.cycle(rois):
+            logger.info(f"starting cycle with frame sequence offset of {offset}")
             t0 = time.time()
-            yield from self._get_single_scan(roi)
+            yield from self._get_single_scan(roi, sequence_offset=offset)
             t1 = time.time()
             logger.info("cycle %d took %.05fs" % (i, t1 - t0))
             i += 1
             if self._max_runs != -1 and i >= self._max_runs:
                 raise StopException("max_runs exceeded")
+            frames_in_run = np.sum(roi)
+            offset += frames_in_run
 
     def handle_acquisition(self, conn):
         """
@@ -471,12 +489,25 @@ def wait_with_socket(event: threading.Event, connection):
 
 
 class DataSocketServer(ServerThreadMixin, threading.Thread):
-    def __init__(self, headers: HeaderSocketSimulator, sim: DataSocketSimulator,
-            stop_event, acquisition_event, trigger_event, finish_event,
-            host='0.0.0.0', port=6342, wait_trigger=False, garbage=False, manual_trigger=False):
+    def __init__(
+        self,
+        headers: HeaderSocketSimulator,
+        sim: DataSocketSimulator,
+        stop_event,
+        acquisition_event,
+        trigger_event,
+        finish_event,
+        host='0.0.0.0',
+        port=6342,
+        wait_trigger=False,
+        garbage=False,
+        manual_trigger=False,
+        continuous=False,
+    ):
         self.acquisition_event = acquisition_event
         self.trigger_event = trigger_event
         self.finish_event = finish_event
+        self._continuous = continuous
         self._headers = headers
         self._sim = sim
         super().__init__(host=host, port=port, name=self.__class__.__name__, stop_event=stop_event)
@@ -499,7 +530,7 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
         except Exception as e:
             return self.error(e)
 
-    def handle_conn(self, connection):
+    def handle_conn(self, connection: socket.socket):
         try:
             # send garbage only in case we wait for a trigger, otherwise
             # the client doesn't have any chance of draining out the garbage:
@@ -529,6 +560,11 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
                     self.trigger_event.clear()
                 self._sim.handle_acquisition(connection)
                 self.finish_event.set()
+                if not (self._wait_trigger or self._manual_trigger) and not self._continuous:
+                    logger.info(
+                        "not continuous and not triggering, stopping sim for this connection"
+                    )
+                    return
         finally:
             connection.close()
 
@@ -757,6 +793,7 @@ class CameraSim:
             acquisition_event=self.acquisition_event,
             trigger_event=self.trigger_event,
             finish_event=self.finish_event,
+            continuous=continuous,
         )
         # Make sure the thread dies with the main program
         self.server_t.daemon = True
@@ -836,7 +873,13 @@ class CameraSim:
 @click.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--nav-shape', type=(int, int), default=(0, 0))
-@click.option('--continuous', default=False, is_flag=True)
+@click.option(
+    '--continuous',
+    default=False,
+    is_flag=True,
+    help="In untriggered mode, send a single continuous acquisition "
+    "by repeating the input file indefinitely (or `max_runs` times)",
+)
 @click.option('--cached', default='NONE', type=click.Choice(
     ['NONE', 'MEM', 'MEMFD'], case_sensitive=False)
 )
@@ -860,11 +903,24 @@ class CameraSim:
     '--garbage', default=False, is_flag=True,
     help="Send garbage before trigger. Implies --wait-trigger"
 )
-@click.option('--max-runs', type=int, default=-1)
+@click.option(
+    '--max-runs', type=int, default=-1,
+    help="Maximum number of runs through the input file in continuous mode",
+)
 def main(path, nav_shape, continuous,
         host, data_port, control_port, trigger_port, wait_trigger,
         manual_trigger, garbage, cached, max_runs):
     logging.basicConfig(level=logging.INFO)
+
+    if continuous and cached.upper() in ['MEM', 'MEMFD']:
+        logger.warn(
+            f"continuous mode doesn't work with caching (--cached='{cached}'); disabling cache",
+        )
+        cached = 'NONE'
+
+    if max_runs != -1 and not continuous:
+        logger.warn("`max_runs` only has an effect in continuous mode; ignoring")
+
     camera_sim = CameraSim(
         path=path, nav_shape=nav_shape, continuous=continuous,
         host=host, data_port=data_port, control_port=control_port, trigger_port=trigger_port,
