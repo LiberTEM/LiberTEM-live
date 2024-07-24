@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class MerlinPendingAcquisition(PendingAcquisition):
-    def __init__(self, header):
+    def __init__(self, header: libertem_qd_mpx.QdAcquisitionHeader):
         self._header = header
 
     @property
@@ -27,6 +27,14 @@ class MerlinPendingAcquisition(PendingAcquisition):
     @property
     def nimages(self) -> int:
         return self.header.frames_in_acquisition()
+
+    @property
+    def nav_shape(self) -> Optional[tuple[int, ...]]:
+        """
+        The concrete `nav_shape`, if it is known by the detector
+        """
+        # from the ScanX and ScanY fields in the acquisition header
+        return self._header.nav_shape()
 
 
 class MerlinDetectorConnection(DetectorConnection):
