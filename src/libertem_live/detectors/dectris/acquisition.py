@@ -299,18 +299,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         ''
         return True
 
-    def adjust_tileshape(self, tileshape, roi):
-        ''
-        depth = 12  # FIXME: hardcoded, hmm...
-        return (depth, *self.meta.shape.sig)
-        # return Shape((self._end_idx - self._start_idx, 256, 256), sig_dims=2)
-
-    def get_max_io_size(self):
-        ''
-        # return 12*256*256*8
-        # FIXME magic numbers?
-        return 12*np.prod(self.meta.shape.sig)*8
-
     def get_base_shape(self, roi):
         ''
         return (1, *self.meta.shape.sig)
