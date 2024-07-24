@@ -422,8 +422,13 @@ class CachedDataSocketSim(DataSocketSimulator):
 class MemfdSocketSim(DataSocketSimulator):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self._populated = False
 
     def open(self):
+        super().open()
+        self._populate_cache()
+
+    def _populate_cache(self):
         try:
             # lazy import - make the sim work without pymemfd (example: Windows)
             import memfd
@@ -432,11 +437,10 @@ class MemfdSocketSim(DataSocketSimulator):
                 raise RuntimeError("Please install `pymemfd` to use the memfd cache.")
             else:
                 raise RuntimeError("The memfd cache is only supported on Linux.")
-        super().open()
+        if self._populated:
+            logger.info("cache already populated")
+            return
         self._cache_fd = memfd.memfd_create("sim_cache", 0)
-        self._populate_cache()
-
-    def _populate_cache(self):
         logger.info("populating cache, please wait...")
         roi = np.ones(self._ds.shape.nav, dtype=bool)
         total_size = 0
@@ -454,8 +458,10 @@ class MemfdSocketSim(DataSocketSimulator):
                 total_size / 1024 / 1024, total_size
             )
         )
+        self._populated = True
 
     def _send_full_file(self, conn):
+        assert self._populated
         os.lseek(self._cache_fd, 0, 0)
         total_sent = 0
         reps = 0
