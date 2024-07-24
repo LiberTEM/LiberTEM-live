@@ -176,19 +176,11 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 
     def need_decode(self, read_dtype, roi, corrections):
         ''
-        return True  # FIXME: we just do this to get a large tile size
-
-    def get_max_io_size(self):
-        ''
-        # return 12*256*256*8
-        # FIXME magic numbers?
-        return 128 * np.prod(self.meta.shape.sig) * 8
+        return True
 
     def get_base_shape(self, roi):
-        return (1, 1, self.meta.shape.sig[-1])
-
-    def adjust_tileshape(self, tile_shape, roi):
-        return (tuple(tile_shape)[0], *self.meta.shape.sig)
+        ''
+        return (1, *self.meta.shape.sig)
 
     def get_partitions(self):
         ''
