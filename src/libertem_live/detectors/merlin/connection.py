@@ -95,6 +95,7 @@ class MerlinDetectorConnection(DetectorConnection):
             Literal['immediate_reconnect'],
             Literal['drain_then_reconnect']
         ] = "immediate_reconnect",
+        huge_pages: bool = False,
     ):
         self._api_host = api_host
         self._api_port = api_port
@@ -103,6 +104,7 @@ class MerlinDetectorConnection(DetectorConnection):
         self._data_socket: Optional[libertem_qd_mpx.QdConnection] = None
         self._drain = drain
         self._recovery_strategy = recovery_strategy
+        self._huge_pages = huge_pages
         self.connect()
 
     def connect(self):
@@ -115,6 +117,7 @@ class MerlinDetectorConnection(DetectorConnection):
             shm_handle_path=self._make_socket_path(),
             drain=self._drain,
             recovery_strategy=self._recovery_strategy,
+            huge=self._huge_pages,
         )
         self._data_socket.start_passive()
         return self._data_socket
@@ -230,6 +233,7 @@ class MerlinConnectionBuilder:
             Literal['immediate_reconnect'],
             Literal['drain_then_reconnect']
         ] = "immediate_reconnect",
+        huge_pages: bool = False,
     ) -> MerlinDetectorConnection:
         """
         Connect to a Merlin Medipix detector system.
@@ -272,4 +276,5 @@ class MerlinConnectionBuilder:
             data_port=data_port,
             drain=drain,
             recovery_strategy=recovery_strategy,
+            huge_pages=huge_pages,
         )
