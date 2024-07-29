@@ -86,7 +86,8 @@ class HeaderSocketSimulator:
     ):
         """
         This class handles sending out acquisition header - calling the
-        `handle_conn` method will send the header to the give connection.
+        `send_acquisition_header` method will send the header to the give
+        connection.
 
         Parameters
         ----------
