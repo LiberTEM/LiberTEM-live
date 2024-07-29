@@ -310,8 +310,6 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
 
     def get_partitions(self):
         ''
-        # FIXME: only works for inline executor or similar, as we are using a zeromq socket
-        # which is not safe to be passed to other threads
         num_frames = np.prod(self._nav_shape, dtype=np.uint64)
         num_partitions = int(num_frames // self._frames_per_partition)
 
