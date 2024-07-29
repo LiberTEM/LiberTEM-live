@@ -673,7 +673,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
 
 class TriggerSocketServer(ServerThreadMixin, threading.Thread):
     """
-    Simulats a "hardware" trigger, meaning an out-of-band signal that
+    Simulates a "hardware" trigger, meaning an out-of-band signal that
     behaves as if a SOFTTRIGGER was sent over the control channel.
     (server part, see `TriggerClient` below)
     """
