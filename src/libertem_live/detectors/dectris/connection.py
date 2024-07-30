@@ -149,14 +149,7 @@ class DectrisDetectorConnection(DetectorConnection):
             self._conn.start_passive()
             self._passive_started = True
         self._ensure_basic_settings()
-        if timeout is None:
-            timeout = 1.0
-            while True:
-                config_series = self._conn.wait_for_arm(timeout)
-                if config_series is not None:
-                    break
-        else:
-            config_series = self._conn.wait_for_arm(timeout)
+        config_series = self._conn.wait_for_arm(timeout)
         if config_series is None:
             return None
         config, series = config_series

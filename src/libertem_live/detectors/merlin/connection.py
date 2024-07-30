@@ -1,5 +1,6 @@
+import os
 import logging
-from typing import Optional
+from typing import Optional, Literal, Union
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -7,18 +8,16 @@ from libertem_live.detectors.base.connection import DetectorConnection, PendingA
 from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
 from .control import MerlinControl
-from .data import (
-    MerlinRawSocket, MerlinFrameStream, AcquisitionHeader, AcquisitionTimeout,
-)
 
 from opentelemetry import trace
+import libertem_qd_mpx
 
 tracer = trace.get_tracer(__name__)
 logger = logging.getLogger(__name__)
 
 
 class MerlinPendingAcquisition(PendingAcquisition):
-    def __init__(self, header: AcquisitionHeader):
+    def __init__(self, header: libertem_qd_mpx.QdAcquisitionHeader):
         self._header = header
 
     @property
@@ -27,7 +26,15 @@ class MerlinPendingAcquisition(PendingAcquisition):
 
     @property
     def nimages(self) -> int:
-        return self.header.frames_in_acquisition
+        return self.header.frames_in_acquisition()
+
+    @property
+    def nav_shape(self) -> Optional[tuple[int, ...]]:
+        """
+        The concrete `nav_shape`, if it is known by the detector
+        """
+        # from the ScanX and ScanY fields in the acquisition header
+        return self._header.nav_shape()
 
 
 class MerlinDetectorConnection(DetectorConnection):
@@ -56,6 +63,9 @@ class MerlinDetectorConnection(DetectorConnection):
         Drain the socket before triggering. Enable this when
         using old versions of the Merlin software, but not when
         using an internal trigger.
+    recovery_strategy
+        What to do in case of errors - try to drain the socket
+        or immediately reconnect.
 
     Examples
     --------
@@ -81,23 +91,42 @@ class MerlinDetectorConnection(DetectorConnection):
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
+        recovery_strategy: Union[
+            Literal['immediate_reconnect'],
+            Literal['drain_then_reconnect']
+        ] = "immediate_reconnect",
+        huge_pages: bool = False,
     ):
         self._api_host = api_host
         self._api_port = api_port
         self._data_host = data_host
         self._data_port = data_port
-        self._data_socket: Optional[MerlinRawSocket] = None
+        self._data_socket: Optional[libertem_qd_mpx.QdConnection] = None
         self._drain = drain
+        self._recovery_strategy = recovery_strategy
+        self._huge_pages = huge_pages
         self.connect()
 
     def connect(self):
         if self._data_socket is not None:
             return self._data_socket  # already connected
-        self._data_socket = MerlinRawSocket(
-            host=self._data_host,
-            port=self._data_port,
-        ).connect()
+        self._data_socket = libertem_qd_mpx.QdConnection(
+            data_host=self._data_host,
+            data_port=self._data_port,
+            frame_stack_size=16,  # FIXME! make configurable or determine automatically
+            shm_handle_path=self._make_socket_path(),
+            drain=self._drain,
+            recovery_strategy=self._recovery_strategy,
+            huge=self._huge_pages,
+        )
+        self._data_socket.start_passive()
         return self._data_socket
+
+    @classmethod
+    def _make_socket_path(cls):
+        import tempfile
+        temp_path = tempfile.mkdtemp()
+        return os.path.join(temp_path, 'qd-shm-socket')
 
     def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
         """
@@ -138,20 +167,10 @@ class MerlinDetectorConnection(DetectorConnection):
         if self._data_socket is None:
             self.connect()
         assert self._data_socket is not None
-        try:
-            header = self._data_socket.read_acquisition_header(cancel_timeout=timeout)
-            return MerlinPendingAcquisition(header=header)
-        except AcquisitionTimeout:
+        acq_header = self._data_socket.wait_for_arm(timeout=timeout)
+        if acq_header is None:
             return None
-
-    def get_header_and_stream(self) -> tuple[AcquisitionHeader, MerlinFrameStream]:
-        assert self._data_socket is not None
-        acq_header = self._data_socket.read_acquisition_header()
-        stream = MerlinFrameStream.from_frame_header(
-            raw_socket=self._data_socket,
-            acquisition_header=acq_header,
-        )
-        return acq_header, stream
+        return MerlinPendingAcquisition(header=acq_header)
 
     def get_acquisition_cls(self) -> type[AcquisitionProtocol]:
         from .acquisition import MerlinAcquisition
@@ -169,18 +188,10 @@ class MerlinDetectorConnection(DetectorConnection):
             self._data_socket.close()
             self._data_socket = None
 
-    def maybe_drain(self, timeout: float = 1.0):
-        assert self._data_socket is not None
-        if self._drain:
-            with tracer.start_as_current_span("drain") as span:
-                drained_bytes = self._data_socket.drain()
-                span.set_attributes({
-                    "libertem_live.drained_bytes": drained_bytes,
-                })
-            if drained_bytes > 0:
-                logger.info(f"drained {drained_bytes} bytes of garbage")
+    def get_conn_impl(self):
+        return self._data_socket  # maybe remove `get_data_socket` function?
 
-    def get_data_socket(self) -> MerlinRawSocket:
+    def get_data_socket(self) -> libertem_qd_mpx.QdConnection:
         assert self._data_socket is not None, "need to be connected to call this"
         return self._data_socket
 
@@ -218,6 +229,11 @@ class MerlinConnectionBuilder:
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
+        recovery_strategy: Union[
+            Literal['immediate_reconnect'],
+            Literal['drain_then_reconnect']
+        ] = "immediate_reconnect",
+        huge_pages: bool = False,
     ) -> MerlinDetectorConnection:
         """
         Connect to a Merlin Medipix detector system.
@@ -259,4 +275,6 @@ class MerlinConnectionBuilder:
             data_host=data_host,
             data_port=data_port,
             drain=drain,
+            recovery_strategy=recovery_strategy,
+            huge_pages=huge_pages,
         )

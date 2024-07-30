@@ -8,15 +8,15 @@ from numpy.testing import assert_allclose
 
 from libertem.udf import UDF
 from libertem.udf.sum import SumUDF
-from libertem.udf.sumsigudf import SumSigUDF
 from libertem.contrib.daskadapter import make_dask_array
 from libertem.io.dataset.base import TilingScheme, DataSet
 from libertem.common import Shape
+from libertem.utils.devices import detect
 
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
 from libertem_live.detectors.merlin import (
-    MerlinControl, MerlinDataSource,
+    MerlinControl,
 )
 from libertem_live.detectors.merlin.sim import TriggerClient
 
@@ -45,7 +45,6 @@ class MyHooks(Hooks):
         assert env.aq.shape.nav == self.ds.shape.nav
 
 
-@pytest.mark.with_numba  # Get coverage for decoders
 def test_acquisition(
     ctx_pipelined: LiveContext,
     merlin_ds,
@@ -67,6 +66,47 @@ def test_acquisition(
     ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
     assert_allclose(res['intensity'], ref['intensity'])
+
+
+def test_small_shm(
+    ctx_pipelined: LiveContext,
+    merlin_detector_sim,
+    merlin_control_sim,  # XXX not really the matching control, but it kinda works...
+    merlin_ds,
+):
+    host, port = merlin_detector_sim
+    api_host, api_port = merlin_control_sim
+
+    with ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=False,
+    ) as conn:
+        import libertem_qd_mpx
+        # monkey-patch in a different underlying connection:
+        conn._data_socket.close()
+        conn._data_socket = libertem_qd_mpx.QdConnection(
+            data_host=host,
+            data_port=port,
+            frame_stack_size=1,
+            num_slots=4,  # NOTE this ridiculously small value
+            shm_handle_path=conn._make_socket_path(),
+            drain=False,
+        )
+        conn._data_socket.start_passive()
+
+        aq = ctx_pipelined.make_acquisition(
+            conn=conn,
+            nav_shape=(32, 32),
+        )
+        udf = SumUDF()
+
+        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+
+        assert_allclose(res['intensity'], ref['intensity'])
 
 
 def test_passive_acquisition(
@@ -382,53 +422,6 @@ def test_acquisition_triggered_control(
         assert_allclose(res['intensity'], ref['intensity'])
 
 
-@pytest.mark.parametrize(
-    'inline', (True, False),
-)
-@pytest.mark.parametrize(
-    # auto, correct, wrong
-    'sig_shape', (None, (256, 256), (512, 512)),
-)
-def test_datasource(
-    ctx_pipelined: LiveContext,
-    merlin_detector_sim,
-    merlin_ds,
-    inline,
-    sig_shape,
-):
-    print("Merlin sim:", merlin_detector_sim)
-    source = MerlinDataSource(*merlin_detector_sim, sig_shape=sig_shape, pool_size=16)
-
-    res = np.zeros(merlin_ds.shape.sig)
-    try:
-        with source:
-            if inline:
-                for chunk in source.inline_stream():
-                    res += chunk.sum(axis=0)
-            else:
-                for chunk in source.stream(num_frames=32 * 32):
-                    res += chunk.buf.sum(axis=0)
-        udf = SumUDF()
-        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-        assert_allclose(res, ref['intensity'])
-        assert (sig_shape is None) or (sig_shape == tuple(merlin_ds.shape.sig))
-    except ValueError as e:
-        assert sig_shape != tuple(merlin_ds.shape.sig)
-        assert 'received "image_size" header' in e.args[0]
-
-
-def test_datasource_nav(ctx_pipelined: LiveContext, merlin_detector_sim, merlin_ds):
-    source = MerlinDataSource(*merlin_detector_sim, pool_size=16)
-
-    res = np.zeros(merlin_ds.shape.nav).reshape((-1,))
-    with source:
-        for chunk in source.stream(num_frames=merlin_ds.shape.nav.size):
-            res[chunk.start:chunk.stop] = chunk.buf.sum(axis=(-1, -2))
-    udf = SumSigUDF()
-    ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
-    assert_allclose(res.reshape(merlin_ds.shape.nav), ref['intensity'])
-
-
 def test_control(merlin_control_sim, tmp_path):
     path = tmp_path / 'cmd.txt'
     with path.open('w') as f:
@@ -515,3 +508,52 @@ def test_passive_trigger_multi(
             import time
             time.sleep(1)
         tr.close()
+
+
+# inline version of `test_cupy`, mostly for debugging...
+def test_cupy_inline(
+    merlin_ds,
+    default_conn,
+):
+    d = detect()
+    if not d['cudas'] or not d['has_cupy']:
+        pytest.skip("No CUDA device or no CuPy, skipping CuPy test")
+
+    from libertem.common.backend import set_use_cuda
+    set_use_cuda(0)
+
+    ctx = LiveContext.make_with('inline')
+
+    aq = ctx.make_acquisition(
+        conn=default_conn,
+        nav_shape=(32, 32),
+    )
+    udf = SumUDF()
+
+    res = ctx.run_udf(dataset=aq, udf=udf, backends=('cupy',))
+    ref = ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert_allclose(res['intensity'], ref['intensity'])
+
+
+def test_cupy(
+    ctx_pipelined_gpu: LiveContext,
+    merlin_ds,
+    default_conn,
+):
+    d = detect()
+    if not d['cudas'] or not d['has_cupy']:
+        pytest.skip("No CUDA device or no CuPy, skipping CuPy test")
+
+    ctx = ctx_pipelined_gpu
+
+    aq = ctx.make_acquisition(
+        conn=default_conn,
+        nav_shape=(32, 32),
+    )
+    udf = SumUDF()
+
+    res = ctx.run_udf(dataset=aq, udf=udf, backends=('cupy',))
+    ref = ctx.run_udf(dataset=merlin_ds, udf=udf)
+
+    assert_allclose(res['intensity'], ref['intensity'])

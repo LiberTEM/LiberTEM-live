@@ -243,17 +243,17 @@ Frames per Trigger (Number):	{num_frames}
 End	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               """  # noqa: W291,E501
 
 
-def get_frame_header_encoded(sig_size, counter_depth, header_size=None):
+def get_frame_header_encoded(sig_size, counter_depth, idx, header_size=None):
     if header_size is None:
         header_size = 0
     if header_size > 10000:
         raise ValueError('Cannot encode header with size more than 5 digits')
     if sig_size > 1000:
         raise ValueError('Cannot encode frame with size more than 4 digits')
-    encoded = fr"""MQ1,000001,{header_size:0>5d},01,{sig_size:0>4d},{sig_size:0>4d},U08,   1x1,01,2020-05-18 16:51:49.971626,0.000555,0,0,0,1.200000E+2,5.110000E+2,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,3RX,175,511,000,000,000,000,000,000,125,255,125,125,100,100,082,100,087,030,128,004,255,129,128,176,168,511,511,MQ1A,2020-05-18T14:51:49.971626178Z,555000ns,{counter_depth}
+    encoded = fr"""MQ1,{idx+1:0>6d},{header_size:0>5d},01,{sig_size:0>4d},{sig_size:0>4d},U08,   1x1,01,2020-05-18 16:51:49.971626,0.000555,0,0,0,1.200000E+2,5.110000E+2,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,3RX,175,511,000,000,000,000,000,000,125,255,125,125,100,100,082,100,087,030,128,004,255,129,128,176,168,511,511,MQ1A,2020-05-18T14:51:49.971626178Z,555000ns,{counter_depth}
 """.encode("ascii")  # noqa
     if header_size == 0:
-        return get_frame_header_encoded(sig_size, counter_depth, header_size=len(encoded))
+        return get_frame_header_encoded(sig_size, counter_depth, idx, header_size=len(encoded))
     return encoded
 
 
@@ -266,7 +266,6 @@ def mock_mib_ds(tmpdir_factory):
     sig_square = shape.sig.to_tuple()[0]
     counter_depth = 6
     header_string = get_header_string(shape.nav.size, counter_depth)
-    frame_header = get_frame_header_encoded(sig_square, counter_depth)
 
     hdr_path = (datadir / 'default.hdr')
     with hdr_path.open('wb') as fp:
@@ -274,7 +273,7 @@ def mock_mib_ds(tmpdir_factory):
 
     with (datadir / 'default.mib').open('wb') as fp:
         for idx in range(shape.nav.size):
-            fp.write(frame_header)
+            fp.write(get_frame_header_encoded(sig_square, counter_depth, idx))
             fp.write(np.full(shape.sig, idx, dtype=np.uint8).tobytes())
     return str(hdr_path), shape, counter_depth
 

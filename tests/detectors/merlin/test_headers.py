@@ -1,6 +1,4 @@
-import numpy as np
-
-from libertem_live.detectors.merlin.data import AcquisitionHeader, FrameHeader
+from libertem_qd_mpx import QdAcquisitionHeader
 
 
 ACQUISITION_HEADER_RAW = r"""HDR,
@@ -35,24 +33,7 @@ End	                                                                            
 
 
 def test_parse_acquisition_header():
-    header = AcquisitionHeader.from_raw(ACQUISITION_HEADER_RAW.encode('latin1'))
+    header = QdAcquisitionHeader.new_from_bytes(ACQUISITION_HEADER_RAW.encode('latin1'))
 
-    assert header.frames_in_acquisition == 128*128
-    assert header.frames_per_trigger == 128
-
-
-FRAME_HEADER_RAW = r"""MQ1,000001,00384,01,0256,0256,U08,   1x1,01,2020-05-18 16:51:49.971626,0.000555,0,0,0,1.200000E+2,5.110000E+2,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,0.000000E+0,3RX,175,511,000,000,000,000,000,000,125,255,125,125,100,100,082,100,087,030,128,004,255,129,128,176,168,511,511,MQ1A,2020-05-18T14:51:49.971626178Z,555000ns,6
-"""  # noqa
-
-
-def test_parse_frame_header():
-    header = FrameHeader.from_raw(FRAME_HEADER_RAW.encode("latin1"))
-    assert header.header_size_bytes == 384
-    assert header.dtype == np.uint8
-    assert header.mib_dtype == "u08"
-    assert header.bits_per_pixel == 6
-    assert header.image_size == (256, 256)
-    assert header.image_size_eff == (256, 256)
-    assert header.image_size_bytes == 256 * 256
-    assert header.sequence_first_image == 1
-    assert header.num_chips == 1
+    assert header.frames_in_acquisition() == 128*128
+    assert header.frames_per_trigger() == 128

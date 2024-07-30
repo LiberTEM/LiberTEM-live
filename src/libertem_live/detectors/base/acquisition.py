@@ -2,17 +2,29 @@ from typing import TYPE_CHECKING, Optional
 from typing_extensions import Protocol
 import logging
 import math
+import time
 
-from libertem.common import Shape
+from libertem.common import Shape, Slice
 from libertem.common.math import prod
+from libertem.common.executor import (
+    TaskCommHandler, TaskProtocol, WorkerQueue, JobCancelledError,
+)
+from libertem.io.dataset.base import (
+    DataTile, TilingScheme,
+)
 from libertem_live.hooks import Hooks, DetermineNavShapeEnv
+from sparseconverter import ArrayBackend, NUMPY, CUPY, CUDA
+from opentelemetry import trace
+import numpy as np
 
 if TYPE_CHECKING:
     from .connection import DetectorConnection, PendingAcquisition
     from .controller import AcquisitionController
     from libertem.common.executor import JobExecutor
+    from libertem.corrections.corrset import CorrectionSet
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 class AcquisitionTimeout(Exception):
@@ -205,3 +217,293 @@ class AcquisitionProtocol(Protocol):
     def initialize(self, executor: "JobExecutor") -> "AcquisitionProtocol":
         ""
         ...
+
+
+class GenericCommHandler(TaskCommHandler):
+    def __init__(self, conn):
+        self._conn = conn
+
+    def get_conn_impl(self):
+        raise NotImplementedError()
+
+    def handle_task(self, task: "TaskProtocol", queue: "WorkerQueue"):
+        conn = self.get_conn_impl()
+        with tracer.start_as_current_span("GenericCommHandler.handle_task") as span:
+            span.set_attribute(
+                "socket_path",
+                conn.get_socket_path(),
+            )
+            queue.put({
+                "type": "BEGIN_TASK",
+                "socket": conn.get_socket_path(),
+            })
+            put_time = 0.0
+            recv_time = 0.0
+            # send the data for this task to the given worker
+            partition = task.get_partition()
+            slice_ = partition.slice
+            start_idx = slice_.origin[0]
+            end_idx = slice_.origin[0] + slice_.shape[0]
+            span.set_attributes({
+                "libertem.partition.start_idx": start_idx,
+                "libertem.partition.end_idx": end_idx,
+            })
+            chunk_size = 128
+            current_idx = start_idx
+            while current_idx < end_idx:
+                current_chunk_size = min(chunk_size, end_idx - current_idx)
+
+                t0 = time.perf_counter()
+                frame_stack = conn.get_next_stack(
+                    max_size=current_chunk_size
+                )
+                if frame_stack is None:
+                    if current_idx != end_idx:
+                        queue.put({
+                            "type": "END_PARTITION",
+                        })
+                        raise JobCancelledError("premature end of frame iterator")
+                assert len(frame_stack) <= current_chunk_size, \
+                    f"{len(frame_stack)} <= {current_chunk_size}"
+                t1 = time.perf_counter()
+                recv_time += t1 - t0
+                if len(frame_stack) == 0:
+                    if current_idx != end_idx:
+                        raise JobCancelledError("premature end of frame iterator")
+                    break
+
+                t0 = time.perf_counter()
+                serialized = frame_stack.serialize()
+                queue.put({
+                    "type": "FRAMES",
+                }, payload=serialized)
+                t1 = time.perf_counter()
+                put_time += t1 - t0
+
+                current_idx += len(frame_stack)
+            queue.put({
+                "type": "END_PARTITION",
+            })
+            span.set_attributes({
+                "total_put_time": put_time,
+                "total_recv_time": recv_time,
+            })
+
+
+class GetFrames:
+    CAM_CLIENT_CLS = None
+    FRAME_STACK_CLS = None
+
+    def __init__(self, request_queue, dtype, sig_shape):
+        self._request_queue = request_queue
+        self._dtype = dtype
+        self._sig_shape = sig_shape
+        self._cam_client = None
+        self._last_stack = None
+        self._last_stack_pos = None
+        self._buf = None
+        self._end_seen = False
+
+    def __enter__(self):
+        with self._request_queue.get() as msg:
+            header, _ = msg
+            header_type = header["type"]
+            assert header_type == "BEGIN_TASK", f"expected BEGIN_TASK, got {header_type}"
+            socket_path = header["socket"]
+            self._cam_client = self.CAM_CLIENT_CLS(socket_path)
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        if self._cam_client is not None:
+            if self._last_stack is not None:
+                self._cam_client.done(self._last_stack)
+                self._last_stack = None
+                self._last_stack_pos = None
+            self._cam_client.close()
+            self._cam_client = None
+            self._buf = None
+
+    def _buf_for_backend(self, depth, array_backend: Optional["ArrayBackend"]):
+        if array_backend in (None, NUMPY, CUDA):
+            return np.zeros((depth,) + self._sig_shape, self._dtype)
+        elif array_backend == CUPY:
+            import cupyx
+            return cupyx.empty_pinned((depth,) + self._sig_shape, self._dtype)
+        else:
+            raise ValueError(f"Unsupported backend: {array_backend}")
+
+    def _snack(
+        self,
+        frame_stack,
+        depth: int,
+        start_idx: int,
+        array_backend: Optional[ArrayBackend],
+    ):
+        """
+        Return at most `depth` frames from `frame_stack` as decoded data, as a view
+        into a fixed array/buffer. Take note of left overs, which will be snacked upon
+        on the next call.
+        """
+        if self._buf is None or self._buf.shape[0] < depth:
+            self._buf = self._buf_for_backend(depth, array_backend=array_backend)
+
+        end_idx = min(start_idx + depth, len(frame_stack))
+        num_frames = end_idx - start_idx
+        view = self._buf[0:num_frames, ...]
+        self._cam_client.decode_range_into_buffer(
+            frame_stack,
+            view,
+            start_idx,
+            end_idx
+        )
+
+        if end_idx < len(frame_stack):
+            # we are not done, store our position:
+            self._last_stack = frame_stack
+            self._last_stack_pos = end_idx  # end_idx is the new start_idx
+        else:
+            self._last_stack = None
+            self._last_stack_pos = None
+            self._cam_client.done(frame_stack)
+        return view
+
+    def get_partition_tile(
+        self,
+        depth: int,
+        array_backend: 'Optional["ArrayBackend"]',
+    ) -> np.ndarray:
+        """
+        Like `next_tile`, but always reads _all_ FRAMES messages that belong
+        to the current partition, and decodes them directly into a
+        larger buffer.
+        """
+        assert self._cam_client is not None, "should be connected"
+
+        buf = self._buf_for_backend(depth, array_backend=array_backend)
+        start_idx = 0
+        while True:
+            with self._request_queue.get() as msg:
+                header, payload = msg
+                header_type = header["type"]
+                if header_type == "FRAMES":
+                    frame_stack = self.FRAME_STACK_CLS.deserialize(payload)
+                    num_frames = len(frame_stack)
+                    view = buf[start_idx:start_idx+num_frames, ...]
+                    self._cam_client.decode_range_into_buffer(
+                        frame_stack,
+                        view,
+                        0,
+                        len(frame_stack)
+                    )
+                    self._cam_client.done(frame_stack)
+                    start_idx += num_frames
+                elif header_type == "END_PARTITION":
+                    self._end_seen = True
+                    return buf
+                else:
+                    raise RuntimeError(
+                        f"invalid header type {header['type']}; FRAME or END_PARTITION expected;"
+                        f" (header={header})"
+                    )
+
+    def next_tile(
+        self,
+        depth: int,
+        array_backend: 'Optional["ArrayBackend"]',
+    ) -> Optional[np.ndarray]:
+        """
+        Consume a FRAMES messages from the request queue, and return the next
+        tile, or return None if we get an END_PARTITION message (which we also
+        consume). The tile will contain less than or equal to `depth` frames.
+        """
+
+        assert self._cam_client is not None, "should be connected"
+
+        if self._last_stack is not None:
+            return self._snack(
+                self._last_stack, depth, self._last_stack_pos, array_backend,
+            )
+
+        while True:
+            with self._request_queue.get() as msg:
+                header, payload = msg
+                header_type = header["type"]
+                if header_type == "FRAMES":
+                    frame_stack = self.FRAME_STACK_CLS.deserialize(payload)
+                    return self._snack(frame_stack, depth, 0, array_backend)
+                elif header_type == "END_PARTITION":
+                    self._end_seen = True
+                    if self._last_stack is not None:
+                        return self._snack(
+                            self._last_stack, depth, self._last_stack_pos, array_backend,
+                        )
+                    return None
+                else:
+                    raise RuntimeError(
+                        f"invalid header type {header['type']}; FRAME or END_PARTITION expected;"
+                        f" (header={header})"
+                    )
+
+    def expect_end(self):
+        if self._end_seen:
+            return
+        with self._request_queue.get() as msg:
+            header, _ = msg
+            header_type = header["type"]
+            if header_type != "END_PARTITION":
+                raise RuntimeError(
+                    f"invalid header type {header['type']}; END_PARTITION expected;"
+                    f" (header={header})"
+                )
+            self._end_seen = True
+
+    def get_tiles(
+        self,
+        to_read: int,
+        start_idx: int,
+        tiling_scheme: "TilingScheme",
+        corrections: 'Optional["CorrectionSet"]' = None,
+        roi=None,
+        array_backend: 'Optional["ArrayBackend"]' = None,
+    ):
+        tile_start = start_idx
+        depth = tiling_scheme.depth
+        frames_in_tile = 0
+        while to_read > 0:
+            if tiling_scheme.intent == "partition":
+                raw_tile = self.get_partition_tile(depth=to_read, array_backend=array_backend)
+            else:
+                raw_tile = self.next_tile(depth, array_backend=array_backend)
+                if raw_tile is None:
+                    raise RuntimeError(
+                        f"we were still expecting to read {to_read} frames more!"
+                    )
+
+            frames_in_tile = raw_tile.shape[0]
+            to_read -= frames_in_tile
+
+            if tiling_scheme.intent == "partition":
+                assert to_read == 0
+
+            if raw_tile.shape[0] == 0:
+                assert to_read == 0
+                continue  # we are done and the buffer is empty
+
+            tile_shape = Shape(
+                (frames_in_tile,) + tuple(tiling_scheme[0].shape),
+                sig_dims=2
+            )
+            tile_slice = Slice(
+                origin=(tile_start,) + (0, 0),
+                shape=tile_shape,
+            )
+            if corrections is not None:
+                corrections.apply(raw_tile, tile_slice)
+            yield DataTile(
+                raw_tile,
+                tile_slice=tile_slice,
+                scheme_idx=0,
+            )
+            tile_start += frames_in_tile
+        self.expect_end()
+        logger.debug("GetFrames.get_tiles: end of method")
