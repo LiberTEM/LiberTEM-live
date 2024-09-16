@@ -5,6 +5,7 @@ import logging
 
 from libertem.common.math import prod
 
+from libertem_live.detectors.common import cleanup_handle_dir
 from libertem_live.detectors.base.connection import (
     PendingAcquisition, DetectorConnection,
     AcquisitionProtocol,
@@ -66,20 +67,21 @@ class AsiTpx3DetectorConnection(DetectorConnection):
         self._bytes_per_chunk = bytes_per_chunk
         self._huge_pages = huge_pages
         self._chunks_per_stack = chunks_per_stack
+        self._shm_handle_path = None
 
         self._conn = self._connect()
 
     def _connect(self):
-        handle_path = self._make_handle_path()
+        self._shm_handle_path = self._make_handle_path()
         uri = f"{self._data_host}:{self._data_port}"
-        logger.info(f"connecting to {uri} with shared memory handle {handle_path}")
+        logger.info(f"connecting to {uri} with shared memory handle {self._shm_handle_path}")
         return ASITpx3Connection(
             uri=uri,
             chunks_per_stack=self._chunks_per_stack,
             num_slots=self._num_slots,
             bytes_per_chunk=self._bytes_per_chunk,
             huge=self._huge_pages,
-            handle_path=handle_path,
+            handle_path=self._shm_handle_path,
         )
 
     def wait_for_acquisition(
@@ -113,6 +115,7 @@ class AsiTpx3DetectorConnection(DetectorConnection):
             self._conn.close()
             self._passive_started = False
             self._conn = None
+        cleanup_handle_dir(self._shm_handle_path)
 
     def __enter__(self):
         if self._conn is None:

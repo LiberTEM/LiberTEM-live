@@ -4,6 +4,7 @@ from typing import Optional, Literal, Union
 from collections.abc import Generator
 from contextlib import contextmanager
 
+from libertem_live.detectors.common import cleanup_handle_dir
 from libertem_live.detectors.base.connection import DetectorConnection, PendingAcquisition
 from libertem_live.detectors.base.acquisition import AcquisitionProtocol
 
@@ -105,16 +106,18 @@ class MerlinDetectorConnection(DetectorConnection):
         self._drain = drain
         self._recovery_strategy = recovery_strategy
         self._huge_pages = huge_pages
+        self._shm_handle_path = None
         self.connect()
 
     def connect(self):
         if self._data_socket is not None:
             return self._data_socket  # already connected
+        self._shm_handle_path = self._make_socket_path()
         self._data_socket = libertem_qd_mpx.QdConnection(
             data_host=self._data_host,
             data_port=self._data_port,
             frame_stack_size=16,  # FIXME! make configurable or determine automatically
-            shm_handle_path=self._make_socket_path(),
+            shm_handle_path=self._shm_handle_path,
             drain=self._drain,
             recovery_strategy=self._recovery_strategy,
             huge=self._huge_pages,
@@ -187,6 +190,7 @@ class MerlinDetectorConnection(DetectorConnection):
         if self._data_socket is not None:
             self._data_socket.close()
             self._data_socket = None
+        cleanup_handle_dir(self._shm_handle_path)
 
     def get_conn_impl(self):
         return self._data_socket  # maybe remove `get_data_socket` function?

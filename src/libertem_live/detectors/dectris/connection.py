@@ -3,6 +3,7 @@ import math
 import tempfile
 from typing import Optional, TYPE_CHECKING
 
+from libertem_live.detectors.common import cleanup_handle_dir
 from libertem_live.detectors.base.connection import (
     DetectorConnection,
 )
@@ -77,15 +78,17 @@ class DectrisDetectorConnection(DetectorConnection):
         num_slots = int(math.floor(buffer_size_bytes / (bytes_per_frame * frame_stack_size)))
         self._num_slots = num_slots
         self._conn: libertem_dectris.DectrisConnection = self._connect()
+        self._shm_handle_path = None
 
     def _connect(self):
+        self._shm_handle_path = self._make_socket_path()
         return libertem_dectris.DectrisConnection(
             uri=f"tcp://{self._data_host}:{self._data_port}",
             frame_stack_size=self._frame_stack_size,
             num_slots=self._num_slots,
             bytes_per_frame=self._bytes_per_frame,
             huge=self._huge_pages,
-            handle_path=self._make_socket_path(),
+            handle_path=self._shm_handle_path,
         )
 
     def __enter__(self):
@@ -299,6 +302,7 @@ class DectrisDetectorConnection(DetectorConnection):
             self._conn.close()
             self._conn = None
         self._passive_started = False
+        cleanup_handle_dir(self._shm_handle_path)
 
     def reconnect(self):
         if self._conn is not None:
