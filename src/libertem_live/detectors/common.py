@@ -1,4 +1,5 @@
 import threading
+import pathlib
 import logging
 from typing import Optional
 import socket
@@ -158,3 +159,15 @@ def set_thread_name(name: str):
     if prctl is None:
         return
     prctl.set_name(name)
+
+
+def cleanup_handle_dir(path: Optional[str]):
+    if path is None:
+        return
+    path = pathlib.Path(path)
+    # the socket may not yet exist, even if we set up the temporary directory:
+    if path.exists():
+        path.unlink()
+    p_dir = path.parent
+    if p_dir.exists():
+        p_dir.rmdir()

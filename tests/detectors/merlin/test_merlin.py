@@ -15,6 +15,7 @@ from libertem.utils.devices import detect
 
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
+from libertem_live.detectors.common import cleanup_handle_dir
 from libertem_live.detectors.merlin import (
     MerlinControl,
 )
@@ -87,26 +88,30 @@ def test_small_shm(
         import libertem_qd_mpx
         # monkey-patch in a different underlying connection:
         conn._data_socket.close()
-        conn._data_socket = libertem_qd_mpx.QdConnection(
-            data_host=host,
-            data_port=port,
-            frame_stack_size=1,
-            num_slots=4,  # NOTE this ridiculously small value
-            shm_handle_path=conn._make_socket_path(),
-            drain=False,
-        )
-        conn._data_socket.start_passive()
+        shm_socket_path = conn._make_socket_path()
+        try:
+            conn._data_socket = libertem_qd_mpx.QdConnection(
+                data_host=host,
+                data_port=port,
+                frame_stack_size=1,
+                num_slots=4,  # NOTE this ridiculously small value
+                shm_handle_path=shm_socket_path,
+                drain=False,
+            )
+            conn._data_socket.start_passive()
 
-        aq = ctx_pipelined.make_acquisition(
-            conn=conn,
-            nav_shape=(32, 32),
-        )
-        udf = SumUDF()
+            aq = ctx_pipelined.make_acquisition(
+                conn=conn,
+                nav_shape=(32, 32),
+            )
+            udf = SumUDF()
 
-        res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
-        ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
+            res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+            ref = ctx_pipelined.run_udf(dataset=merlin_ds, udf=udf)
 
-        assert_allclose(res['intensity'], ref['intensity'])
+            assert_allclose(res['intensity'], ref['intensity'])
+        finally:
+            cleanup_handle_dir(shm_socket_path)
 
 
 def test_passive_acquisition(
