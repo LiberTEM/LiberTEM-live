@@ -122,7 +122,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
 
         self._meta = DataSetMeta(
             shape=Shape(self._nav_shape + sig_shape, sig_dims=2),
-            array_backends=(CUPY, CUDA, NUMPY),
+            array_backends=self.array_backends,
             raw_dtype=dtype,
             dtype=dtype,
         )
