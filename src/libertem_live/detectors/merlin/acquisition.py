@@ -31,7 +31,7 @@ class QdGetFrames(GetFrames):
 
 
 class AcqState(NamedTuple):
-    acq_header: libertem_qd_mpx.QdAcquisitionHeader
+    acq_header: libertem_qd_mpx.QdAcquisitionConfig
 
 
 class MerlinAcquisition(AcquisitionMixin, DataSet):
