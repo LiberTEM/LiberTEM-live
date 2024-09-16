@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class MerlinPendingAcquisition(PendingAcquisition):
-    def __init__(self, header: libertem_qd_mpx.QdAcquisitionHeader):
+    def __init__(self, header: libertem_qd_mpx.QdAcquisitionConfig):
         self._header = header
 
     @property
