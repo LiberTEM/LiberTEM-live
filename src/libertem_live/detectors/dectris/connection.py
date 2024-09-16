@@ -77,8 +77,8 @@ class DectrisDetectorConnection(DetectorConnection):
         buffer_size_bytes = buffer_size * 1024 * 1024
         num_slots = int(math.floor(buffer_size_bytes / (bytes_per_frame * frame_stack_size)))
         self._num_slots = num_slots
-        self._conn: libertem_dectris.DectrisConnection = self._connect()
         self._shm_handle_path = None
+        self._conn: libertem_dectris.DectrisConnection = self._connect()
 
     def _connect(self):
         self._shm_handle_path = self._make_socket_path()
