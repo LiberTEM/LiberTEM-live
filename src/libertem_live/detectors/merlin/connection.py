@@ -67,6 +67,17 @@ class MerlinDetectorConnection(DetectorConnection):
     recovery_strategy
         What to do in case of errors - try to drain the socket
         or immediately reconnect.
+    huge_pages
+        Set to True to allocate shared memory in huge pages. This can improve performance
+        by reducing the page fault cost. Currently only available on Linux. Enabling this
+        requires reserving huge pages, either at system start, or before connecting.
+
+        For example, to reserve 10000 huge pages, you can run:
+
+        :code:`echo 10000 | sudo tee /proc/sys/vm/nr_hugepages`
+
+        See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`
+        can be useful to check your configuration.
 
     Examples
     --------
@@ -257,6 +268,21 @@ class MerlinConnectionBuilder:
             Drain the socket before triggering. Enable this when
             using old versions of the Merlin software, but not when
             using an internal trigger.
+        recovery_strategy
+            What to do in case of errors - try to drain the socket
+            or immediately reconnect.
+        huge_pages
+            Set to True to allocate shared memory in huge pages. This can
+            improve performance by reducing the page fault cost. Currently only
+            available on Linux. Enabling this requires reserving huge pages,
+            either at system start, or before connecting.
+
+            For example, to reserve 10000 huge pages, you can run:
+
+            :code:`echo 10000 | sudo tee /proc/sys/vm/nr_hugepages`
+
+            See also the :code:`hugeadm` utility, especially :code:`hugeadm --explain`
+            can be useful to check your configuration.
 
         Examples
         --------
