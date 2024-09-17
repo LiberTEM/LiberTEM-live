@@ -15,9 +15,6 @@ import click
 import numpy as np
 from tqdm import tqdm
 
-# XXX: workaround for https://github.com/numba/numba/issues/8940
-import numba.cuda  # noqa: F401
-
 from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
