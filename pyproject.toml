@@ -16,8 +16,9 @@ dependencies = [
     "numba",
     "opentelemetry-api",
     "sparseconverter>=0.3.3",
-    "libertem-dectris>=0.2.10",
-    "libertem-asi-tpx3>=0.2.10",
+    "libertem-dectris>=0.2.12",
+    "libertem-asi-tpx3>=0.2.12",
+    "libertem-qd-mpx>=0.2.12",
 ]
 keywords = ["electron microscopy"]
 classifiers = [
