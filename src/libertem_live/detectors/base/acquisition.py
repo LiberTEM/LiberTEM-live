@@ -310,7 +310,8 @@ class GetFrames:
             header_type = header["type"]
             assert header_type == "BEGIN_TASK", f"expected BEGIN_TASK, got {header_type}"
             socket_path = header["socket"]
-            self._cam_client = self.CAM_CLIENT_CLS(socket_path)
+            with tracer.start_as_current_span('CAM_CLIENT_CLS::new'):
+                self._cam_client = self.CAM_CLIENT_CLS(socket_path)
         return self
 
     def __exit__(self, *args, **kwargs):

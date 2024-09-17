@@ -178,6 +178,8 @@ class MerlinDetectorConnection(DetectorConnection):
         ...     ctx.run_udf(dataset=aq, udf=SumUDF())
         {'intensity': ...}
         """
+        if self._data_socket is not None and self._data_socket.is_running():
+            self.close()
         if self._data_socket is None:
             self.connect()
         assert self._data_socket is not None
