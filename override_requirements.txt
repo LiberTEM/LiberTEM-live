@@ -4,3 +4,8 @@
 # libertem-blobfinder
 
 # libertem[bqplot] @ git+https://github.com/LiberTEM/LiberTEM.git
+
+
+# to nudge uv into the right direction: numpy before numba; explicit <2.1 dep
+numpy<2.1
+numba
