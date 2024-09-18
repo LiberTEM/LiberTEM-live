@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 from libertem.executor.inline import InlineJobExecutor
 from libertem.executor.pipelined import PipelinedExecutor
+from libertem.utils.devices import detect
 
 import psutil
 import pytest
@@ -84,6 +85,10 @@ def ctx_pipelined():
 
 @pytest.fixture(scope="session")
 def ctx_pipelined_gpu():
+    d = detect()
+    if not d['cudas'] or not d['has_cupy']:
+        pytest.skip("No CUDA device or no CuPy, skipping CuPy test")
+
     with ltl.LiveContext.make_with(
         gpus=1,
         plot_class=Dummy2DPlot,
