@@ -9,15 +9,15 @@ description = "Live processing with LiberTEM"
 requires-python = ">=3.9"
 license-files = { paths = ["LICENSE", "src/libertem_live/detectors/LICENSE"] }
 dependencies = [
-    "libertem>=0.11.0.dev0",
+    "libertem>=0.12",
     "numpy",
     "click",
     "tqdm",
     "opentelemetry-api",
     "sparseconverter>=0.3.3",
-    "libertem-dectris>=0.2.12",
-    "libertem-asi-tpx3>=0.2.12",
-    "libertem-qd-mpx>=0.2.12",
+    "libertem-dectris>=0.2.14",
+    "libertem-asi-tpx3>=0.2.14",
+    "libertem-qd-mpx>=0.2.14",
 ]
 keywords = ["electron microscopy"]
 classifiers = [

@@ -124,10 +124,7 @@ def test_timeout_cancelled(
     mock_merlin_detector_sim,
     mock_merlin_control_sim,
 ):
-    try:
-        from libertem.exceptions import UDFRunCancelled
-    except ImportError:
-        pytest.skip("Needs LiberTEM v0.12+")
+    from libertem.exceptions import UDFRunCancelled
     host, port = mock_merlin_detector_sim
     api_host, api_port = mock_merlin_control_sim
     with ctx_pipelined.make_connection('merlin').open(
