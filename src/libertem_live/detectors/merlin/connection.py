@@ -1,5 +1,6 @@
 import os
 import logging
+import tempfile
 from typing import Optional, Literal, Union
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -66,7 +67,9 @@ class MerlinDetectorConnection(DetectorConnection):
         using an internal trigger.
     recovery_strategy
         What to do in case of errors - try to drain the socket
-        or immediately reconnect.
+        or immediately reconnect. If an error on the LiberTEM-live
+        side makes the Merlin software hang, try to switch to
+        :code:`"drain_then_reconnect"`.
     huge_pages
         Set to True to allocate shared memory in huge pages. This can improve performance
         by reducing the page fault cost. Currently only available on Linux. Enabling this
@@ -138,7 +141,6 @@ class MerlinDetectorConnection(DetectorConnection):
 
     @classmethod
     def _make_socket_path(cls):
-        import tempfile
         temp_path = tempfile.mkdtemp()
         return os.path.join(temp_path, 'qd-shm-socket')
 

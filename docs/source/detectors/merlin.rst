@@ -23,6 +23,9 @@ use an external computer connected using a fast network connection (10Gbit+).
 Especially in a quad setup, using an external computer is recommended to keep up
 with the data rates at the fastest frame rates.
 
+For stability, it's recommended to use the latest version of the Merlin software,
+or at least 1.6.1+.
+
 Usage examples
 --------------
 
@@ -96,6 +99,18 @@ and how to run a LiberTEM UDF on the data stream.
 .. testoutput::
 
     Triggering!
+
+
+Debugging
+---------
+
+If you run into any issues, you may want to set the environment variable
+:code:`LIBERTEM_QD_LOG_LEVEL` to :code:`debug` or even :code:`trace`, to
+get a more verbose log of the communication with the detector software.
+When reporting issues, please include said log in your report, if possible.
+
+You can also use :external:libertem:ref:`tracing using opentelemetry <tracing>`,
+which can be helpful to diagnose timing issues, for example.
 
 Simulator
 ---------
