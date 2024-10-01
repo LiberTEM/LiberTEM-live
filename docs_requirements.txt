@@ -10,3 +10,7 @@ ipython
 libertem[bqplot]
 flask
 setuptools
+
+# to nudge uv into the right direction: numpy before numba; explicit <2.1 dep
+numpy<2.1
+numba
