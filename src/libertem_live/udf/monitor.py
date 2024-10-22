@@ -17,13 +17,15 @@ class SignalMonitorUDF(UDF):
 
     def get_backends(self):
         ''
+        # feature detection until we depend on a version with
+        # https://github.com/LiberTEM/LiberTEM/pull/1684
+        scipy_coo_array = getattr(self, 'BACKEND_SCIPY_COO_ARRAY', None)
         return [
             backend for backend in self.BACKEND_ALL
             if backend not in {
                 self.BACKEND_CUPY_SCIPY_COO,
                 self.BACKEND_SCIPY_COO,
-                self.BACKEND_SCIPY_COO_ARRAY
-            }
+            }.union((scipy_coo_array, ) if scipy_coo_array is not None else tuple())
         ]
 
     # def get_preferred_input_dtype(self):
