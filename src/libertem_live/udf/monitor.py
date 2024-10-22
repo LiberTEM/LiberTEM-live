@@ -19,7 +19,11 @@ class SignalMonitorUDF(UDF):
         ''
         return [
             backend for backend in self.BACKEND_ALL
-            if backend not in {self.BACKEND_CUPY_SCIPY_COO, self.BACKEND_SCIPY_COO}
+            if backend not in {
+                self.BACKEND_CUPY_SCIPY_COO,
+                self.BACKEND_SCIPY_COO,
+                self.BACKEND_SCIPY_COO_ARRAY
+            }
         ]
 
     # def get_preferred_input_dtype(self):
@@ -36,7 +40,7 @@ class SignalMonitorUDF(UDF):
         ''
         # Assign the portion from the last frame within the tile
         # to the result buffer
-        self.results.intensity[:] = self.forbuf(tile[-1], self.results.intensity)
+        self.results.intensity[:] = self.forbuf(tile[[-1]], self.results.intensity)
 
     def merge(self, dest, src):
         ''
