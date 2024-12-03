@@ -290,7 +290,7 @@ class DataSocketSimulator:
         )
         slices, ranges, scheme_indices = fileset.get_read_ranges(
             start_at_frame=0,
-            stop_before_frame=int(np.prod(self._ds.shape.nav)),
+            stop_before_frame=min(10, int(np.prod(self._ds.shape.nav))),
             dtype=np.float32,  # FIXME: don't really care...
             tiling_scheme=tiling_scheme,
             roi=None,
