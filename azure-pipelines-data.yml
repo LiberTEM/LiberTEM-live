@@ -121,6 +121,9 @@ stages:
           Python312:
             python.version: '3.12'
             TOXENV: 'py312-data'
+          Python313:
+            python.version: '3.13'
+            TOXENV: 'py313-data'
       variables:
         TESTDATA_BASE_PATH: '/data/'
       steps:
@@ -164,9 +167,9 @@ stages:
         TESTDATA_BASE_PATH: '/data/'
       steps:
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.9'
+        displayName: 'Use Python 3.11'
         inputs:
-          versionSpec: '3.9'
+          versionSpec: '3.11'
 
       - bash: apt install -y pandoc
         displayName: install required debian packages
