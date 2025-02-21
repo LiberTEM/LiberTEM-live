@@ -100,7 +100,7 @@ def test_udf_sig(ctx_pipelined: LiveContext, dectris_sim):
 
         corr = CorrectionSet(
             excluded_pixels=sparse.COO(
-                coords=(bad_y, bad_x),
+                coords=np.asarray((bad_y, bad_x)),
                 data=1,
                 shape=aq.shape.sig
             )
