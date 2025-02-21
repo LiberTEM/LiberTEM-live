@@ -6,7 +6,7 @@
 .. |azure| image:: https://dev.azure.com/LiberTEM/LiberTEM-live/_apis/build/status/LiberTEM.LiberTEM-live?branchName=master
 .. _azure: https://dev.azure.com/LiberTEM/LiberTEM-live/_build/latest?definitionId=5&branchName=master
 
-.. |github| image:: https://img.shields.io/badge/GitHub-GPL--3.0-informational
+.. |github| image:: https://img.shields.io/badge/GitHub-MIT-informational
 .. _github: https://github.com/LiberTEM/LiberTEM-live/
 
 .. |precommit| image:: https://results.pre-commit.ci/badge/github/LiberTEM/LiberTEM-live/master.svg
@@ -68,8 +68,7 @@ under development.
 License
 -------
 
-LiberTEM-live is licensed under GPLv3. The I/O parts are also available under
-the MIT license, please see LICENSE files in the subdirectories for details.
+LiberTEM-live is licensed under the MIT license.
 
 Acknowledgements
 ----------------

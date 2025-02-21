@@ -18,6 +18,7 @@ from tqdm import tqdm
 from libertem.io.dataset.base import TilingScheme
 from libertem.io.dataset.mib import MIBDataSet, is_valid_hdr
 from libertem.common import Shape
+from libertem.executor.inline import InlineJobExecutor
 
 from libertem_live.detectors.common import (
     UndeadException, StopException, ServerThreadMixin,
@@ -57,18 +58,6 @@ logger = logging.getLogger(__name__)
 @functools.cache
 def get_mpx_header(length):
     return b"MPX,%010d," % ((length + 1),)
-
-
-class MITExecutor:
-    '''
-    This is an incomplete implementation of a LiberTEM executor that is
-    just sufficient to initialize a MIB dataset.
-
-    This avoids a dependency on the GPL-licensed
-    :class:`~libertem.executor.inline.InlineJobExecutor`.
-    '''
-    def run_function(self, fn, *args, **kwargs):
-        return fn(*args, **kwargs)
 
 
 class HeaderSocketSimulator:
@@ -217,7 +206,7 @@ class DataSocketSimulator:
     def _load(self):
         if self._ds is None:
             ds = MIBDataSet(path=self._path, nav_shape=self._nav_shape)
-            ds.initialize(MITExecutor())
+            ds.initialize(InlineJobExecutor())
             self._ds = ds
 
     def open(self):
