@@ -14,6 +14,5 @@ libertem[bqplot]
 flask
 psutil
 
-# to nudge uv into the right direction: numpy before numba; explicit <2.1 dep
-numpy<2.1
-numba
+numpy
+numba>=0.53
