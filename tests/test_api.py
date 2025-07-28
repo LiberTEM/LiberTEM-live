@@ -3,7 +3,8 @@ import contextlib
 import numpy as np
 import pytest
 
-from libertem.udf.base import NoOpUDF
+from libertem.udf.base import NoOpUDF, UDF
+from libertem.utils.devices import detect
 
 from libertem_live.api import LiveContext, Hooks
 from libertem_live.udf.monitor import SignalMonitorUDF
@@ -69,3 +70,60 @@ def test_update_parameters_iter_sync(ltl_ctx):
         with contextlib.closing(res_iter):
             for item in res_iter:
                 res_iter.update_parameters_experimental([{}, {}])
+
+
+class CheckXPUDF(UDF):
+    def get_result_buffers(self):
+        return {
+            'process_cupy': self.buffer(kind='nav', dtype='bool'),
+            'merge_cupy': self.buffer(kind='nav', dtype='bool'),
+            'result_cupy': self.buffer(
+                kind='single', dtype='bool', extra_shape=(1, ), use='result_only'
+            ),
+        }
+
+    def xp_is_cupy(self):
+        obj = str(self.xp)
+        is_cupy = 'cupy' in obj
+        is_numpy = 'numpy' in obj
+        assert is_cupy != is_numpy
+        return is_cupy
+
+    def process_frame(self, frame):
+        self.results.process_cupy[:] = self.xp_is_cupy()
+
+    def merge(self, dest, src):
+        dest.process_cupy[:] = src.process_cupy[:]
+        dest.merge_cupy[:] = self.xp_is_cupy()
+
+    def get_results(self):
+        res = np.zeros((1, ), dtype='bool')
+        res[0] = self.xp_is_cupy()
+        return {
+            'result_cupy': res,
+        }
+
+
+@pytest.mark.slow
+def test_default_context_with_main_gpu():
+    try:
+        from libertem.executor.base import make_canonical  # NOQA: F401
+        has_feature = True
+    except (ImportError, ModuleNotFoundError):
+        has_feature = False
+    d = detect()
+    use_cupy = d['has_cupy'] and d['cudas'] and has_feature
+    ctx = LiveContext()
+    try:
+        udf = CheckXPUDF()
+        ds = ctx.load('memory', data=np.zeros((1, 1, 1, 1)))
+        res = ctx.run_udf(dataset=ds, udf=udf)
+        if use_cupy:
+            assert np.all(res['merge_cupy'])
+            assert np.all(res['result_cupy'])
+        else:
+            assert not np.any(res['merge_cupy'])
+            assert not np.any(res['result_cupy'])
+        assert not np.any(res['process_cupy'])
+    finally:
+        ctx.close()

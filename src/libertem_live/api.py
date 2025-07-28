@@ -74,7 +74,7 @@ class LiveContext(LiberTEM_Context):
         Live acquisition currently requires a suitable executor, for
         example :class:`~libertem.executor.pipelined.PipelinedExecutor`.
         '''
-        return PipelinedExecutor()
+        return PipelinedExecutor.make_local()
 
     def _start_acquisition(self, acquisition, udf):
         if hasattr(acquisition, 'start_acquisition'):
