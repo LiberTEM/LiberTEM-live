@@ -3,7 +3,7 @@ Installation
 
 .. note::
 
-    We currently support Python 3.9 to 3.12, and have tested LiberTEM-live
+    We currently support Python 3.9 to 3.13, and have tested LiberTEM-live
     on Linux, Windows and Mac OS systems. Please see the individual
     :ref:`detector documentation <detectors>` for more details on
     system requirements.
