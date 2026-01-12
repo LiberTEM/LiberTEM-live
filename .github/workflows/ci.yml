@@ -17,11 +17,8 @@ jobs:
   tests:
     strategy:
       matrix:
-        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python_version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
         os: [ubuntu-latest, windows-latest, macos-14, macos-15]
-        exclude:
-          - os: macos-14
-            python_version: "3.9"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
