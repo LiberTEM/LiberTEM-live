@@ -11,8 +11,10 @@ import contextlib
 from os.path import join
 
 from github import Github, UnknownObjectException
-from pkg_resources import parse_version
-from pkg_resources.extern.packaging.version import LegacyVersion
+from packaging.version import (
+    parse as parse_version,
+    InvalidVersion,
+)
 import click
 import requests
 
@@ -143,16 +145,21 @@ def validate_version_tag():
         raise click.ClickException(
             "version tags need to have a 'v' prefix"
         )
-    v = parse_version(version_tag['full'])
-    if isinstance(v, LegacyVersion):
+    try:
+        v = parse_version(version_tag['full'])
+    except InvalidVersion as e:
         raise click.ClickException(
-            "The version tag %s could not be parsed as valid version" % v
+            f"The version tag {version_tag['full']} could not be parsed "
+            f"as valid version: {e}"
         )
 
-    version_from_file = parse_version(read_version(get_version_fn()))
-    if isinstance(version_from_file, LegacyVersion):
+    raw_version = read_version(get_version_fn())
+    try:
+        version_from_file = parse_version(raw_version)
+    except InvalidVersion as e:
         raise click.ClickException(
-            "__version__ %s could not be parsed as valid version" % version_from_file
+                f"__version__ {raw_version} could not be parsed "
+                f"as valid version: {e}"
         )
     if version_from_file != v:
         raise click.ClickException(
@@ -215,6 +222,8 @@ def get_latest_stable_tag():
             key=parse_version
         )
     )
+    if len(sorted_stable_tags) == 0:
+        return None
     return sorted_stable_tags[-1]
 
 
@@ -295,7 +304,7 @@ def get_archive(tag):
         yield full_fn
 
 
-def upload_to_zenodo(verbose, parent, token, sandbox_token):
+def upload_to_zenodo(verbose, concept, token):
     """
     Upload wheel, sdist and repo archive to zenodo. Only works if
     there is a matching GitHub release already created.
@@ -310,10 +319,7 @@ def upload_to_zenodo(verbose, parent, token, sandbox_token):
 
     if release == "dev":
         raise click.ClickException("don't want to upload to zenodo from dev release")
-    elif release == "rc":
-        url = "https://sandbox.zenodo.org/api/"
-        os.environ['ZENODO_OAUTH_TOKEN'] = sandbox_token
-    elif release == "release":
+    elif release in ["rc", "release"]:
         url = "https://zenodo.org/api/"
         os.environ['ZENODO_OAUTH_TOKEN'] = token
 
@@ -322,8 +328,9 @@ def upload_to_zenodo(verbose, parent, token, sandbox_token):
     with get_archive(tag) as repo_archive:
         out = subprocess.check_output([
             "python", join(HERE, "zenodo_upload"),
+            "-v",
             "--url=%s" % url,
-            "--parent=%s" % parent,
+            "--concept=%s" % concept,
             "--mask-zenodo-exception",
             wheel,
             sdist,
@@ -415,7 +422,7 @@ def upload_to_github(verbose, files, token, release):
         rel.upload_asset(path=path, content_type='application/octet-stream')
 
 
-def build_appimage(verbose):
+def build_the_appimage(verbose):
     APPIMAGE_DIR = join(BASE_DIR, 'packaging', 'appimage')
 
     if verbose:
@@ -482,10 +489,8 @@ def upload_to_pypi(verbose, user, password):
 
     if release == "dev":
         raise Exception("won't upload dev release to pypi")
-    elif release == "rc":
-        cmd.extend(["--repository-url", "https://test.pypi.org/legacy/"])
-    elif release == "release":
-        pass
+    elif release in ["rc", "release"]:
+        pass  # both upload to production pypi
     else:
         raise Exception("unknown release kind %s" % release)
 
@@ -520,22 +525,15 @@ def is_rc(ctx):
               help="Build an AppImage")
 @click.option('--pypi-user', type=str, show_envvar=True)
 @click.option('--pypi-password', type=str, show_envvar=True)
-@click.option('--pypi-test-user', type=str, show_envvar=True)
-@click.option('--pypi-test-password', type=str, show_envvar=True)
 @click.option('--token', type=str, show_envvar=True,
               help='Github token for creating releases')
-@click.option('--zenodo-sandbox-token', type=str, show_envvar=True,
-              help='Zenodo sandbox token for RC upload testing')
 @click.option('--zenodo-token', type=str, show_envvar=True,
               help='Zenodo production token for final release upload')
-@click.option('--zenodo-parent', type=str, show_envvar=True,
-              help='Zenodo production parent deposition id')
-@click.option('--zenodo-sandbox-parent', type=str, show_envvar=True,
-              help='Zenodo sandbox parent deposition id')
+@click.option('--zenodo-concept', type=str, show_envvar=True,
+              help='Zenodo production deposition concept id')
 @click.pass_context
 def upload(ctx, dry_run, build_appimage, pypi_user, pypi_password,
-           pypi_test_user, pypi_test_password, token, zenodo_sandbox_token,
-           zenodo_token, zenodo_parent, zenodo_sandbox_parent):
+           token, zenodo_token, zenodo_concept):
     """
     prepare, build and upload to github, zenodo and pypi
     (if release candidate, to the test instance(s))
@@ -549,14 +547,9 @@ def upload(ctx, dry_run, build_appimage, pypi_user, pypi_password,
     is_rc = current_version_tag_is_rc()
     is_release = current_version_tag_is_release()
 
-    if is_rc or is_release:
+    if is_release or is_rc:
+        # releases and release candidates need the "real" pypi credentials:
         validate_version_tag()
-
-    if is_rc:
-        # we want to upload release candidates to test.pypi.org:
-        assert (pypi_test_user is not None and pypi_test_password is not None)
-    if is_release:
-        # releases need the "real" pypi credentials:
         assert (pypi_user is not None and pypi_password is not None)
 
     prepare_upload(verbose=ctx.obj['verbose'])
@@ -567,16 +560,13 @@ def upload(ctx, dry_run, build_appimage, pypi_user, pypi_password,
 
     run_twine_check(ctx.obj['verbose'])
 
-    if not dry_run:
-        if is_release:
-            upload_to_pypi(ctx.obj['verbose'], user=pypi_user, password=pypi_password)
-        elif is_rc:
-            upload_to_pypi(ctx.obj['verbose'], user=pypi_test_user, password=pypi_test_password)
+    if not dry_run and (is_release or is_rc):
+        upload_to_pypi(ctx.obj['verbose'], user=pypi_user, password=pypi_password)
 
     release = get_release_kind()
 
     if build_appimage:
-        appimage_files = build_appimage(verbose=ctx.obj['verbose'])
+        appimage_files = build_the_appimage(verbose=ctx.obj['verbose'])
     else:
         appimage_files = []
     github_files = get_py_release_files()
@@ -603,8 +593,8 @@ def upload(ctx, dry_run, build_appimage, pypi_user, pypi_password,
 
     if not dry_run and (is_release or is_rc):
         upload_to_zenodo(verbose=ctx.obj['verbose'],
-                         parent=zenodo_sandbox_parent if is_rc else zenodo_parent,
-                         token=zenodo_token, sandbox_token=zenodo_sandbox_token)
+                         concept=zenodo_concept,
+                         token=zenodo_token)
 
 
 @cli.command()
@@ -626,16 +616,11 @@ def status(ctx):
 @cli.command()
 @click.pass_context
 def do_build_appimage(ctx):
-    appimage_files = build_appimage(verbose=ctx.obj['verbose'])
+    appimage_files = build_the_appimage(verbose=ctx.obj['verbose'])
     print("success, files=", appimage_files)
 
 
-@cli.command()
-def docker_tags():
-    """
-    Prints the tags that should be used for any docker images that are built,
-    separated by whitespace.
-    """
+def get_docker_tags() -> list[str]:
     version = get_release_tag()
     is_latest_stable = version and (version["full"] == get_latest_stable_tag())
 
@@ -648,7 +633,43 @@ def docker_tags():
         tags.append("latest")
 
     tags.append("continuous")
+    return tags
 
+
+@cli.command()
+@click.argument('source_image', type=str)
+@click.argument('base_image_name', type=str)
+@click.option('--dry-run/--no-dry-run', default=False,
+              help="don't actually push, only prints the command that "
+                   "would be executed")
+def docker_retag(source_image, base_image_name, dry_run):
+    """
+    Re-tag and push the `source_image`, with the following template:
+
+    {base_image_name}:{tag}
+
+    For all tags that are applicable to the current version.
+    """
+    tags = get_docker_tags()
+
+    cmd = ['docker', 'buildx', 'imagetools', 'create']
+    for tag in tags:
+        cmd.extend(['--tag', f'{base_image_name}:{tag}'])
+    cmd.append(source_image)
+
+    if dry_run:
+        print(" ".join(cmd))
+    else:
+        subprocess.check_call(cmd)
+
+
+@cli.command()
+def docker_tags():
+    """
+    Prints the tags that should be used for any docker images that are built,
+    separated by whitespace.
+    """
+    tags = get_docker_tags()
     print(" ".join(tags))
 
 

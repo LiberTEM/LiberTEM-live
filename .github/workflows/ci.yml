@@ -103,12 +103,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || startsWith(github.ref, 'refs/heads/v') || github.ref == 'refs/heads/master'
     env:
       LT_RELEASE_UPLOAD_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LT_RELEASE_UPLOAD_PYPI_TEST_PASSWORD: ${{ secrets.LT_RELEASE_UPLOAD_PYPI_TEST_PASSWORD }}
       LT_RELEASE_UPLOAD_PYPI_PASSWORD: ${{ secrets.LT_RELEASE_UPLOAD_PYPI_PASSWORD }}
-      LT_RELEASE_UPLOAD_ZENODO_SANDBOX_TOKEN: ${{ secrets.LT_RELEASE_UPLOAD_ZENODO_SANDBOX_TOKEN }}
       LT_RELEASE_UPLOAD_ZENODO_TOKEN: ${{ secrets.LT_RELEASE_UPLOAD_ZENODO_TOKEN }}
-      LT_RELEASE_UPLOAD_ZENODO_SANDBOX_PARENT: ${{ secrets.LT_RELEASE_UPLOAD_ZENODO_SANDBOX_PARENT }}
-      LT_RELEASE_UPLOAD_ZENODO_PARENT: ${{ secrets.LT_RELEASE_UPLOAD_ZENODO_PARENT }}
+      LT_RELEASE_UPLOAD_ZENODO_CONCEPT: ${{ secrets.LT_RELEASE_UPLOAD_ZENODO_CONCEPT }}
     steps:
       - uses: actions/checkout@v6
       - name: Choose Python version 3.10
@@ -121,4 +118,4 @@ jobs:
       - name: release status
         run: ./scripts/release status
       - name: run release script
-        run: ./scripts/release --verbose upload --no-dry-run --pypi-user __token__ --pypi-test-user __token__
+        run: ./scripts/release --verbose upload --no-dry-run --pypi-user __token__
