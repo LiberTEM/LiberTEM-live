@@ -77,11 +77,11 @@ stages:
       - checkout: LiberTEM
 
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.11'
+        displayName: 'Use Python 3.13'
         inputs:
-          versionSpec: '3.11'
+          versionSpec: '3.13'
 
-      - bash: python3.11 -m venv $(Agent.TempDirectory)/venv
+      - bash: python3.13 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
       - bash: $(Agent.TempDirectory)/venv/bin/pip install uv
@@ -138,7 +138,7 @@ stages:
         inputs:
           versionSpec: '$(python.version)'
 
-      - bash: python3.9 -m venv $(Agent.TempDirectory)/venv
+      - bash: python3 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
       - bash: $(Agent.TempDirectory)/venv/bin/pip install -U tox tox-uv uv
@@ -170,9 +170,9 @@ stages:
         TESTDATA_BASE_PATH: '/data/'
       steps:
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.11'
+        displayName: 'Use Python 3.13'
         inputs:
-          versionSpec: '3.11'
+          versionSpec: '3.13'
 
       - bash: apt install -y pandoc
         displayName: install required debian packages
@@ -180,7 +180,7 @@ stages:
       - bash: rm -rf venv
         displayName: 'clean up old venv, if any'
 
-      - bash: python3.9 -m venv $(Agent.TempDirectory)/venv
+      - bash: python3.13 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
       - bash: $(Agent.TempDirectory)/venv/bin/pip install -U tox
