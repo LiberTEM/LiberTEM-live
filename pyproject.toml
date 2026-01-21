@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "libertem-live"
 dynamic = ["version", "readme"]
 description = "Live processing with LiberTEM"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license-files = { paths = ["LICENSE", "src/libertem_live/detectors/LICENSE"] }
 dependencies = [
     "libertem>=0.12",

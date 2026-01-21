@@ -85,7 +85,7 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
         # in passive mode, we get this:
         pending_aq: PendingMemAq | None = None,
         # controller is unused as of now, you can only pass in `None`:
-        controller: None | None = None,
+        controller: None = None,
         hooks: Hooks | None = None,
     ):
         # XXX copy/pasta from AcquisitionMixin as we do need to
