@@ -1,4 +1,3 @@
-from typing import Optional
 import logging
 
 import numpy as np
@@ -14,13 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 class MemoryConnection(DetectorConnection):
-    def __init__(self, data: np.ndarray, extra_kwargs: Optional[dict] = None):
+    def __init__(self, data: np.ndarray, extra_kwargs: dict | None = None):
         self._data = data
         if extra_kwargs is None:
             extra_kwargs = {}
         self._extra_kwargs = extra_kwargs
 
-    def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
+    def wait_for_acquisition(self, timeout: float | None = None) -> PendingAcquisition | None:
         return PendingMemAq()
 
     def get_acquisition_cls(self) -> type[AcquisitionMixin]:
@@ -31,7 +30,7 @@ class MemoryConnection(DetectorConnection):
 
 
 class MemoryConnectionBuilder:
-    def open(self, data: np.ndarray, extra_kwargs: Optional[dict] = None):
+    def open(self, data: np.ndarray, extra_kwargs: dict | None = None):
         return MemoryConnection(
             data=data,
             extra_kwargs=extra_kwargs,
@@ -84,10 +83,10 @@ class MemoryAcquisition(AcquisitionMixin, MemoryDataSet):
         nav_shape: tuple[int, ...],
         frames_per_partition: int = 128,
         # in passive mode, we get this:
-        pending_aq: Optional[PendingMemAq] = None,
+        pending_aq: PendingMemAq | None = None,
         # controller is unused as of now, you can only pass in `None`:
-        controller: Optional[None] = None,
-        hooks: Optional[Hooks] = None,
+        controller: None | None = None,
+        hooks: Hooks | None = None,
     ):
         # XXX copy/pasta from AcquisitionMixin as we do need to
         # pass extra kwargs to the memory data set underneath:

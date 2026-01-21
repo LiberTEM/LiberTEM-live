@@ -7,7 +7,7 @@ import multiprocessing
 from multiprocessing.synchronize import Event as EventClass
 import json
 import mmap
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 from collections.abc import Generator
 import urllib
 
@@ -127,7 +127,7 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         set_thread_name('ZMQReplay')
         headers = read_headers(self._path)
 
-        def send_line(index, zmq_socket, mm, more: Optional[bool] = None):
+        def send_line(index, zmq_socket, mm, more: bool | None = None):
             len_field_bytes = mm[index:index+8]
             len_field = np.frombuffer(len_field_bytes, dtype=np.int64, count=1)
             index += 8
@@ -260,9 +260,9 @@ class RustedReplay(ZMQReplay):
     def __init__(
         self,
         *args,
-        dwelltime: Optional[int] = None,
+        dwelltime: int | None = None,
         tolerate_timeouts=True,
-        num_mock_frames: Optional[int] = None,
+        num_mock_frames: int | None = None,
         **kwargs
     ):
         super().__init__(*args, **kwargs)
@@ -625,9 +625,9 @@ class DectrisSim:
         *,
         port: int,
         zmqport: int,
-        path: Optional[str] = None,
-        num_mock_frames: Optional[int] = None,
-        dwelltime: Optional[int] = None,
+        path: str | None = None,
+        num_mock_frames: int | None = None,
+        dwelltime: int | None = None,
         data_filter=None,
         tolerate_timeouts: bool = True,
         verbose: bool = True,

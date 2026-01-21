@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 
 from libertem_live.api import LiveContext, Hooks
@@ -28,7 +26,7 @@ def test_hooks(ctx_pipelined: LiveContext, tpx_sim_mock):
             self.ready_called = False
             self.det_shape_called = False
 
-        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[tuple[int, ...]]:
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> tuple[int, ...] | None:
             self.det_shape_called = True
             return None
 

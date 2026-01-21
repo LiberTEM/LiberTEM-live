@@ -1,7 +1,6 @@
 import threading
 import pathlib
 import logging
-from typing import Optional
 import socket
 import time
 
@@ -24,7 +23,7 @@ class StopException(Exception):
 class StoppableThreadMixin:
     def __init__(
         self,
-        stop_event: Optional[threading.Event] = None,
+        stop_event: threading.Event | None = None,
         *args, **kwargs
     ):
         if stop_event is None:
@@ -42,7 +41,7 @@ class StoppableThreadMixin:
 class ErrThreadMixin(StoppableThreadMixin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._error: Optional[Exception] = None
+        self._error: Exception | None = None
 
     def get_error(self):
         return self._error
@@ -107,7 +106,7 @@ class ServerThreadMixin(ErrThreadMixin):
                         logger.info(f"{self._name}: accepted from %s" % (client_addr,))
                         self.handle_conn(connection)
                         logger.info(f"{self._name}: handling done for %s" % (client_addr,))
-                except socket.timeout:
+                except TimeoutError:
                     continue
                 except BrokenPipeError:
                     if "client_addr" in locals():
@@ -161,7 +160,7 @@ def set_thread_name(name: str):
     prctl.set_name(name)
 
 
-def cleanup_handle_dir(path: Optional[str]):
+def cleanup_handle_dir(path: str | None):
     if path is None:
         return
     path = pathlib.Path(path)

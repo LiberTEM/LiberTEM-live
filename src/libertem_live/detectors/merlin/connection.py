@@ -1,7 +1,7 @@
 import os
 import logging
 import tempfile
-from typing import Optional, Literal, Union
+from typing import Literal
 from collections.abc import Generator
 from contextlib import contextmanager
 
@@ -31,7 +31,7 @@ class MerlinPendingAcquisition(PendingAcquisition):
         return self.header.frames_in_acquisition()
 
     @property
-    def nav_shape(self) -> Optional[tuple[int, ...]]:
+    def nav_shape(self) -> tuple[int, ...] | None:
         """
         The concrete `nav_shape`, if it is known by the detector
         """
@@ -106,17 +106,17 @@ class MerlinDetectorConnection(DetectorConnection):
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
-        recovery_strategy: Union[
-            Literal['immediate_reconnect'],
-            Literal['drain_then_reconnect']
-        ] = "immediate_reconnect",
+        recovery_strategy: (
+            Literal['immediate_reconnect']
+            | Literal['drain_then_reconnect']
+        ) = "immediate_reconnect",
         huge_pages: bool = False,
     ):
         self._api_host = api_host
         self._api_port = api_port
         self._data_host = data_host
         self._data_port = data_port
-        self._data_socket: Optional[libertem_qd_mpx.QdConnection] = None
+        self._data_socket: libertem_qd_mpx.QdConnection | None = None
         self._drain = drain
         self._recovery_strategy = recovery_strategy
         self._huge_pages = huge_pages
@@ -144,7 +144,7 @@ class MerlinDetectorConnection(DetectorConnection):
         temp_path = tempfile.mkdtemp()
         return os.path.join(temp_path, 'qd-shm-socket')
 
-    def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
+    def wait_for_acquisition(self, timeout: float | None = None) -> PendingAcquisition | None:
         """
         Wait for at most `timeout` seconds for an acquisition to start. This
         does not perform any triggering itself and expects something external
@@ -248,10 +248,10 @@ class MerlinConnectionBuilder:
         data_host: str = '127.0.0.1',
         data_port: int = 6342,
         drain: bool = False,
-        recovery_strategy: Union[
-            Literal['immediate_reconnect'],
-            Literal['drain_then_reconnect']
-        ] = "immediate_reconnect",
+        recovery_strategy: (
+            Literal['immediate_reconnect']
+            | Literal['drain_then_reconnect']
+        ) = "immediate_reconnect",
         huge_pages: bool = False,
     ) -> MerlinDetectorConnection:
         """

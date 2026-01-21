@@ -1,5 +1,5 @@
 from typing import NamedTuple, Union, TYPE_CHECKING
-from typing_extensions import Literal
+from typing import Literal
 from libertem_live.detectors.base.connection import (
     PendingAcquisition,
 )

@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 import time
 
 import numpy as np
@@ -563,7 +562,7 @@ def test_shape_from_hook(ctx_pipelined: LiveContext, dectris_sim):
     )
 
     class _MyHooks(Hooks):
-        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[tuple[int, ...]]:
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> tuple[int, ...] | None:
             return (64, 256)
 
     try:
@@ -599,7 +598,7 @@ def test_shape_bad_hook(ctx_pipelined: LiveContext, dectris_sim):
     )
 
     class _MyHooks(Hooks):
-        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> Optional[tuple[int, ...]]:
+        def on_determine_nav_shape(self, env: DetermineNavShapeEnv) -> tuple[int, ...] | None:
             return (256, 256)  # that's too much for the number of images in the acquisition!
 
     try:
