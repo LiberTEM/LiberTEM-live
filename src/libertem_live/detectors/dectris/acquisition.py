@@ -67,7 +67,7 @@ class DectrisGetFrames(GetFrames):
 class DectrisCommHandler(GenericCommHandler):
     def __init__(
         self,
-        params: Optional[AcquisitionParams],
+        params: AcquisitionParams | None,
         conn: "DectrisDetectorConnection",
         controller: "Optional[DectrisActiveController]",
     ):
@@ -147,7 +147,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         # this replaces the {api,data}_{host,port} parameters:
         conn: "DectrisDetectorConnection",
 
-        nav_shape: Optional[tuple[int, ...]] = None,
+        nav_shape: tuple[int, ...] | None = None,
         frames_per_partition: int = 128,
 
         # in passive mode, we get this:
@@ -156,9 +156,9 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         # in passive mode, we don't pass the controller.
         # (in active mode, you _can_ pass it, but if you don't, a default
         # controller will be created):
-        controller: Optional[DectrisActiveController] = None,
+        controller: DectrisActiveController | None = None,
 
-        hooks: Optional[Hooks] = None,
+        hooks: Hooks | None = None,
     ):
         if frames_per_partition is None:
             frames_per_partition = 512
@@ -186,7 +186,7 @@ class DectrisAcquisition(AcquisitionMixin, DataSet):
         )
 
         self._sig_shape: tuple[int, ...] = ()
-        self._acq_state: Optional[AcquisitionParams] = None
+        self._acq_state: AcquisitionParams | None = None
 
     def get_api_client(self) -> DEigerClient:
         '''

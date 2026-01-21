@@ -70,16 +70,16 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         Acquisition hooks to react to certain events
     '''
     _conn: MerlinDetectorConnection
-    _pending_aq: Optional[MerlinPendingAcquisition]
+    _pending_aq: MerlinPendingAcquisition | None
 
     def __init__(
         self,
         conn: MerlinDetectorConnection,
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
-        pending_aq: Optional[MerlinPendingAcquisition] = None,
-        controller: Optional[MerlinActiveController] = None,
-        hooks: Optional[Hooks] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
+        pending_aq: MerlinPendingAcquisition | None = None,
+        controller: MerlinActiveController | None = None,
+        hooks: Hooks | None = None,
     ):
         if frames_per_partition is None:
             frames_per_partition = 256
@@ -89,7 +89,7 @@ class MerlinAcquisition(AcquisitionMixin, DataSet):
         if hooks is None:
             hooks = Hooks()
 
-        self._acq_state: Optional[AcqState] = None
+        self._acq_state: AcqState | None = None
 
         super().__init__(
             conn=conn,

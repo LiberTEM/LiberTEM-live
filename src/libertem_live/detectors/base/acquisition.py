@@ -75,7 +75,7 @@ def determine_nav_shape(
     hooks: "Hooks",
     pending_aq: "PendingAcquisition",
     controller: Optional["AcquisitionController"],
-    shape_hint: Optional[tuple[int, ...]],
+    shape_hint: tuple[int, ...] | None,
 ) -> tuple[int, ...]:
     nimages = pending_aq.nimages
     # Order of operations to determine `nav_shape`:
@@ -146,7 +146,7 @@ class AcquisitionMixin:
         *,
         conn: "DetectorConnection",
         frames_per_partition: int,
-        nav_shape: Optional[tuple[int, ...]] = None,
+        nav_shape: tuple[int, ...] | None = None,
         controller: Optional["AcquisitionController"] = None,
         pending_aq: Optional["PendingAcquisition"] = None,
         hooks: Optional["Hooks"] = None,
@@ -198,8 +198,8 @@ class AcquisitionProtocol(Protocol):
         self,
         *,
         conn: "DetectorConnection",
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
         controller: Optional["AcquisitionController"] = None,
         pending_aq: Optional["PendingAcquisition"] = None,
         hooks: Optional["Hooks"] = None,
@@ -338,7 +338,7 @@ class GetFrames:
         frame_stack,
         depth: int,
         start_idx: int,
-        array_backend: Optional[ArrayBackend],
+        array_backend: ArrayBackend | None,
     ):
         """
         Return at most `depth` frames from `frame_stack` as decoded data, as a view
@@ -411,7 +411,7 @@ class GetFrames:
         self,
         depth: int,
         array_backend: 'Optional["ArrayBackend"]',
-    ) -> Optional[np.ndarray]:
+    ) -> np.ndarray | None:
         """
         Consume a FRAMES messages from the request queue, and return the next
         tile, or return None if we get an END_PARTITION message (which we also

@@ -1,7 +1,7 @@
 import os
 import math
 import tempfile
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from libertem_live.detectors.common import cleanup_handle_dir
 from libertem_live.detectors.base.connection import (
@@ -46,7 +46,7 @@ class DectrisDetectorConnection(DetectorConnection):
         data_host: str,
         data_port: int,
         buffer_size: int = 2048,
-        bytes_per_frame: Optional[int] = None,
+        bytes_per_frame: int | None = None,
         frame_stack_size: int = 24,
         huge_pages: bool = False,
     ):
@@ -103,8 +103,8 @@ class DectrisDetectorConnection(DetectorConnection):
         self.close()
 
     def wait_for_acquisition(
-        self, timeout: Optional[float] = None
-    ) -> Optional[DectrisPendingAcquisition]:
+        self, timeout: float | None = None
+    ) -> DectrisPendingAcquisition | None:
         """
         Wait for at most `timeout` seconds for an acquisition to start. This
         does not perform any triggering itself and expects something external
@@ -163,18 +163,18 @@ class DectrisDetectorConnection(DetectorConnection):
 
     def get_active_controller(
         self,
-        trigger_mode: Optional[TriggerMode] = None,
-        count_time: Optional[float] = None,
-        frame_time: Optional[float] = None,
-        roi_mode: Optional[str] = None,  # disabled, merge2x2 etc.
-        roi_y_size: Optional[int] = None,
-        roi_bit_depth: Optional[int] = None,
-        enable_file_writing: Optional[bool] = None,
-        compression: Optional[str] = None,  # bslz4, lz4
-        name_pattern: Optional[str] = None,
-        nimages_per_file: Optional[int] = 0,
+        trigger_mode: TriggerMode | None = None,
+        count_time: float | None = None,
+        frame_time: float | None = None,
+        roi_mode: str | None = None,  # disabled, merge2x2 etc.
+        roi_y_size: int | None = None,
+        roi_bit_depth: int | None = None,
+        enable_file_writing: bool | None = None,
+        compression: str | None = None,  # bslz4, lz4
+        name_pattern: str | None = None,
+        nimages_per_file: int | None = 0,
         enable_corrections: bool = False,
-        mask_to_zero: Optional[bool] = None,
+        mask_to_zero: bool | None = None,
     ):
         '''
         Create a controller object that knows about the detector settings
@@ -330,7 +330,7 @@ class DectrisConnectionBuilder:
         data_host: str,
         data_port: int,
         buffer_size: int = 2048,
-        bytes_per_frame: Optional[int] = None,
+        bytes_per_frame: int | None = None,
         frame_stack_size: int = 24,
         huge_pages: bool = False,
     ) -> DectrisDetectorConnection:

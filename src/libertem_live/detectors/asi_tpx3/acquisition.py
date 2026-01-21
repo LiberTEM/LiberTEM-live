@@ -1,7 +1,6 @@
 from contextlib import contextmanager
 import logging
 import time
-from typing import Optional
 
 import scipy
 import scipy.sparse
@@ -179,17 +178,17 @@ class AsiTpx3Acquisition(AcquisitionMixin, DataSet):
 
         conn: AsiTpx3DetectorConnection,
 
-        hooks: Optional[Hooks] = None,
+        hooks: Hooks | None = None,
 
         # in passive mode, we get this:
-        pending_aq: Optional[AsiTpx3PendingAcquisition] = None,
+        pending_aq: AsiTpx3PendingAcquisition | None = None,
 
         # this is for future compatibility with an active mode:
-        controller: Optional[AcquisitionController] = None,
+        controller: AcquisitionController | None = None,
 
-        nav_shape: Optional[tuple[int, ...]] = None,
+        nav_shape: tuple[int, ...] | None = None,
 
-        frames_per_partition: Optional[int] = None,
+        frames_per_partition: int | None = None,
     ):
         assert pending_aq is not None, "only supporting passive mode for now"
         assert controller is None, "only supporting passive mode for now"

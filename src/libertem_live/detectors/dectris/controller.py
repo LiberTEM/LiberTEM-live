@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import logging
 
 from libertem.common.math import prod
@@ -26,18 +26,18 @@ class DectrisActiveController(AcquisitionController):
         self,
         api_host: str,
         api_port: int,
-        trigger_mode: Optional[TriggerMode] = None,
-        count_time: Optional[float] = None,
-        frame_time: Optional[float] = None,
-        roi_mode: Optional[str] = None,  # disabled, merge2x2 etc.
-        roi_y_size: Optional[int] = None,
-        roi_bit_depth: Optional[int] = None,
-        enable_file_writing: Optional[bool] = None,
-        compression: Optional[str] = None,  # bslz4, lz4
-        name_pattern: Optional[str] = None,
-        nimages_per_file: Optional[int] = 0,
+        trigger_mode: TriggerMode | None = None,
+        count_time: float | None = None,
+        frame_time: float | None = None,
+        roi_mode: str | None = None,  # disabled, merge2x2 etc.
+        roi_y_size: int | None = None,
+        roi_bit_depth: int | None = None,
+        enable_file_writing: bool | None = None,
+        compression: str | None = None,  # bslz4, lz4
+        name_pattern: str | None = None,
+        nimages_per_file: int | None = 0,
         enable_corrections: bool = False,
-        mask_to_zero: Optional[bool] = None,
+        mask_to_zero: bool | None = None,
     ):
         self._api_host = api_host
         self._api_port = api_port

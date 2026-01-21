@@ -1,5 +1,4 @@
 import os
-from typing import Optional
 import tempfile
 import logging
 
@@ -49,7 +48,7 @@ class AsiTpx3DetectorConnection(DetectorConnection):
         data_host: str,
         data_port: int,
         buffer_size: int = 2048,
-        bytes_per_chunk: Optional[int] = None,
+        bytes_per_chunk: int | None = None,
         chunks_per_stack: int = 24,
         huge_pages: bool = False,
     ):
@@ -86,8 +85,8 @@ class AsiTpx3DetectorConnection(DetectorConnection):
 
     def wait_for_acquisition(
         self,
-        timeout: Optional[float] = None,
-    ) -> Optional[PendingAcquisition]:
+        timeout: float | None = None,
+    ) -> PendingAcquisition | None:
         if not self._passive_started:
             self._conn.start_passive()
             self._passive_started = True
@@ -146,7 +145,7 @@ class AsiTpx3ConnectionBuilder:
         data_host: str = "127.0.0.1",
         data_port: int = 8283,
         buffer_size: int = 2048,
-        bytes_per_chunk: Optional[int] = None,
+        bytes_per_chunk: int | None = None,
         chunks_per_stack: int = 24,
         huge_pages: bool = False,
     ) -> AsiTpx3DetectorConnection:

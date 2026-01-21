@@ -640,7 +640,7 @@ class ControlSocketServer(ServerThreadMixin, threading.Thread):
                 chunk = connection.recv(length)
                 assert len(chunk) == length
                 logger.debug(f"{chunk}")
-            except socket.timeout:
+            except TimeoutError:
                 continue
             if len(chunk) == 0:
                 logger.info("closed control")
@@ -708,7 +708,7 @@ class TriggerSocketServer(ServerThreadMixin, threading.Thread):
         while not self.is_stopped():
             try:
                 chunk = connection.recv(1024)
-            except socket.timeout:
+            except TimeoutError:
                 continue
             if len(chunk) == 0:
                 logger.info("closed trigger control")
@@ -761,7 +761,7 @@ class TriggerClient():
                 res = self._socket.recv(1024)
                 if res == b'FINISH\n':
                     break
-            except socket.timeout:
+            except TimeoutError:
                 pass
 
     def close(self):

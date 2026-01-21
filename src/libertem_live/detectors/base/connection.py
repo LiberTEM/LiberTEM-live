@@ -1,5 +1,3 @@
-from typing import Optional
-
 from .acquisition import AcquisitionProtocol
 
 
@@ -19,7 +17,7 @@ class PendingAcquisition:
         raise NotImplementedError()
 
     @property
-    def nav_shape(self) -> Optional[tuple[int, ...]]:
+    def nav_shape(self) -> tuple[int, ...] | None:
         """
         The concrete `nav_shape`, if it is known by the detector
         """
@@ -30,7 +28,7 @@ class DetectorConnection:
     """
     Base class for detector connections.
     """
-    def wait_for_acquisition(self, timeout: Optional[float] = None) -> Optional[PendingAcquisition]:
+    def wait_for_acquisition(self, timeout: float | None = None) -> PendingAcquisition | None:
         """
         Wait for at most `timeout` seconds for an acquisition to start. This
         does not perform any triggering itself and expects something external

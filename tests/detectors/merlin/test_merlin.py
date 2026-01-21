@@ -1,6 +1,5 @@
 import os
 import concurrent.futures
-from typing import Optional
 
 import pytest
 import numpy as np
@@ -456,7 +455,7 @@ def test_passive_auto_nav_shape(
     ctx_pipelined: LiveContext,
     default_conn,
 
-    shape_hint: Optional[tuple[int, ...]],
+    shape_hint: tuple[int, ...] | None,
     expected: tuple[int, ...],
 ):
     pending_aq = default_conn.wait_for_acquisition(10.0)

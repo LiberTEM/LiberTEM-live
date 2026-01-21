@@ -1,5 +1,5 @@
-from typing import TYPE_CHECKING, overload, Union, Optional
-from typing_extensions import Literal
+from typing import TYPE_CHECKING, overload, Union
+from typing import Literal
 
 from opentelemetry import trace
 
@@ -114,12 +114,12 @@ class LiveContext(LiberTEM_Context):
 
     def make_connection(
         self,
-        detector_type: Union[
-            Literal['asi_tpx3'],
-            Literal['dectris'],
-            Literal['merlin'],
-            Literal['memory']
-        ],
+        detector_type: (
+            Literal['asi_tpx3']
+            | Literal['dectris']
+            | Literal['merlin']
+            | Literal['memory']
+        ),
     ) -> Union[
         "AsiTpx3ConnectionBuilder",
         "DectrisConnectionBuilder",
@@ -168,11 +168,11 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "AsiTpx3DetectorConnection",
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
-        controller: Optional[AcquisitionController] = None,
-        pending_aq: Optional[PendingAcquisition] = None,
-        hooks: Optional[Hooks] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
+        controller: AcquisitionController | None = None,
+        pending_aq: PendingAcquisition | None = None,
+        hooks: Hooks | None = None,
     ) -> "AsiTpx3Acquisition":
         ...
 
@@ -181,11 +181,11 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "DectrisDetectorConnection",
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
-        controller: Optional[AcquisitionController] = None,
-        pending_aq: Optional[PendingAcquisition] = None,
-        hooks: Optional[Hooks] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
+        controller: AcquisitionController | None = None,
+        pending_aq: PendingAcquisition | None = None,
+        hooks: Hooks | None = None,
     ) -> "DectrisAcquisition":
         ...
 
@@ -194,11 +194,11 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "MerlinDetectorConnection",
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
-        controller: Optional[AcquisitionController] = None,
-        pending_aq: Optional[PendingAcquisition] = None,
-        hooks: Optional[Hooks] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
+        controller: AcquisitionController | None = None,
+        pending_aq: PendingAcquisition | None = None,
+        hooks: Hooks | None = None,
     ) -> "MerlinAcquisition":
         ...
 
@@ -207,11 +207,11 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: "MemoryConnection",
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
-        controller: Optional[AcquisitionController] = None,
-        pending_aq: Optional[PendingAcquisition] = None,
-        hooks: Optional[Hooks] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
+        controller: AcquisitionController | None = None,
+        pending_aq: PendingAcquisition | None = None,
+        hooks: Hooks | None = None,
     ) -> "MemoryAcquisition":
         ...
 
@@ -219,11 +219,11 @@ class LiveContext(LiberTEM_Context):
         self,
         *,
         conn: DetectorConnection,
-        nav_shape: Optional[tuple[int, ...]] = None,
-        frames_per_partition: Optional[int] = None,
-        controller: Optional[AcquisitionController] = None,
-        pending_aq: Optional[PendingAcquisition] = None,
-        hooks: Optional[Hooks] = None,
+        nav_shape: tuple[int, ...] | None = None,
+        frames_per_partition: int | None = None,
+        controller: AcquisitionController | None = None,
+        pending_aq: PendingAcquisition | None = None,
+        hooks: Hooks | None = None,
     ) -> Union[
         "AsiTpx3Acquisition",
         "DectrisAcquisition",

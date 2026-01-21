@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import threading
-from typing import Optional
 import logging
 import socket
 import mmap
@@ -44,8 +43,8 @@ class CachedDataSource:
 class BufferedCachedSource(CachedDataSource):
     def __init__(
         self,
-        paths: Optional[list[str]] = None,
-        mock_nav_shape: Optional[tuple[int, int]] = None
+        paths: list[str] | None = None,
+        mock_nav_shape: tuple[int, int] | None = None
     ):
         self._paths = paths
         if paths is not None:
@@ -116,8 +115,8 @@ class BufferedCachedSource(CachedDataSource):
 class MemfdCachedSource(BufferedCachedSource):
     def __init__(
         self,
-        paths: Optional[list[str]] = None,
-        mock_nav_shape: Optional[tuple[int, int]] = None
+        paths: list[str] | None = None,
+        mock_nav_shape: tuple[int, int] | None = None
     ):
         self._mmap = None
         super().__init__(paths=paths, mock_nav_shape=mock_nav_shape)
@@ -153,7 +152,7 @@ class TpxSim:
         self,
         sleep: float,
         data_source: CachedDataSource,
-        stop_event: Optional[threading.Event] = None,
+        stop_event: threading.Event | None = None,
     ):
         self._sleep = sleep
         if stop_event is None:
@@ -205,8 +204,8 @@ class TpxCameraSim:
         cached: str,
         port: int,
         sleep: float,
-        paths: Optional[list[str]] = None,
-        mock_nav_shape: Optional[tuple[int, int]] = None,
+        paths: list[str] | None = None,
+        mock_nav_shape: tuple[int, int] | None = None,
     ):
         src: CachedDataSource
         if cached.lower() == 'mem':

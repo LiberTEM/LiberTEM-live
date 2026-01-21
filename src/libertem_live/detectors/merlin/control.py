@@ -1,6 +1,5 @@
 import socket
 import logging
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +59,12 @@ class MerlinControl:
             try:
                 resp = self._socket.recv(self._buffer_size)
                 done = True
-            except socket.timeout:
+            except TimeoutError:
                 pass
         logger.debug(f'Response: {resp}')
         return resp
 
-    def _parse_response(self, resp) -> Optional[bytes]:
+    def _parse_response(self, resp) -> bytes | None:
         parts = resp.split(b',')
         msgs = ['Command OK', 'System Busy', 'Unrecognised Command',
                 'Param out of range']
