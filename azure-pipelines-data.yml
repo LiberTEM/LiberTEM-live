@@ -35,11 +35,11 @@ stages:
         displayName: 'list available data'
 
       - task: UsePythonVersion@0
-        displayName: 'Use Python 3.9'
+        displayName: 'Use Python 3.11'
         inputs:
-          versionSpec: '3.9'
+          versionSpec: '3.11'
 
-      - bash: python3.9 -m venv $(Agent.TempDirectory)/venv
+      - bash: python3.11 -m venv $(Agent.TempDirectory)/venv
         displayName: 'create venv'
 
       - bash: $(Agent.TempDirectory)/venv/bin/pip install -U tox tox-uv uv
@@ -109,9 +109,6 @@ stages:
       pool: DataAccess
       strategy:
         matrix:
-          Python39:
-            python.version: '3.9'
-            TOXENV: 'py39-data'
           Python310:
             python.version: '3.10'
             TOXENV: 'py310-data'
