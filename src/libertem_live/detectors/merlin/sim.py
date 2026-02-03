@@ -580,11 +580,6 @@ class DataSocketServer(ServerThreadMixin, threading.Thread):
                     self.trigger_event.clear()
                 self._sim.handle_acquisition(connection)
                 self.finish_event.set()
-                if not (self._wait_trigger or self._manual_trigger) and not self._continuous:
-                    logger.info(
-                        "not continuous and not triggering, stopping sim for this connection"
-                    )
-                    return
         finally:
             connection.close()
 
