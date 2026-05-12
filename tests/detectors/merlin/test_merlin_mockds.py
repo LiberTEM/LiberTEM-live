@@ -9,7 +9,9 @@ from libertem.common.math import prod
 from libertem_live.api import Hooks, LiveContext
 from libertem_live.hooks import ReadyForDataEnv
 from libertem_live.detectors.merlin.control import MerlinControl
-from libertem_live.detectors.merlin.sim import TriggerClient
+from libertem_live.detectors.merlin.sim import (
+    TriggerClient, DataSocketSimulator, CachedDataSocketSim
+)
 
 
 class MyHooks(Hooks):
@@ -151,3 +153,44 @@ def test_timeout_cancelled(
         res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
         ref = ctx_pipelined.run_udf(dataset=mock_merlin_ds, udf=udf)
         assert_allclose(res['intensity'], ref['intensity'])
+
+
+@pytest.mark.parametrize(
+    'sim', ('mock_merlin_sim_dwelltime', 'mock_merlin_sim_dwelltime_cached')
+)
+def test_dwelltime(sim, ctx_pipelined: LiveContext, mock_merlin_ds, request):
+    sim = request.getfixturevalue(sim)
+    # Self-test: Fixture conforms to test expectations
+    assert sim.sim._dwelltime is not None
+    if sim == 'mock_merlin_sim_dwelltime_cached':
+        assert isinstance(sim.sim, CachedDataSocketSim)
+    else:
+        assert isinstance(sim.sim, DataSocketSimulator)
+
+    host, port = sim.server_t.sockname
+    api_host, api_port = sim.control_t.sockname
+
+    mock_ds_conn = ctx_pipelined.make_connection('merlin').open(
+        data_host=host,
+        data_port=port,
+        api_host=api_host,
+        api_port=api_port,
+        drain=False,
+    )
+
+    triggered = np.array((False,))
+
+    aq = ctx_pipelined.make_acquisition(
+        conn=mock_ds_conn,
+        hooks=MyHooks(triggered=triggered, merlin_ds=mock_merlin_ds),
+        nav_shape=mock_merlin_ds.shape.nav,
+    )
+    udf = SumUDF()
+
+    assert not triggered[0]
+    res = ctx_pipelined.run_udf(dataset=aq, udf=udf)
+    assert triggered[0]
+
+    ref = ctx_pipelined.run_udf(dataset=mock_merlin_ds, udf=udf)
+
+    assert_allclose(res['intensity'], ref['intensity'])
