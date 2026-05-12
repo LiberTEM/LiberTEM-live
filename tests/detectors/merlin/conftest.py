@@ -391,3 +391,42 @@ def mock_merlin_trigger_sim_garbage(mock_merlin_triggered_garbage):
     Host, port tuple of the control port for the triggered simulator
     '''
     return mock_merlin_triggered_garbage.trigger_t.sockname
+
+
+@pytest.fixture(scope='module')
+def mock_merlin_sim_dwelltime(mock_mib_ds):
+    '''
+    Untriggered non-garbage simulator with dwell time.
+    '''
+    hdr_path, shape, counter_depth = mock_mib_ds
+    sigy, sigx = shape.sig
+    yield from run_merlin_sim(
+        path=hdr_path,
+        nav_shape=tuple(shape.nav),
+        initial_params={
+            'IMAGEX': f"{sigx}",
+            'IMAGEY': f"{sigy}",
+            'COUNTERDEPTH': f'{counter_depth}',
+        },
+        dwelltime=1000,
+    )
+
+
+@pytest.fixture(scope='module')
+def mock_merlin_sim_dwelltime_cached(mock_mib_ds):
+    '''
+    Untriggered non-garbage simulator with dwell time and cache.
+    '''
+    hdr_path, shape, counter_depth = mock_mib_ds
+    sigy, sigx = shape.sig
+    yield from run_merlin_sim(
+        path=hdr_path,
+        cached='MEM',
+        nav_shape=tuple(shape.nav),
+        initial_params={
+            'IMAGEX': f"{sigx}",
+            'IMAGEY': f"{sigy}",
+            'COUNTERDEPTH': f'{counter_depth}',
+        },
+        dwelltime=1000,
+    )

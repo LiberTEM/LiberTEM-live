@@ -162,7 +162,7 @@ class HeaderSocketSimulator:
 
 class DataSocketSimulator:
     def __init__(self, path: str, stop_event=None, nav_shape=None, continuous=False, rois=None,
-                 max_runs=-1):
+                 max_runs=-1, dwelltime: int | None = None):
         """
         Parameters
         ----------
@@ -182,6 +182,9 @@ class DataSocketSimulator:
 
         max_runs: int
             Maximum number of continuous runs
+
+        dwelltime
+            Take at least this much time for sending each frame, in microseconds
         """
         if stop_event is None:
             stop_event = threading.Event()
@@ -197,11 +200,26 @@ class DataSocketSimulator:
         self._ds = None
         self._max_runs = max_runs
         self._mmaps = {}
+        self._dwelltime = dwelltime
 
     def get_ds_shape(self) -> Shape:
         self._load()
         assert self._ds is not None
         return self._ds.shape
+
+    def get_size(self, roi=None):
+        first_file = self._ds._files_sorted[0]
+        header_size = first_file.fields['header_size_bytes']
+        full_frame_size = header_size + first_file.fields['image_size_bytes']
+        mpx_size = 15
+        num_images = self.get_num_images(roi)
+        return num_images * (full_frame_size + mpx_size)
+
+    def get_num_images(self, roi=None):
+        num_images = self._ds.shape.nav.size
+        if roi is not None:
+            num_images = np.count_nonzero(roi)
+        return num_images
 
     def _load(self):
         if self._ds is None:
@@ -225,13 +243,25 @@ class DataSocketSimulator:
         else:
             logger.info("yielding from single scan")
             roi = np.ones(self._ds.shape.nav, dtype=bool)
-            # Times two since _get_single_scan() returns header
-            # and frame separately
-            t = tqdm(total=np.count_nonzero(roi)*2)
+            size = self.get_size(roi)
+            num_images = self.get_num_images(roi)
+            t = tqdm(total=self.get_size(roi), unit='Byte', unit_scale=True)
+            total = 0
+            start = time.time()
             try:
                 for item in self._get_single_scan(roi):
                     yield item
-                    t.update(1)
+                    chunk_size = len(item)
+                    total += chunk_size
+                    total_images = total / size * num_images
+                    elapsed = time.time() - start
+
+                    t.set_postfix_str(
+                        f"{int(total_images)}/{num_images}, {total_images/elapsed:.2f} fps",
+                        refresh=False
+                    )
+                    # Update with size in bytes
+                    t.update(chunk_size)
             finally:
                 t.close()
 
@@ -313,7 +343,7 @@ class DataSocketSimulator:
         full_frame_size = header_size + first_file.fields['image_size_bytes']
 
         mpx_header = get_mpx_header(full_frame_size)
-
+        t0 = time.time()
         for idx in range(slices.shape[0]):
             if self.is_stopped():
                 raise StopException("Server stopped")
@@ -339,6 +369,12 @@ class DataSocketSimulator:
                 yield frame_w_header[10:]
             else:
                 yield frame_w_header
+            if self._dwelltime is not None:
+                target_duration = idx * self._dwelltime * 1e-6  # dwell time in microseconds
+                actual_duration = time.time() - t0
+                to_sleep = target_duration - actual_duration
+                if to_sleep > 0:
+                    time.sleep(to_sleep)
 
     def _get_continuous(self):
         if self._rois:
@@ -377,15 +413,11 @@ class CachedDataSocketSim(DataSocketSimulator):
         self._cache = None
 
     def _get_single_scan(self, roi):
-        first_file = self._ds._files_sorted[0]
-        header_size = first_file.fields['header_size_bytes']
-        full_frame_size = header_size + first_file.fields['image_size_bytes']
-        mpx_size = 15
-        num_images = self._ds.shape.nav.size
-        if roi is not None:
-            num_images = np.count_nonzero(roi)
+        cache_size = self.get_size(roi)
+        num_images = self.get_num_images(roi)
 
-        cache_size = num_images * (full_frame_size + mpx_size)
+        if self._dwelltime:
+            total_duration = self._dwelltime * num_images * 1e-6  # dwell time in microseconds
 
         if self._cache is None:
             try:
@@ -402,13 +434,22 @@ class CachedDataSocketSim(DataSocketSimulator):
         else:
             chunk_size = 16*1024*1024
             cache_view = memoryview(self._cache)
+            t0 = time.time()
             for offset in range(0, cache_size, chunk_size):
                 yield cache_view[offset:offset+chunk_size]
+                if self._dwelltime is not None:
+                    actual_duration = time.time() - t0
+                    target_duration = total_duration * offset / cache_size
+                    to_sleep = target_duration - actual_duration
+                    if to_sleep > 0:
+                        time.sleep(to_sleep)
 
 
 class MemfdSocketSim(DataSocketSimulator):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self._dwelltime is not None:
+            raise ValueError("Dwell time not supported with MemFD caching.")
         self._populated = False
 
     def open(self):
@@ -771,7 +812,7 @@ class CameraSim:
         host='0.0.0.0', data_port=6342, control_port=6341,
         trigger_port=6343, wait_trigger=False, garbage=False,
         cached=None, max_runs=-1, initial_params=None,
-        manual_trigger=False,
+        manual_trigger=False, dwelltime=None,
     ):
         if garbage:
             wait_trigger = True
@@ -793,7 +834,7 @@ class CameraSim:
 
         self.sim = cls(
             path=path, nav_shape=nav_shape, continuous=continuous, max_runs=max_runs,
-            stop_event=self.stop_event,
+            stop_event=self.stop_event, dwelltime=dwelltime
         )
 
         self.headers = HeaderSocketSimulator(
@@ -925,9 +966,10 @@ class CameraSim:
     '--max-runs', type=int, default=-1,
     help="Maximum number of runs through the input file in continuous mode",
 )
+@click.option('--dwelltime', type=int, default=None, help="Dwell time in microseconds")
 def main(path, nav_shape, continuous,
         host, data_port, control_port, trigger_port, wait_trigger,
-        manual_trigger, garbage, cached, max_runs):
+        manual_trigger, garbage, cached, max_runs, dwelltime):
     """
     Minimal Merlin simulator. Point PATH at a .hdr file, and that mib dataset
     will be replayed over the data socket.
@@ -936,7 +978,13 @@ def main(path, nav_shape, continuous,
 
     if continuous and cached.upper() in ['MEM', 'MEMFD']:
         logger.warn(
-            f"continuous mode doesn't work with caching (--cached='{cached}'); disabling cache",
+            f"Continuous mode doesn't work with caching (--cached='{cached}'); disabling cache",
+        )
+        cached = 'NONE'
+
+    if dwelltime is not None and cached.upper() in ['MEMFD']:
+        logger.warn(
+            f"Dwelltime doesn't work with MEMFD caching (--cached='{cached}'); disabling cache",
         )
         cached = 'NONE'
 
@@ -947,7 +995,7 @@ def main(path, nav_shape, continuous,
         path=path, nav_shape=nav_shape, continuous=continuous,
         host=host, data_port=data_port, control_port=control_port, trigger_port=trigger_port,
         wait_trigger=wait_trigger, garbage=garbage, cached=cached, max_runs=max_runs,
-        manual_trigger=manual_trigger,
+        manual_trigger=manual_trigger, dwelltime=dwelltime,
     )
 
     camera_sim.start()
