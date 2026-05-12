@@ -38,7 +38,7 @@ jobs:
           python-version: '${{ matrix.python.version }}'
           cache: 'pip'
       - run: |
-           ( [[ "${{ matrix.os }}" = "ubuntu-latest" ]] && sudo apt-get install -y libcap-dev ) || [[ "${{ matrix.os }}" != "ubuntu-latest" ]]
+           ( [[ "${{ matrix.os }}" = "ubuntu-latest" ]] && sudo apt-get -y update && sudo apt-get install -y libcap-dev ) || [[ "${{ matrix.os }}" != "ubuntu-latest" ]]
         shell: bash
       - name: install tox
         run: python3 -m pip install tox tox-uv
@@ -61,7 +61,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - run: sudo apt-get install -y pandoc libcap-dev
+      - run: sudo apt-get -y update && sudo apt-get install -y pandoc libcap-dev
       - name: install tox
         run: python3 -m pip install tox tox-uv
       - name: 'run tox for environment ${{ matrix.envs }}'
