@@ -760,7 +760,7 @@ class DectrisSim:
 @click.argument('path', type=click.Path(exists=True))
 @click.option('--port', type=int, default=8910)
 @click.option('--zmqport', type=int, default=9999)
-@click.option('--dwelltime', type=int, default=None)
+@click.option('--dwelltime', type=int, default=None, help="Dwell time in microseconds")
 @click.option('--verbose', type=bool, default=True)
 def main(path, port, zmqport, dwelltime, verbose):
     logging.basicConfig(level=logging.INFO)
