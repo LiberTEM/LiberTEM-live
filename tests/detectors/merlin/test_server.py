@@ -34,14 +34,14 @@ def serve(cls, host='127.0.0.1', port=0):
     print("stopping server thread")
     server.stop()
     timeout = 2
-    start = time.time()
+    start = time.monotonic()
     while True:
         print("are we there yet?")
         server.maybe_raise()
         if not server.is_alive():
             print("server is dead, we are there")
             break
-        if (time.time() - start) >= timeout:
+        if (time.monotonic() - start) >= timeout:
             raise RuntimeError("Server didn't stop gracefully")
         time.sleep(0.1)
 

@@ -247,17 +247,17 @@ class DataSocketSimulator:
             num_images = self.get_num_images(roi)
             t = tqdm(total=self.get_size(roi), unit='Byte', unit_scale=True)
             total = 0
-            start = time.time()
+            start = time.monotonic()
             try:
                 for item in self._get_single_scan(roi):
                     yield item
                     chunk_size = len(item)
                     total += chunk_size
                     total_images = total / size * num_images
-                    elapsed = time.time() - start
-
+                    elapsed = time.monotonic() - start
+                    fps = f"{total_images/elapsed:10.2f}" if elapsed > 0 else "NaN"
                     t.set_postfix_str(
-                        f"{int(total_images)}/{num_images}, {total_images/elapsed:.2f} fps",
+                        f"{int(total_images)}/{num_images}, {fps} fps",
                         refresh=False
                     )
                     # Update with size in bytes
@@ -343,7 +343,7 @@ class DataSocketSimulator:
         full_frame_size = header_size + first_file.fields['image_size_bytes']
 
         mpx_header = get_mpx_header(full_frame_size)
-        t0 = time.time()
+        t0 = time.monotonic()
         for idx in range(slices.shape[0]):
             if self.is_stopped():
                 raise StopException("Server stopped")
@@ -371,7 +371,7 @@ class DataSocketSimulator:
                 yield frame_w_header
             if self._dwelltime is not None:
                 target_duration = idx * self._dwelltime * 1e-6  # dwell time in microseconds
-                actual_duration = time.time() - t0
+                actual_duration = time.monotonic() - t0
                 to_sleep = target_duration - actual_duration
                 if to_sleep > 0:
                     time.sleep(to_sleep)
@@ -386,9 +386,9 @@ class DataSocketSimulator:
         offset = 0
         for roi in itertools.cycle(rois):
             logger.info(f"starting cycle with frame sequence offset of {offset}")
-            t0 = time.time()
+            t0 = time.monotonic()
             yield from self._get_single_scan(roi, sequence_offset=offset)
-            t1 = time.time()
+            t1 = time.monotonic()
             logger.info("cycle %d took %.05fs" % (i, t1 - t0))
             i += 1
             if self._max_runs != -1 and i >= self._max_runs:
@@ -434,11 +434,11 @@ class CachedDataSocketSim(DataSocketSimulator):
         else:
             chunk_size = 16*1024*1024
             cache_view = memoryview(self._cache)
-            t0 = time.time()
+            t0 = time.monotonic()
             for offset in range(0, cache_size, chunk_size):
                 yield cache_view[offset:offset+chunk_size]
                 if self._dwelltime is not None:
-                    actual_duration = time.time() - t0
+                    actual_duration = time.monotonic() - t0
                     target_duration = total_duration * offset / cache_size
                     to_sleep = target_duration - actual_duration
                     if to_sleep > 0:
@@ -512,9 +512,9 @@ class MemfdSocketSim(DataSocketSimulator):
         if self._continuous:
             i = 0
             while True:
-                t0 = time.time()
+                t0 = time.monotonic()
                 self._send_full_file(conn)
-                t1 = time.time()
+                t1 = time.monotonic()
                 throughput = self._size / (t1 - t0) / 1024 / 1024
                 logger.info("cycle %d took %.05fs (%.2fMiB/s)" % (i, t1 - t0, throughput))
                 i += 1
@@ -522,9 +522,9 @@ class MemfdSocketSim(DataSocketSimulator):
                     raise StopException("max_runs exceeded")
         else:
             logger.info("yielding from single scan")
-            t0 = time.time()
+            t0 = time.monotonic()
             self._send_full_file(conn)
-            t1 = time.time()
+            t1 = time.monotonic()
             throughput = self._size / (t1 - t0) / 1024 / 1024
             logger.info(f"single scan took {t1 - t0:.05f}s ({throughput:.2f}MiB/s)")
 
@@ -906,7 +906,7 @@ class CameraSim:
         logger.info("Stopping...")
         self.stop_event.set()
         timeout = 2
-        start = time.time()
+        start = time.monotonic()
         while True:
             self.control_t.maybe_raise()
             self.server_t.maybe_raise()
@@ -918,12 +918,12 @@ class CameraSim:
             ):
                 break
 
-            if (time.time() - start) >= timeout:
+            if (time.monotonic() - start) >= timeout:
                 # Since the threads are daemon threads, they will die abruptly
                 # when this main thread finishes. This is at the discretion of the caller.
                 raise UndeadException("Server threads won't die")
             time.sleep(0.1)
-        logger.info(f"stopping took {time.time() - start}s")
+        logger.info(f"stopping took {time.monotonic() - start}s")
 
 
 @click.command()

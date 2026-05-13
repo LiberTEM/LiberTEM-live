@@ -115,8 +115,8 @@ class ZMQReplay(ErrThreadMixin, threading.Thread):
         """
         To be called from the main thread
         """
-        t0 = time.time()
-        while time.time() - t0 < timeout:
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < timeout:
             if self.listen_event.wait(timeout=0.1):
                 return
             self.maybe_raise()
@@ -738,7 +738,7 @@ class DectrisSim:
         self.stop_event.set()
         self.api_server.terminate()
         timeout = 32
-        start = time.time()
+        start = time.monotonic()
         while True:
             self.maybe_raise()
             if (
@@ -747,13 +747,13 @@ class DectrisSim:
             ):
                 break
 
-            if (time.time() - start) >= timeout:
+            if (time.monotonic() - start) >= timeout:
                 # Since the threads are daemon threads, they will die abruptly
                 # when this main thread finishes. This is at the discretion of the caller.
                 raise UndeadException("Server threads won't die")
             time.sleep(0.1)
 
-        logger.info(f"stopping took {time.time() - start}s")
+        logger.info(f"stopping took {time.monotonic() - start}s")
 
 
 @click.command()

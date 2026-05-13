@@ -71,8 +71,8 @@ class ServerThreadMixin(ErrThreadMixin):
         """
         To be called from the main thread
         """
-        t0 = time.time()
-        while time.time() - t0 < timeout:
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < timeout:
             if self.listen_event.wait(timeout=0.1):
                 return
             self.maybe_raise()
