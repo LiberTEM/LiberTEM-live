@@ -247,19 +247,19 @@ class TpxCameraSim:
         logger.info("Stopping...")
         self.stop_event.set()
         timeout = 2
-        start = time.time()
+        start = time.monotonic()
         while True:
             self.server_t.maybe_raise()
             if not self.server_t.is_alive():
                 break
 
-            if (time.time() - start) >= timeout:
+            if (time.monotonic() - start) >= timeout:
                 # Since the threads are daemon threads, they will die abruptly
                 # when this main thread finishes. This is at the discretion of the caller.
                 raise UndeadException("Server threads won't die")
             time.sleep(0.1)
 
-        logger.info(f"stopping took {time.time() - start}s")
+        logger.info(f"stopping took {time.monotonic() - start}s")
 
 
 @click.command()
