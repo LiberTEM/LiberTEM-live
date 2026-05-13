@@ -988,6 +988,12 @@ def main(path, nav_shape, continuous,
         )
         cached = 'NONE'
 
+    if dwelltime is not None and dwelltime >= 1000 and cached.upper() in ['MEM', 'MEMFD']:
+        logger.warn(
+            f"Disabling cache (--cached='{cached}') for accurate dwelltime >= 1000 microseconds",
+        )
+        cached = 'NONE'
+
     if max_runs != -1 and not continuous:
         logger.warn("`max_runs` only has an effect in continuous mode; ignoring")
 
