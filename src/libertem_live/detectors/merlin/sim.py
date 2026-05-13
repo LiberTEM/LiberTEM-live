@@ -416,7 +416,7 @@ class CachedDataSocketSim(DataSocketSimulator):
         cache_size = self.get_size(roi)
         num_images = self.get_num_images(roi)
 
-        if self._dwelltime:
+        if self._dwelltime is not None:
             total_duration = self._dwelltime * num_images * 1e-6  # dwell time in microseconds
 
         if self._cache is None:
