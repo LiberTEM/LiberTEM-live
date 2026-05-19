@@ -3,7 +3,7 @@ Changelog
 
 .. _continuous:
 
-0.3.0.dev0
+0.4.0.dev0
 ##########
 
 .. toctree::
@@ -12,6 +12,30 @@ Changelog
   changelog/*/*
 
 .. _latest:
+
+.. _`v0-3-0`:
+
+0.3.0 / 2026-05-19
+##################
+
+Starting from this version, LiberTEM-live is now available under the MIT license.
+A major improvement is the new Merlin QD backend written in rust,
+which should improve both performance and stability.
+
+Features
+--------
+
+* Support for Python 3.13 and 3.14 (:pr:`175`, :pr:`188`), removing support for Python 3.9 (:pr:`190`).
+* Rewritten backend for the QD Merlin Medipix, for better performance and stability (:pr:`161`, :issue:`160`)
+* Properly cancel UDF runs when data stream is interrupted (:pr:`121`) - raise a
+  :class:`~libertem.exceptions.UDFRunCancelled` when we receive less data than expected.
+* Support specifying a dwell time to the Merlin simulator in the same way as for the Dectris simulator (:pr:`195`).
+
+Bugfixes
+--------
+
+* Multiple fixes for the merlin simulator (:pr:`159`, :pr:`191`), allowing multiple acquisitions
+  per connection, fixing sequence numbering, generated acquisition header, and control socket handling.
 
 .. _`v0-2-1`:
 
