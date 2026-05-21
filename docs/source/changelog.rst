@@ -15,8 +15,11 @@ Changelog
 
 .. _`v0-3-0`:
 
-0.3.0 / 2026-05-19
+0.3.0 / 2026-05-21
 ##################
+
+.. image:: https://zenodo.org/badge/DOI/10.5281/zenodo.20323918.svg
+  :target: https://doi.org/10.5281/zenodo.20323918
 
 Starting from this version, LiberTEM-live is now available under the MIT license.
 A major improvement is the new Merlin QD backend written in rust,
