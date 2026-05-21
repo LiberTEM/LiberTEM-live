@@ -156,7 +156,7 @@ The simulator accepts the following parameters:
 
 
 A suitable MIB dataset for testing can be downloaded at
-https://zenodo.org/record/5113449.
+https://zenodo.org/records/5113449.
 
 See the :ref:`Merlin reference section <merlin reference>` for a description of
 the acquisition parameters.
