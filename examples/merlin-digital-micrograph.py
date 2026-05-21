@@ -11,7 +11,7 @@
 # since that allows to drain the data socket before an acquisition like it is
 # necessary for a real-world Merlin detector.
 
-# A suitable dataset is available at https://zenodo.org/record/5113449
+# A suitable dataset is available at https://zenodo.org/records/5113449
 
 import sys
 import os
